@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+	:root {
+		/* Padel court colors: court surface, lines, glass walls, and padel colors */
+		--background: 175 18% 89%;    /* Light padel court surface color (blue-green) */
+		--foreground: 0 0% 14.50%;     /* Dark text on light background */
+		--card: 175 15% 85%;           /* Slightly lighter court surface */
+		--card-foreground: 0 0% 14.50%;
+		--popover: 175 18% 89%;
+		--popover-foreground: 0 0% 14.50%;
+		
+		/* Primary color - Official padel ball yellow */
+		--primary: 45 98% 48%;         /* Padel ball yellow */
+		--primary-foreground: 0 0% 14.50%;
+		
+		/* Secondary - Racket colors */
+		--secondary: 0 0% 94%;         /* Light gray for racket surface */
+		--secondary-foreground: 0 0% 20.50%;
+		
+		/* Muted - Glass wall effect */
+		--muted: 175 10% 90%;          /* Court color with less saturation */
+		--muted-foreground: 0 0% 45%;   /* Medium gray for subtle text */
+		
+		/* Accent - White court lines */
+		--accent: 0 0% 98%;            /* Court line color (bright white) */
+		--accent-foreground: 0 0% 14.50%;
+		
+		/* Destructive - Warning red for out of bounds */
+		--destructive: 0 85% 55%;
+		--destructive-foreground: 0 0% 100%;
+		
+		/* Borders and rings - Padel net color */
+		--border: 175 12% 82%;
+		--input: 175 12% 82%;
+		--ring: 175 35% 65%;            /* Darker blue-green for ring effect */
+	}
+
+	.dark:root {
+		/* Dark mode: Night court/indoor padel colors */
+		--background: 210 40% 8%;       /* Dark court surface */
+		--foreground: 0 0% 98%;         /* Light text on dark background */
+		--card: 210 35% 12%;            /* Darker court surface */
+		--card-foreground: 0 0% 98%;
+		--popover: 210 40% 8%;
+		--popover-foreground: 0 0% 98%;
+		
+		/* Primary remains same - padel ball yellow stands out in dark mode */
+		--primary: 45 98% 48%;
+		--primary-foreground: 0 0% 14.50%;
+		
+		/* Secondary - Darker racket colors */
+		--secondary: 210 20% 20%;       /* Dark racket surface */
+		--secondary-foreground: 0 0% 98%;
+		
+		/* Muted - Dark court variant */
+		--muted: 210 35% 15%;
+		--muted-foreground: 210 10% 65%;
+		
+		/* Accent - Court lines in dark mode */
+		--accent: 0 0% 100%;
+		--accent-foreground: 210 40% 8%;
+		
+		/* Destructive remains similar for consistency */
+		--destructive: 0 85% 45%;
+		--destructive-foreground: 0 0% 100%;
+		
+		/* Borders and rings - Darker padel blue-green */
+		--border: 210 20% 25%;
+		--input: 210 20% 25%;
+		--ring: 175 80% 30%;
+	}
+}
