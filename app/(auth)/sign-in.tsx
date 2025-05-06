@@ -9,6 +9,7 @@ import { Form, FormField, FormInput } from "@/components/ui/form";
 import { Text } from "@/components/ui/text";
 import { H1, P } from "@/components/ui/typography";
 import { useAuth } from "@/context/supabase-provider";
+import { useRouter } from "expo-router";
 
 const formSchema = z.object({
   email: z.string().email("Please enter a valid email address."),
@@ -20,6 +21,7 @@ const formSchema = z.object({
 
 export default function SignIn() {
   const { signIn } = useAuth();
+  const router = useRouter()
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -103,8 +105,7 @@ export default function SignIn() {
             variant="link"
             className="self-start p-0"
             onPress={() => {
-              // Navigate to forgot password screen
-              console.log("Navigate to forgot password");
+        router.push("/forgot-password")
             }}
           >
             <Text className="text-primary">Forgot password?</Text>
@@ -136,6 +137,8 @@ export default function SignIn() {
         >
           <Text>Create Account</Text>
         </Button>
+
+  
       </View>
     </SafeAreaView>
   );

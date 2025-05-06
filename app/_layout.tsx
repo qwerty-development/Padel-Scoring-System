@@ -50,6 +50,24 @@ export default function AppLayout() {
 						gestureEnabled: true,
 					}}
 				/>
+				<Stack.Screen
+					name="(auth)/forgot-password"
+					options={{
+						headerShown: false,
+						headerTitle: "Forgot Password",
+						headerStyle: {
+							backgroundColor:
+								colorScheme === "dark"
+									? colors.dark.background
+									: colors.light.background,
+						},
+						headerTintColor:
+							colorScheme === "dark"
+								? colors.dark.foreground
+								: colors.light.foreground,
+						gestureEnabled: true,
+					}}
+				/>
 			</Stack>
 		</AuthProvider>
 	);

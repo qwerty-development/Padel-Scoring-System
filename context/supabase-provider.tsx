@@ -12,8 +12,6 @@ import {
   
   SplashScreen.preventAutoHideAsync();
   
-  SplashScreen.preventAutoHideAsync();
-  
   // Define the UserProfile type
   export interface UserProfile {
 	id: string;
@@ -38,10 +36,24 @@ import {
 	session: Session | null;
 	profile: UserProfile | null;
 	isProfileComplete: boolean;
-	signUp: (email: string, password: string) => Promise<void>;
+	signUp: (email: string, password: string) => Promise<{
+	  error?: Error;
+	  needsEmailVerification?: boolean;
+	  email?: string;
+	}>;
 	signIn: (email: string, password: string) => Promise<void>;
 	signOut: () => Promise<void>;
 	saveProfile: (profileData: Partial<UserProfile>) => Promise<void>;
+	verifyOtp: (email: string, otp: string) => Promise<{
+	  error?: Error;
+	  data?: any;
+	}>;
+	resetPassword: (email: string) => Promise<{
+		error?: Error;
+	  }>;
+	  updatePassword: (email: string, code: string, newPassword: string) => Promise<{
+		error?: Error;
+	  }>;
   };
   
   export const AuthContext = createContext<AuthState>({
@@ -49,14 +61,70 @@ import {
 	session: null,
 	profile: null,
 	isProfileComplete: false,
-	signUp: async () => {},
+	signUp: async () => ({}),
 	signIn: async () => {},
 	signOut: async () => {},
 	saveProfile: async () => {},
+	verifyOtp: async () => ({}),
+	resetPassword: async () => ({}),
+	updatePassword: async () => ({}),
   });
   
   export const useAuth = () => useContext(AuthContext);
   
+  const resetPassword = async (email: string) => {
+	try {
+	  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+		redirectTo: null, // Don't redirect, we'll handle verification with OTP
+	  });
+  
+	  if (error) {
+		console.error("Error requesting password reset:", error);
+		return { error };
+	  }
+  
+	  return { error: null };
+	} catch (error) {
+	  console.error("Error requesting password reset:", error);
+	  return { error: error as Error };
+	}
+  };
+  
+  const updatePassword = async (email: string, code: string, newPassword: string) => {
+	try {
+	  // First verify the OTP
+	  const { data, error } = await supabase.auth.verifyOtp({
+		email,
+		token: code,
+		type: 'recovery',
+	  });
+  
+	  if (error) {
+		console.error("Error verifying reset code:", error);
+		return { error };
+	  }
+  
+	  // If OTP verification succeeded, update the password
+	  if (data.session) {
+		const { error: updateError } = await supabase.auth.updateUser({
+		  password: newPassword
+		});
+  
+		if (updateError) {
+		  console.error("Error updating password:", updateError);
+		  return { error: updateError };
+		}
+	  } else {
+		return { error: new Error("Verification succeeded but no session was created") };
+	  }
+  
+	  return { error: null };
+	} catch (error) {
+	  console.error("Error resetting password:", error);
+	  return { error: error as Error };
+	}
+  };
+
   // Helper function to check if profile is complete
   const checkProfileComplete = (profile: UserProfile | null): boolean => {
 	if (!profile) return false;
@@ -77,46 +145,57 @@ import {
 	const [session, setSession] = useState<Session | null>(null);
 	const [profile, setProfile] = useState<UserProfile | null>(null);
 	const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+	const [isVerificationComplete, setIsVerificationComplete] = useState(false);
 	const router = useRouter();
   
 	// Fetch user profile from the database
 	const fetchProfile = async (userId: string) => {
-		try {
-		  setIsLoadingProfile(true);
-		  const { data, error } = await supabase
-			.from('profiles')
-			.select('*')
-			.eq('id', userId)
-			.single();
+	  try {
+		setIsLoadingProfile(true);
+		const { data, error } = await supabase
+		  .from('profiles')
+		  .select('*')
+		  .eq('id', userId)
+		  .single();
 	  
-		  if (error) {
-			console.error("Error fetching profile:", error);
-			return;
-		  }
-	  
-		  setProfile(data);
-		} catch (error) {
+		if (error) {
 		  console.error("Error fetching profile:", error);
-		} finally {
-		  setIsLoadingProfile(false);
+		  return;
 		}
-	  };
+	  
+		setProfile(data);
+	  } catch (error) {
+		console.error("Error fetching profile:", error);
+	  } finally {
+		setIsLoadingProfile(false);
+	  }
+	};
   
 	const signUp = async (email: string, password: string) => {
 	  try {
+		// Configure Supabase to use email verification
 		const { data, error } = await supabase.auth.signUp({
 		  email,
 		  password,
+		  options: {
+			emailRedirectTo: null, // Disable redirect to use OTP instead
+			data: {
+			  // Additional user data if needed
+			},
+		  },
 		});
   
 		if (error) {
 		  console.error("Error signing up:", error);
-		  return;
+		  return { error };
 		}
+  
+		// Check if email verification is needed
+		const needsEmailVerification = !data.session;
   
 		if (data.session) {
 		  setSession(data.session);
-		  console.log("User signed up:", data.user);
+		  console.log("User signed up and automatically signed in:", data.user);
 		  
 		  // Create a profile when the user signs up
 		  if (data.user) {
@@ -132,9 +211,83 @@ import {
 			  console.error("Error creating profile:", profileError);
 			}
 		  }
+		} else {
+		  console.log("User signed up, email verification required");
 		}
+  
+		return { 
+		  needsEmailVerification, 
+		  email 
+		};
 	  } catch (error) {
 		console.error("Error signing up:", error);
+		return { error: error as Error };
+	  }
+	};
+  
+	const verifyOtp = async (email: string, otp: string) => {
+	  try {
+		// Reset verification flag at the beginning of the verification process
+		setIsVerificationComplete(false);
+		
+		// Verify the OTP code
+		const { data, error } = await supabase.auth.verifyOtp({
+		  email,
+		  token: otp,
+		  type: 'signup',
+		});
+  
+		if (error) {
+		  console.error("Error verifying OTP:", error);
+		  return { error };
+		}
+  
+		if (data.session && data.user) {
+		  // Check if profile exists before proceeding
+		  const { data: existingProfile, error: profileCheckError } = await supabase
+			.from('profiles')
+			.select('id')
+			.eq('id', data.user.id)
+			.single();
+  
+		  // Handle profile check error, but ignore "no rows returned" error
+		  if (profileCheckError && profileCheckError.code !== 'PGRST116') {
+			console.error("Error checking profile existence:", profileCheckError);
+			return { error: profileCheckError };
+		  }
+  
+		  // Create profile if it doesn't exist
+		  if (!existingProfile) {
+			console.log("Creating new profile after verification");
+			const { error: createError } = await supabase
+			  .from('profiles')
+			  .insert({
+				id: data.user.id,
+				email: data.user.email,
+				created_at: new Date().toISOString(),
+			  });
+  
+			if (createError) {
+			  console.error("Error creating profile after verification:", createError);
+			  return { error: createError };
+			}
+		  }
+  
+		  // Fetch profile before setting session to ensure correct navigation
+		  await fetchProfile(data.user.id);
+		  
+		  // Set session only after profile operations are complete
+		  setSession(data.session);
+		  console.log("User verified and signed in:", data.user);
+		  
+		  // Mark verification as complete - will trigger navigation to onboarding
+		  setIsVerificationComplete(true);
+		}
+  
+		return { data };
+	  } catch (error) {
+		console.error("Error verifying OTP:", error);
+		return { error: error as Error };
 	  }
 	};
   
@@ -237,51 +390,61 @@ import {
 	}, []);
   
 	useEffect(() => {
-		if (initialized) {
-		  SplashScreen.hideAsync();
+	  if (initialized) {
+		SplashScreen.hideAsync();
+		
+		if (session) {
+		  console.log('Session exists, checking profile...');
+		  console.log('Profile:', profile);
+		  console.log('Is profile complete:', checkProfileComplete(profile));
 		  
-		  if (session) {
-			console.log('Session exists, checking profile...');
-			console.log('Profile:', profile);
-			console.log('Is profile complete:', checkProfileComplete(profile));
-			
-			// Don't navigate if still loading profile
-			if (isLoadingProfile) {
-			  return;
-			}
-			
-			if (!checkProfileComplete(profile)) {
-			  router.replace("/onboarding");
-			} else {
-			  router.replace("/(protected)/(tabs)");
-			}
-		  } else {
-			router.replace("/welcome");
+		  // Don't navigate if still loading profile
+		  if (isLoadingProfile) {
+			return;
 		  }
+		  
+		  // Special handling for just-completed verification - always go to onboarding
+		  if (isVerificationComplete) {
+			console.log('Verification just completed - redirecting to onboarding');
+			setIsVerificationComplete(false); // Reset the flag after navigation
+			router.replace("/onboarding");
+			return;
+		  }
+		  
+		  // Standard navigation logic for non-verification flows
+		  if (!checkProfileComplete(profile)) {
+			router.replace("/onboarding");
+		  } else {
+			router.replace("/(protected)/(tabs)");
+		  }
+		} else {
+		  router.replace("/welcome");
 		}
-	  }, [initialized, session, profile, isLoadingProfile]);
-	  
-	  const isProfileComplete = checkProfileComplete(profile);
-	  
-	  // Show loading screen while initializing OR loading profile
-	  if (!initialized || isLoadingProfile) {
-		return <PadelLoadingScreen />;
 	  }
-	  
-	  return (
-		<AuthContext.Provider
-		  value={{
-			initialized,
-			session,
-			profile,
-			isProfileComplete,
-			signUp,
-			signIn,
-			signOut,
-			saveProfile,
-		  }}
-		>
-		  {children}
-		</AuthContext.Provider>
-	  );
+	}, [initialized, session, profile, isLoadingProfile, isVerificationComplete]);
+	
+	// Show loading screen while initializing OR loading profile
+	if (!initialized || isLoadingProfile) {
+	  return <PadelLoadingScreen />;
 	}
+	
+	return (
+	  <AuthContext.Provider
+		value={{
+		  initialized,
+		  session,
+		  profile,
+		  isProfileComplete: checkProfileComplete(profile),
+		  signUp,
+		  signIn,
+		  signOut,
+		  saveProfile,
+		  verifyOtp,
+		  resetPassword,
+		  updatePassword
+		}}
+	  >
+		{children}
+	  </AuthContext.Provider>
+	);
+  }
