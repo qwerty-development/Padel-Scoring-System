@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, TouchableOpacity, ActivityIndicator, ScrollView, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
@@ -23,25 +23,29 @@ export default function LeaderboardTab() {
   const [userRank, setUserRank] = useState<{position: number, total: number} | null>(null);
   const [viewType, setViewType] = useState<'global' | 'friends'>('global');
   const { session, profile } = useAuth();
+  const [refreshing, setRefreshing] = useState(false); // Added for pull to refresh
+
+  const fetchData = useCallback(async () => {
+    if (session?.user?.id) {
+      await Promise.all([fetchTopRankings(), fetchUserRank()]);
+    }
+  }, [session, viewType, profile]); // Added profile to dependency array for fetchUserRank
 
   useEffect(() => {
-    if (session?.user?.id) {
-      fetchTopRankings();
-      fetchUserRank();
-    }
-  }, [session, viewType]);
+    setLoading(true);
+    fetchData().finally(() => setLoading(false));
+  }, [fetchData]);
+
 
   const fetchTopRankings = async () => {
     try {
-      setLoading(true);
+      // setLoading(true); // setLoading is handled by fetchData now
       
       let query = supabase
         .from('profiles')
         .select('id, full_name, email, glicko_rating');
         
-      // Apply friends filter when needed
       if (viewType === 'friends' && profile?.friends_list && Array.isArray(profile.friends_list)) {
-        // Add current user to the list to ensure they appear in the ranking
         const userAndFriends = [...profile.friends_list];
         if (session?.user?.id) userAndFriends.push(session.user.id);
         
@@ -57,7 +61,7 @@ export default function LeaderboardTab() {
     } catch (error) {
       console.error('Error fetching top rankings:', error);
     } finally {
-      setLoading(false);
+      // setLoading(false); // setLoading is handled by fetchData now
     }
   };
 
@@ -69,7 +73,6 @@ export default function LeaderboardTab() {
         .from('profiles')
         .select('id', { count: 'exact', head: true });
         
-      // For friends view, limit the count to friends
       if (viewType === 'friends' && profile?.friends_list && Array.isArray(profile.friends_list)) {
         const userAndFriends = [...profile.friends_list];
         if (session?.user?.id) userAndFriends.push(session.user.id);
@@ -77,19 +80,16 @@ export default function LeaderboardTab() {
         totalCountQuery = totalCountQuery.in('id', userAndFriends);
       }
       
-      // Get total count
       const { count, error: countError } = await totalCountQuery;
       
       if (countError) throw countError;
       
-      // Find players with higher rating than current user
       if (profile?.glicko_rating) {
         let higherRankedQuery = supabase
           .from('profiles')
           .select('id', { count: 'exact', head: true })
           .gt('glicko_rating', profile.glicko_rating);
           
-        // For friends view, limit the query to friends
         if (viewType === 'friends' && profile?.friends_list && Array.isArray(profile.friends_list)) {
           const userAndFriends = [...profile.friends_list];
           if (session?.user?.id) userAndFriends.push(session.user.id);
@@ -106,18 +106,29 @@ export default function LeaderboardTab() {
             position: higherRanked + 1,
             total: count
           });
+        } else {
+           setUserRank(null); // Reset user rank if data is not sufficient
         }
+      } else {
+        setUserRank(null); // Reset user rank if no glicko_rating
       }
     } catch (error) {
       console.error('Error fetching user rank:', error);
+       setUserRank(null); // Reset user rank on error
     }
   };
+
+  // onRefresh function for pull to refresh
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchData();
+    setRefreshing(false);
+  }, [fetchData]); // fetchData is already memoized
 
   const renderUserRank = (user: UserRanking, index: number) => {
     const rank = index + 1;
     const isCurrentUser = user.id === session?.user?.id;
     
-    // Medal icons for top positions
     const renderRankIndicator = () => {
       if (rank === 1) return <Ionicons name="trophy" size={22} color="gold" />;
       if (rank === 2) return <Ionicons name="trophy" size={22} color="silver" />;
@@ -172,7 +183,7 @@ export default function LeaderboardTab() {
     );
   };
 
-  if (loading) {
+  if (loading && !refreshing) { // Ensure refreshing doesn't also trigger this full screen loader
     return (
       <View className="flex-1 bg-background items-center justify-center">
         <ActivityIndicator size="large" color="#fbbf24" />
@@ -182,7 +193,17 @@ export default function LeaderboardTab() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <ScrollView className="p-6">
+      <ScrollView
+        className="p-6"
+        refreshControl={ // Added RefreshControl
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#fbbf24" // iOS loading indicator color
+            colors={['#fbbf24']} // Android loading indicator color(s)
+          />
+        }
+      >
         <View className="mb-6">
           <H1 className="mb-2">Leaderboard</H1>
           <Text className="text-muted-foreground">
@@ -190,7 +211,6 @@ export default function LeaderboardTab() {
           </Text>
         </View>
         
-        {/* View toggle buttons */}
         <View className="flex-row gap-2 mb-6">
           <TouchableOpacity
             className={`flex-1 py-2 rounded-lg ${viewType === 'global' ? 'bg-primary' : 'bg-card'}`}
@@ -210,7 +230,6 @@ export default function LeaderboardTab() {
           </TouchableOpacity>
         </View>
         
-        {/* User's rank card */}
         {userRank && (
           <View className="bg-primary/10 rounded-xl p-4 mb-6">
             <Text className="text-center text-muted-foreground mb-2">
@@ -227,7 +246,6 @@ export default function LeaderboardTab() {
           </View>
         )}
         
-        {/* Top players list */}
         <View className="bg-card rounded-xl p-4 mb-6">
           <View className="mb-4 flex-row justify-between items-center">
             <Text className="font-medium">
@@ -251,7 +269,6 @@ export default function LeaderboardTab() {
           )}
         </View>
         
-        {/* Call to action */}
         <Button
           className="w-full" 
           variant="default"

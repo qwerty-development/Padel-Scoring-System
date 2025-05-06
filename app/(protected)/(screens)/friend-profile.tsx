@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, ActivityIndicator } from "react-native";
+import { View, ScrollView, ActivityIndicator, RefreshControl } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, router } from 'expo-router';
 
@@ -30,6 +30,7 @@ export default function FriendProfileScreen() {
   const { friendId } = useLocalSearchParams();
   const [profile, setProfile] = useState<FriendProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const { session } = useAuth();
 
   useEffect(() => {
@@ -40,7 +41,10 @@ export default function FriendProfileScreen() {
 
   const fetchFriendProfile = async (id: string) => {
     try {
-      setLoading(true);
+      if (!refreshing) {
+        setLoading(true);
+      }
+      
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -53,6 +57,14 @@ export default function FriendProfileScreen() {
       console.error('Error fetching friend profile:', error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    if (friendId) {
+      fetchFriendProfile(friendId as string);
     }
   };
 
@@ -102,7 +114,7 @@ export default function FriendProfileScreen() {
     </View>
   );
 
-  if (loading) {
+  if (loading && !refreshing) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
         <ActivityIndicator size="large" color="#fbbf24" />
@@ -130,7 +142,16 @@ export default function FriendProfileScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <ScrollView>
+      <ScrollView
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#fbbf24"]}
+            tintColor="#fbbf24"
+          />
+        }
+      >
         {/* Header with back button */}
         <View className="px-6 pt-4 flex-row items-center">
           <Button 

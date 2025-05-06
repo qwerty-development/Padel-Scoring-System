@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, ActivityIndicator, Share } from 'react-native';
+import { View, ScrollView, TouchableOpacity, ActivityIndicator, Share, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, router } from 'expo-router';
 
@@ -41,6 +41,7 @@ export default function MatchDetails() {
   const { matchId } = useLocalSearchParams();
   const [match, setMatch] = useState<MatchDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const { session } = useAuth();
 
   useEffect(() => {
@@ -51,7 +52,9 @@ export default function MatchDetails() {
 
   const fetchMatchDetails = async (id: string) => {
     try {
-      setLoading(true);
+      if (!refreshing) {
+        setLoading(true);
+      }
       
       const { data, error } = await supabase
         .from('matches')
@@ -71,6 +74,14 @@ export default function MatchDetails() {
       console.error('Error fetching match details:', error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    if (matchId) {
+      fetchMatchDetails(matchId as string);
     }
   };
 
@@ -129,7 +140,7 @@ export default function MatchDetails() {
     </View>
   );
 
-  if (loading) {
+  if (loading && !refreshing) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
         <ActivityIndicator size="large" color="#fbbf24" />
@@ -165,7 +176,17 @@ export default function MatchDetails() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <ScrollView className="p-6">
+      <ScrollView 
+        className="p-6"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#fbbf24"]}
+            tintColor="#fbbf24"
+          />
+        }
+      >
         <View className="flex-row items-center mb-6">
           <Button 
             variant="ghost" 
