@@ -7,31 +7,35 @@ export const unstable_settings = {
 };
 
 export default function ProtectedLayout() {
-	const { initialized, session } = useAuth();
-
+	const { initialized, session, isProfileComplete } = useAuth();
+  
 	if (!initialized) {
-		return null;
+	  return null;
 	}
-
+  
 	if (!session) {
-		return <Redirect href="/welcome" />;
+	  return <Redirect href="/welcome" />;
 	}
-
-	// in app/(protected)/_layout.tsx
-return (
-	<Stack
-	  screenOptions={{
-		headerShown: false,
-	  }}
-	>
-	  <Stack.Screen name="(tabs)" />
-	  <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-	  <Stack.Screen name="(screens)/friends" />
-	  <Stack.Screen name="(screens)/friend-profile" />
-	  <Stack.Screen name="(screens)/create-match" />
-	  <Stack.Screen name="(screens)/match-history" />
-	  <Stack.Screen name="(screens)/match-details" />
-	  <Stack.Screen name="(screens)/leaderboard" />
-	</Stack>
-  )
-}
+  
+	// Add this check to prevent redirection to tabs if profile is incomplete
+	if (!isProfileComplete) {
+	  return <Redirect href="/onboarding" />;
+	}
+  
+	return (
+	  <Stack
+		screenOptions={{
+		  headerShown: false,
+		}}
+	  >
+		<Stack.Screen name="(tabs)" />
+		<Stack.Screen name="modal" options={{ presentation: "modal" }} />
+		<Stack.Screen name="(screens)/friends" />
+		<Stack.Screen name="(screens)/friend-profile" />
+		<Stack.Screen name="(screens)/create-match" />
+		<Stack.Screen name="(screens)/match-history" />
+		<Stack.Screen name="(screens)/match-details" />
+		<Stack.Screen name="(screens)/leaderboard" />
+	  </Stack>
+	);
+  }
