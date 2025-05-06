@@ -14,7 +14,7 @@ const formSchema = z.object({
   email: z.string().email("Please enter a valid email address."),
   password: z
     .string()
-    .min(8, "Please enter at least 8 characters.")
+    // .min(8, "Please enter at least 8 characters.")
     .max(64, "Please enter fewer than 64 characters."),
 });
 

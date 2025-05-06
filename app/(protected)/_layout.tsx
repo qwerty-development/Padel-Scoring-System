@@ -17,15 +17,21 @@ export default function ProtectedLayout() {
 		return <Redirect href="/welcome" />;
 	}
 
-	return (
-		<Stack
-			screenOptions={{
-				headerShown: false,
-			}}
-		>
-			<Stack.Screen name="(tabs)" />
-			<Stack.Screen name="modal" options={{ presentation: "modal" }} />
-			<Stack.Screen name="(screens)/friends" />
-		</Stack>
-	);
+	// in app/(protected)/_layout.tsx
+return (
+	<Stack
+	  screenOptions={{
+		headerShown: false,
+	  }}
+	>
+	  <Stack.Screen name="(tabs)" />
+	  <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+	  <Stack.Screen name="(screens)/friends" />
+	  <Stack.Screen name="(screens)/friend-profile" />
+	  <Stack.Screen name="(screens)/create-match" />
+	  <Stack.Screen name="(screens)/match-history" />
+	  <Stack.Screen name="(screens)/match-details" />
+	  <Stack.Screen name="(screens)/leaderboard" />
+	</Stack>
+  )
 }

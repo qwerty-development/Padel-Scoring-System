@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { Text } from '@/components/ui/text';
 import { H1, H3 } from '@/components/ui/typography';
 import { Button } from '@/components/ui/button';
@@ -105,45 +106,79 @@ export default function FriendsScreen() {
 
   const handleFriendRequest = async (requestId: string, action: 'accept' | 'deny') => {
     try {
+      // Optimistically update UI state for better user experience
+      // Remove the request from the UI immediately
+      setFriendRequests(prev => prev.filter(req => req.id !== requestId));
+      
       if (action === 'accept') {
         // First, update the status to 'accepted'
         const { data, error } = await supabase
           .from('friend_requests')
           .update({ status: 'accepted' })
           .eq('id', requestId)
-          .select()
+          .select('*, from_user:profiles!from_user_id(id, full_name, email)')
           .single();
   
         if (error) throw error;
   
         // Then manually update the friends lists
         if (data) {
-          console.log(data)
-          // Update sender's friends list
+          // Add to local friends list immediately for UI responsiveness
+          if (data.from_user) {
+            const newFriend = {
+              id: data.from_user.id,
+              email: data.from_user.email,
+              full_name: data.from_user.full_name,
+              age: null,
+              preferred_hand: null,
+              court_playing_side: null,
+              glicko_rating: null
+            };
+            setFriends(prev => [...prev, newFriend]);
+          }
+          
+          // Update sender's friends list in DB
           await supabase
             .from('profiles')
             .update({ friends_list: [...(profile?.friends_list || []), data.to_user_id] })
             .eq('id', data.from_user_id);
   
-          // Update receiver's friends list
+          // Update receiver's friends list in DB
+          const updatedFriendsList = [...(profile?.friends_list || []), data.from_user_id];
           await supabase
             .from('profiles')
-            .update({ friends_list: [...(profile?.friends_list || []), data.from_user_id] })
+            .update({ friends_list: updatedFriendsList })
             .eq('id', data.to_user_id);
+            
+          // Update local profile
+          if (profile) {
+            const updatedProfile = {
+              ...profile,
+              friends_list: updatedFriendsList
+            };
+            // Need to cast here to update context
+            (useAuth as any)().saveProfile(updatedProfile);
+          }
         }
       }
   
-      // Finally, delete the request regardless of action
+      // Delete the request regardless of action
       await supabase
         .from('friend_requests')
         .delete()
         .eq('id', requestId);
       
-      // Refresh data
-      fetchFriendRequests();
-      fetchFriends();
+      // Refresh data - but after a short delay to let the optimistic UI update feel smooth
+      setTimeout(() => {
+        fetchFriendRequests();
+        fetchFriends();
+      }, 1000);
+      
     } catch (error) {
       console.error('Error handling friend request:', error);
+      // Revert UI changes on error by refetching the real data
+      fetchFriendRequests();
+      fetchFriends();
     }
   };
 
@@ -247,6 +282,18 @@ export default function FriendsScreen() {
         </View>
       </View>
     </View>
+    <TouchableOpacity
+      onPress={(e) => {
+        e.stopPropagation(); // Prevent triggering the card expansion
+        router.push({
+          pathname: '/(protected)/(screens)/friend-profile',
+          params: { friendId: friend.id }
+        });
+      }}
+      className="mr-3 p-2"
+    >
+      <Ionicons name="person" size={20} color="#fbbf24" />
+    </TouchableOpacity>
     <Ionicons 
       name={isExpanded ? "chevron-up" : "chevron-down"} 
       size={20} 
@@ -268,6 +315,20 @@ export default function FriendsScreen() {
             <Text className="text-xs text-muted-foreground">Age</Text>
           </View>
         </View>
+      </View>
+      <View className="mt-4 flex-row">
+        <Button
+          className="flex-1"
+          variant="default"
+          onPress={() => {
+            router.push({
+              pathname: '/(protected)/(screens)/friend-profile',
+              params: { friendId: friend.id }
+            });
+          }}
+        >
+          <Text>View Full Profile</Text>
+        </Button>
       </View>
     </View>
   )}
@@ -359,12 +420,20 @@ export default function FriendsScreen() {
       <ScrollView className="p-6">
         <View className="flex-row justify-between items-center mb-6">
           <H1>Friends</H1>
-          <TouchableOpacity 
-            className="w-10 h-10 rounded-full bg-primary items-center justify-center"
-            onPress={() => setShowAddModal(true)}
-          >
-            <Ionicons name="add" size={24} color="#333" />
-          </TouchableOpacity>
+          <View className="flex-row">
+            <TouchableOpacity 
+              className="w-10 h-10 rounded-full bg-accent items-center justify-center mr-2"
+              onPress={() => router.push('/(protected)/(screens)/create-match')}
+            >
+              <Ionicons name="tennisball" size={20} color="#333" />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              className="w-10 h-10 rounded-full bg-primary items-center justify-center"
+              onPress={() => setShowAddModal(true)}
+            >
+              <Ionicons name="add" size={24} color="#333" />
+            </TouchableOpacity>
+          </View>
         </View>
         
         {/* Tab navigation */}
