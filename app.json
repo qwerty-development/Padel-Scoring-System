@@ -30,7 +30,7 @@
         "dark": "./assets/icon-dark.png",
         "light": "./assets/icon.png"
       },
-      "bundleIdentifier": "com.flemingvincent.ExpoSupabaseStarter"
+      "bundleIdentifier": "com.qwertyapp.padel-scoring-app"
     },
     "android": {
       "adaptiveIcon": {
