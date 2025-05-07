@@ -1,13 +1,21 @@
-const { getDefaultConfig } = require("expo/metro-config");
-const { withNativeWind } = require("nativewind/metro");
+// metro.config.js
+const { getDefaultConfig } = require('@expo/metro-config');
+const { withNativeWind } = require('nativewind/metro');
 
-const config = getDefaultConfig(__dirname);
+const defaultConfig = getDefaultConfig(__dirname, {
+  // this flag turns on CSS support so that nativewind can inject your global.css
+  isCSSEnabled: true,
+});
 
-// https://github.com/supabase/supabase-js/issues/1258#issuecomment-2801695478
-config.resolver = {
-	...config.resolver,
-	unstable_conditionNames: ["browser"],
-	unstable_enablePackageExports: false,
+// apply your resolver overrides
+defaultConfig.resolver = {
+  ...defaultConfig.resolver,
+  // from your Supabase workaround
+  unstable_conditionNames: ['browser'],
+  unstable_enablePackageExports: false,
 };
 
-module.exports = withNativeWind(config, { input: "./global.css" });
+// wrap with NativeWind (and point at your Tailwind entry file)
+module.exports = withNativeWind(defaultConfig, {
+  input: './global.css',
+});
