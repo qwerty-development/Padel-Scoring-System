@@ -9,6 +9,8 @@ import {
   import { Session } from "@supabase/supabase-js";
   import { supabase } from "@/config/supabase";
   import PadelLoadingScreen from "@/components/PadelLoadingScreen";
+  import * as AppleAuthentication from 'expo-apple-authentication';
+  import { Platform } from "react-native";
   
   SplashScreen.preventAutoHideAsync();
   
@@ -49,11 +51,16 @@ import {
 	  data?: any;
 	}>;
 	resetPassword: (email: string) => Promise<{
-		error?: Error;
-	  }>;
-	  updatePassword: (email: string, code: string, newPassword: string) => Promise<{
-		error?: Error;
-	  }>;
+	  error?: Error;
+	}>;
+	updatePassword: (email: string, code: string, newPassword: string) => Promise<{
+	  error?: Error;
+	}>;
+	// Add apple sign in method
+	appleSignIn: () => Promise<{
+	  error?: Error;
+	  needsProfileUpdate?: boolean;
+	}>;
   };
   
   export const AuthContext = createContext<AuthState>({
@@ -68,6 +75,7 @@ import {
 	verifyOtp: async () => ({}),
 	resetPassword: async () => ({}),
 	updatePassword: async () => ({}),
+	appleSignIn: async () => ({}),
   });
   
   export const useAuth = () => useContext(AuthContext);
@@ -124,7 +132,7 @@ import {
 	  return { error: error as Error };
 	}
   };
-
+  
   // Helper function to check if profile is complete
   const checkProfileComplete = (profile: UserProfile | null): boolean => {
 	if (!profile) return false;
@@ -300,7 +308,7 @@ import {
   
 		if (error) {
 		  console.error("Error signing in:", error);
-		  return;
+		  throw error;
 		}
   
 		if (data.session) {
@@ -314,6 +322,7 @@ import {
 		}
 	  } catch (error) {
 		console.error("Error signing in:", error);
+		throw error;
 	  }
 	};
   
@@ -358,6 +367,103 @@ import {
 	  } catch (error) {
 		console.error("Error saving profile:", error);
 		throw error;
+	  }
+	};
+  
+	// Apple Sign In implementation
+	const appleSignIn = async () => {
+	  try {
+		// Check if Apple Authentication is available on this device
+		if (Platform.OS !== 'ios') {
+		  return { error: new Error('Apple authentication is only available on iOS devices') };
+		}
+		
+		const isAvailable = await AppleAuthentication.isAvailableAsync();
+		if (!isAvailable) {
+		  return { error: new Error('Apple authentication is not available on this device') };
+		}
+  
+		// Request authentication with Apple
+		const credential = await AppleAuthentication.signInAsync({
+		  requestedScopes: [
+			AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+			AppleAuthentication.AppleAuthenticationScope.EMAIL,
+		  ],
+		});
+  
+		// Sign in via Supabase Auth
+		if (credential.identityToken) {
+		  const { data, error } = await supabase.auth.signInWithIdToken({
+			provider: 'apple',
+			token: credential.identityToken,
+		  });
+  
+		  if (error) {
+			console.error("Apple auth error:", error);
+			return { error };
+		  }
+  
+		  if (data.session) {
+			setSession(data.session);
+			console.log("User signed in with Apple:", data.user);
+			
+			// Check if this is a new user and if they already have a profile
+			if (data.user) {
+			  const { data: existingProfile, error: profileError } = await supabase
+				.from('profiles')
+				.select('*')
+				.eq('id', data.user.id)
+				.single();
+  
+			  if (profileError && profileError.code !== 'PGRST116') {
+				console.error("Error checking profile:", profileError);
+			  }
+  
+			  if (!existingProfile) {
+				// Create minimal profile if none exists
+				const { error: createError } = await supabase
+				  .from('profiles')
+				  .insert({
+					id: data.user.id,
+					email: data.user.email,
+					// Add name from Apple if available
+					full_name: credential.fullName?.givenName && credential.fullName?.familyName
+					  ? `${credential.fullName.givenName} ${credential.fullName.familyName}`
+					  : null,
+					created_at: new Date().toISOString(),
+				  });
+  
+				if (createError) {
+				  console.error("Error creating profile:", createError);
+				}
+				
+				// Fetch the newly created profile
+				await fetchProfile(data.user.id);
+				
+				// Note that profile needs to be completed
+				return { needsProfileUpdate: true };
+			  } else {
+				// Fetch the existing profile
+				await fetchProfile(data.user.id);
+				
+				// Check if the profile needs to be completed
+				return { needsProfileUpdate: !checkProfileComplete(existingProfile) };
+			  }
+			}
+		  }
+		} else {
+		  return { error: new Error('No identity token received from Apple') };
+		}
+		
+		return {};
+	  } catch (error: any) {
+		if (error.code === 'ERR_REQUEST_CANCELED') {
+		  console.log('User canceled Apple sign-in');
+		  return {}; // Not an error, just a cancellation
+		}
+		
+		console.error("Apple authentication error:", error);
+		return { error: error as Error };
 	  }
 	};
   
@@ -441,7 +547,8 @@ import {
 		  saveProfile,
 		  verifyOtp,
 		  resetPassword,
-		  updatePassword
+		  updatePassword,
+		  appleSignIn
 		}}
 	  >
 		{children}

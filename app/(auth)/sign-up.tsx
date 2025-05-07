@@ -1,16 +1,19 @@
+import React, { useState, useEffect } from "react";
+import { ActivityIndicator, View, Alert, TouchableOpacity, Platform } from "react-native";
+import { router } from "expo-router";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { ActivityIndicator, View, Alert } from "react-native";
 import * as z from "zod";
-import { useState } from "react";
-import { router } from "expo-router";
+import * as AppleAuthentication from 'expo-apple-authentication';
+import { Ionicons } from "@expo/vector-icons";
 
 import { SafeAreaView } from "@/components/safe-area-view";
 import { Button } from "@/components/ui/button";
 import { Form, FormField, FormInput } from "@/components/ui/form";
 import { Text } from "@/components/ui/text";
-import { H1, H2 } from "@/components/ui/typography";
+import { H1 } from "@/components/ui/typography";
 import { useAuth } from "@/context/supabase-provider";
+import { useColorScheme } from "@/lib/useColorScheme";
 
 // Schema for the sign-up form
 const signUpFormSchema = z
@@ -50,10 +53,30 @@ const verificationFormSchema = z.object({
 });
 
 export default function SignUp() {
-  const { signUp, verifyOtp } = useAuth();
+  const { signUp, verifyOtp, appleSignIn } = useAuth();
   const [pendingVerification, setPendingVerification] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState("");
   const [generalError, setGeneralError] = useState("");
+  const [isAppleLoading, setIsAppleLoading] = useState(false);
+  const [appleAuthAvailable, setAppleAuthAvailable] = useState(false);
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
+
+  // Check if Apple Authentication is available
+  useEffect(() => {
+    const checkAppleAuthAvailability = async () => {
+      if (Platform.OS === 'ios') {
+        try {
+          const isAvailable = await AppleAuthentication.isAvailableAsync();
+          setAppleAuthAvailable(isAvailable);
+        } catch {
+          setAppleAuthAvailable(false);
+        }
+      }
+    };
+
+    checkAppleAuthAvailability();
+  }, []);
 
   // Form for sign-up step
   const signUpForm = useForm<z.infer<typeof signUpFormSchema>>({
@@ -72,6 +95,29 @@ export default function SignUp() {
       code: "",
     },
   });
+
+  // Handle Apple Sign In
+  const handleAppleSignIn = async () => {
+    setGeneralError("");
+    setIsAppleLoading(true);
+    
+    try {
+      const { error, needsProfileUpdate } = await appleSignIn();
+      
+      if (error) {
+        if (error.message !== 'User canceled Apple sign-in') {
+          setGeneralError(error.message || "Apple sign in failed.");
+        }
+      }
+      
+      // Navigation and profile completion is handled by auth provider
+    } catch (err: any) {
+      console.error("Apple sign in error:", err);
+      setGeneralError(err.message || "Failed to sign in with Apple.");
+    } finally {
+      setIsAppleLoading(false);
+    }
+  };
 
   // Handle sign-up form submission
   async function onSignUpSubmit(data: z.infer<typeof signUpFormSchema>) {
@@ -262,25 +308,105 @@ export default function SignUp() {
             {generalError ? (
               <Text className="text-destructive">{generalError}</Text>
             ) : null}
+            
+            <Button
+              size="default"
+              variant="default"
+              onPress={signUpForm.handleSubmit(onSignUpSubmit)}
+              disabled={signUpForm.formState.isSubmitting}
+              className="web:m-4 mt-4"
+            >
+              {signUpForm.formState.isSubmitting ? (
+                <ActivityIndicator size="small" />
+              ) : (
+                <Text>Sign Up</Text>
+              )}
+            </Button>
+
+            {/* Social Sign In Section */}
+            <View className="items-center mt-6">
+              <View className="flex-row items-center w-full mb-4">
+                <View className="flex-1 h-0.5 bg-muted" />
+                <Text className="mx-4 text-muted-foreground">or continue with</Text>
+                <View className="flex-1 h-0.5 bg-muted" />
+              </View>
+              
+              <View className="flex-row gap-4">
+                {/* Apple Sign In Button */}
+                {(Platform.OS === 'ios' && appleAuthAvailable) ? (
+                  <View style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 28,
+                    overflow: 'hidden',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    borderWidth: 1,
+                    borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+                  }}>
+                    <AppleAuthentication.AppleAuthenticationButton
+                      buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP}
+                      buttonStyle={isDark 
+                        ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                        : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                      cornerRadius={28}
+                      style={{
+                        width: 56,
+                        height: 56,
+                      }}
+                      onPress={handleAppleSignIn}
+                    />
+                    {isAppleLoading && (
+                      <View style={{
+                        position: 'absolute',
+                        width: '100%',
+                        height: '100%',
+                        backgroundColor: 'rgba(0,0,0,0.4)',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        borderRadius: 28,
+                      }}>
+                        <ActivityIndicator size="small" color="#fff" />
+                      </View>
+                    )}
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    onPress={handleAppleSignIn}
+                    disabled={isAppleLoading || !appleAuthAvailable}
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: 28,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      backgroundColor: isDark ? '#1F2937' : '#F3F4F6',
+                      borderWidth: 1,
+                      borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+                      opacity: appleAuthAvailable ? 1 : 0.5,
+                    }}
+                  >
+                    {isAppleLoading ? (
+                      <ActivityIndicator size="small" color={isDark ? '#fff' : '#000'} />
+                    ) : (
+                      <Ionicons name="logo-apple" size={24} color={isDark ? '#fff' : '#000'} />
+                    )}
+                  </TouchableOpacity>
+                )}
+                
+                {/* You can add more social sign-in buttons here (Google, etc.) */}
+              </View>
+            </View>
+
+            <View className="flex-row justify-center mt-4">
+              <Text className="text-muted-foreground">Already have an account? </Text>
+              <TouchableOpacity onPress={() => router.push("/sign-in")}>
+                <Text className="text-primary font-semibold">Sign in</Text>
+              </TouchableOpacity>
+            </View>
           </>
         )}
       </View>
-
-      {!pendingVerification && (
-        <Button
-          size="default"
-          variant="default"
-          onPress={signUpForm.handleSubmit(onSignUpSubmit)}
-          disabled={signUpForm.formState.isSubmitting}
-          className="web:m-4"
-        >
-          {signUpForm.formState.isSubmitting ? (
-            <ActivityIndicator size="small" />
-          ) : (
-            <Text>Sign Up</Text>
-          )}
-        </Button>
-      )}
     </SafeAreaView>
   );
 }

@@ -30,7 +30,13 @@
         "dark": "./assets/icon-dark.png",
         "light": "./assets/icon.png"
       },
-      "bundleIdentifier": "com.qwertyapp.padel-scoring-app"
+      "bundleIdentifier": "com.qwertyapp.padel-scoring-app",
+      "infoPlist": {
+        "CFBundleAllowMixedLocalizations": true
+      },
+      "entitlements": {
+        "com.apple.developer.applesignin": ["Default"]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -52,7 +58,13 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-apple-authentication",
+        {
+          "serviceId": "com.qwertyapp.padel-scoring-app"
+        }
+      ]
     ],
     "extra": {
       "router": {},
