@@ -56,15 +56,12 @@ export default function Profile() {
       </View>
     </View>
   );
-  const handleViewFriends = () => {
-    router.push('/(protected)/(screens)/friends');
-  };
 
   return (
     <View className="flex-1 bg-background">
       <ScrollView>
         {/* Header with court background */}
-        <View className="relative pt-16 pb-8 px-6">
+        <View className="relative items-center pt-16 pb-8 px-6">
           <View className="relative z-10">
             {renderAvatar()}
             <View className="flex-row justify-between items-start">
@@ -74,12 +71,6 @@ export default function Profile() {
                   <H2 className="text-muted-foreground">"{profile.nickname}"</H2>
                 )}
               </View>
-              <TouchableOpacity
-                onPress={handleViewFriends}
-                className="p-2 rounded-full bg-primary/10"
-              >
-                <Ionicons name="people" size={24} color="#fbbf24" />
-              </TouchableOpacity>
             </View>
           </View>
         </View>

@@ -41,12 +41,12 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="leaderboard"
+        name="friends"
         options={{
-          title: "Leaderboard",
+          title: "Friends",
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
-              name={focused ? "podium" : "podium-outline"}
+              name={focused ? "people" : "people-outline"}
               size={size}
               color={color}
             />

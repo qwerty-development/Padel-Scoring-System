@@ -11,7 +11,6 @@ import { router, useLocalSearchParams } from "expo-router";
 
 import { Text } from "@/components/ui/text";
 import { H1 } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/supabase-provider";
 import { supabase } from "@/config/supabase";
 import { SafeAreaView } from "@/components/safe-area-view";
@@ -19,12 +18,14 @@ import { AddFriendButton } from "@/components/friends/AddFriendButton";
 import { AddFriendModal } from "@/components/friends/AddFriendModal";
 import { FriendSearchBar } from "@/components/friends/FriendSearchBar";
 import { FriendCard } from "@/components/friends/FriendCard";
+import { FriendLeaderboard } from "@/components/friends/FriendLeaderboard";
+import { FriendRequestsModal } from "@/components/friends/FriendRequestModal";
 import { Friend, FriendRequest } from "@/types";
 
 export default function FriendsScreen() {
   const { tab } = useLocalSearchParams<{ tab?: string }>();
-  const [activeTab, setActiveTab] = useState<"friends" | "requests">(
-    tab === "requests" ? "requests" : "friends"
+  const [activeTab, setActiveTab] = useState<"friends" | "leaderboard">(
+    tab === "leaderboard" ? "leaderboard" : "friends"
   );
   const [friends, setFriends] = useState<Friend[]>([]);
   const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
@@ -32,6 +33,7 @@ export default function FriendsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [expandedFriend, setExpandedFriend] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showRequestsModal, setShowRequestsModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -64,9 +66,6 @@ export default function FriendsScreen() {
       return nameA.localeCompare(nameB);
     });
   });
-
-  // Get available letters (ones that have friends)
-  const availableLetters = new Set(Object.keys(friendsByLetter));
 
   // Filter friends based on search query
   const filteredFriends = Object.entries(friendsByLetter).reduce(
@@ -214,68 +213,19 @@ export default function FriendsScreen() {
     }
   };
 
-  const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-
-    const seconds = Math.floor(diff / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-
-    if (days > 0) return `${days}d ago`;
-    if (hours > 0) return `${hours}h ago`;
-    if (minutes > 0) return `${minutes}m ago`;
-    return "just now";
-  };
-
-  const renderRequestCard = (request: FriendRequest) => (
-    <View key={request.id} className="bg-card rounded-lg mb-3 p-4">
-      <View className="flex-row items-center">
-        <View className="w-12 h-12 rounded-full bg-primary items-center justify-center mr-4">
-          <Text className="text-lg font-bold text-primary-foreground">
-            {request.from_user.full_name?.charAt(0)?.toUpperCase() ||
-              request.from_user.email.charAt(0).toUpperCase() ||
-              "?"}
-          </Text>
-        </View>
-        <View className="flex-1">
-          <Text className="font-medium">
-            {request.from_user.full_name || request.from_user.email}
-          </Text>
-          <Text className="text-sm text-muted-foreground">
-            {formatTimeAgo(request.created_at)}
-          </Text>
-        </View>
-      </View>
-
-      <View className="flex-row gap-3 mt-4">
-        <Button
-          className="flex-1"
-          variant="default"
-          onPress={() => handleFriendRequest(request.id, "accept")}
-        >
-          <Text>Accept</Text>
-        </Button>
-        <Button
-          className="flex-1"
-          variant="outline"
-          onPress={() => handleFriendRequest(request.id, "deny")}
-        >
-          <Text>Decline</Text>
-        </Button>
-      </View>
-    </View>
-  );
-
-  const renderTabButton = (tab: "friends" | "requests", label: string) => (
+  const renderTabButton = (tab: "friends" | "leaderboard", label: string) => (
     <TouchableOpacity
-      className={`flex-1 py-2 rounded-lg ${activeTab === tab ? "bg-primary" : "bg-card"}`}
+      className={`flex-1 py-3 ${
+        activeTab === tab
+          ? "border-b-2 border-primary"
+          : "border-b border-border"
+      }`}
       onPress={() => setActiveTab(tab)}
     >
       <Text
-        className={`text-center font-medium ${activeTab === tab ? "text-primary-foreground" : "text-foreground"}`}
+        className={`text-center font-medium ${
+          activeTab === tab ? "text-primary" : "text-muted-foreground"
+        }`}
       >
         {label}
       </Text>
@@ -287,7 +237,16 @@ export default function FriendsScreen() {
 
     if (letters.length === 0) {
       return (
-        <View className="bg-card rounded-lg p-6 items-center">
+        <View
+          className="bg-card rounded-lg p-6 items-center mt-4 border border-border/40"
+          style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.1,
+            shadowRadius: 2,
+            elevation: 2,
+          }}
+        >
           <Ionicons name="people-outline" size={48} color="#888" />
           <Text className="text-lg font-medium mt-4 mb-2">
             No friends found
@@ -295,7 +254,7 @@ export default function FriendsScreen() {
           <Text className="text-muted-foreground text-center">
             {searchQuery
               ? "Try a different search term"
-              : "Connect with other padel players to grow your network"}
+              : "Connect with other players to grow your network"}
           </Text>
         </View>
       );
@@ -331,29 +290,43 @@ export default function FriendsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <View className="flex-1 p-6">
+      <View className="flex-1">
         {/* Tab navigation */}
-        <View className="flex-row gap-2 mb-4">
-          {renderTabButton("friends", "My Friends")}
-          {renderTabButton(
-            "requests",
-            `Requests${friendRequests.length > 0 ? ` (${friendRequests.length})` : ""}`
-          )}
+        <View className="flex-row">
+          {renderTabButton("friends", "Friends")}
+          {renderTabButton("leaderboard", "Leaderboard")}
         </View>
 
+        {/* Search bar - only show in Friends tab */}
         {activeTab === "friends" && (
-          <View className="flex-row">
-            <View className="w-5/6">
-            <FriendSearchBar
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              onClear={() => setSearchQuery("")}
-            />
-              </View>
-              <View className="items-center w-1/6">
-              <AddFriendButton onPress={() => setShowAddModal(true)} />
-                </View>
+          <View className="flex-row px-6 pt-4">
+            <View className=" w-3/4">
+              <FriendSearchBar
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                onClear={() => setSearchQuery("")}
+              />
+            </View>
+            <View className="w-1/4">
+              <View className="flex-row px-4 gap-3">
+                {/* Friend Requests Button */}
+                <TouchableOpacity className="w-10 h-10 rounded-full items-center justify-center">
+                  <View className="relative">
+                    <Ionicons name="mail-outline" size={24} color="#555" />
+                    {friendRequests.length > 0 && (
+                      <View className="absolute -top-1 -right-1 bg-red-500 rounded-full w-5 h-5 items-center justify-center">
+                        <Text className="text-white text-xs font-bold">
+                          {friendRequests.length}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </TouchableOpacity>
 
+                {/* Add Friend Button */}
+                <AddFriendButton onPress={() => setShowAddModal(true)} />
+              </View>
+            </View>
           </View>
         )}
 
@@ -368,23 +341,19 @@ export default function FriendsScreen() {
               tintColor="#fbbf24"
             />
           }
-          className="flex-1"
+          className="flex-1 px-6 pt-2"
         >
           {activeTab === "friends" ? (
             renderFriendsAlphabetically()
-          ) : friendRequests.length > 0 ? (
-            friendRequests.map(renderRequestCard)
           ) : (
-            <View className="bg-card rounded-lg p-6 items-center">
-              <Ionicons name="mail-outline" size={48} color="#888" />
-              <Text className="text-lg font-medium mt-4 mb-2">
-                No pending requests
-              </Text>
-              <Text className="text-muted-foreground text-center">
-                You don't have any friend requests at the moment
-              </Text>
-            </View>
+            <FriendLeaderboard
+              friends={friends}
+              userId={session?.user?.id || ""}
+            />
           )}
+
+          {/* Add bottom padding */}
+          <View className="h-6" />
         </ScrollView>
       </View>
 
@@ -394,6 +363,14 @@ export default function FriendsScreen() {
         onClose={() => setShowAddModal(false)}
         userId={session?.user?.id || ""}
         userProfile={profile}
+      />
+
+      {/* Friend Requests Modal */}
+      <FriendRequestsModal
+        visible={showRequestsModal}
+        onClose={() => setShowRequestsModal(false)}
+        friendRequests={friendRequests}
+        onHandleRequest={handleFriendRequest}
       />
     </SafeAreaView>
   );

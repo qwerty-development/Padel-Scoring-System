@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, ScrollView, TouchableOpacity, ActivityIndicator, Share, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, router } from 'expo-router';
+import { format } from 'date-fns';
 
 import { Text } from '@/components/ui/text';
 import { H1, H2, H3 } from '@/components/ui/typography';
@@ -14,9 +15,9 @@ interface PlayerDetail {
   id: string;
   full_name: string | null;
   email: string;
-  glicko_rating: string;
-  glicko_rd: string;
-  glicko_vol: string;
+  glicko_rating: string | null;
+  glicko_rd: string | null;
+  glicko_vol: string | null;
   avatar_url: string | null;
 }
 
@@ -26,11 +27,21 @@ interface MatchDetail {
   player2_id: string;
   player3_id: string;
   player4_id: string;
-  team1_score: number;
-  team2_score: number;
   status: number;
   created_at: string;
   completed_at: string | null;
+  team1_score_set1: number;
+  team2_score_set1: number;
+  team1_score_set2: number;
+  team2_score_set2: number;
+  team1_score_set3: number | null;
+  team2_score_set3: number | null;
+  winner_team: number;
+  start_time: string | null;
+  end_time: string | null;
+  region: string | null;
+  court: string | null;
+  validation_deadline: string | null;
   player1: PlayerDetail;
   player2: PlayerDetail;
   player3: PlayerDetail;
@@ -88,9 +99,15 @@ export default function MatchDetails() {
   const shareMatch = async () => {
     if (!match) return;
     
+    // Calculate sets won by each team
+    const team1Sets = countSetsWon(match, 1);
+    const team2Sets = countSetsWon(match, 2);
+    
     try {
-      const result = await Share.share({
-        message: `Check out our padel match result: ${match.player1.full_name} & ${match.player2.full_name} vs ${match.player3.full_name} & ${match.player4.full_name}. Score: ${match.team1_score}-${match.team2_score}!`,
+      const message = `Padel Match Result: ${match.player1.full_name || 'Player 1'} & ${match.player2.full_name || 'Player 2'} vs ${match.player3.full_name || 'Player 3'} & ${match.player4.full_name || 'Player 4'}\n\nScore: ${team1Sets}-${team2Sets}\n\nSet Details:\nSet 1: ${match.team1_score_set1}-${match.team2_score_set1}\nSet 2: ${match.team1_score_set2}-${match.team2_score_set2}${match.team1_score_set3 !== null ? `\nSet 3: ${match.team1_score_set3}-${match.team2_score_set3}` : ''}`;
+      
+      await Share.share({
+        message,
         title: 'Padel Match Result',
       });
     } catch (error) {
@@ -98,23 +115,36 @@ export default function MatchDetails() {
     }
   };
 
-  const formatDateTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return {
-      date: date.toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      }),
-      time: date.toLocaleTimeString(undefined, {
-        hour: '2-digit',
-        minute: '2-digit'
-      })
-    };
+  // Count sets won by a specific team
+  const countSetsWon = (match: MatchDetail, teamNumber: 1 | 2): number => {
+    let setsWon = 0;
+    
+    if (teamNumber === 1) {
+      if (match.team1_score_set1 > match.team2_score_set1) setsWon++;
+      if (match.team1_score_set2 > match.team2_score_set2) setsWon++;
+      if (match.team1_score_set3 !== null && match.team2_score_set3 !== null && 
+          match.team1_score_set3 > match.team2_score_set3) setsWon++;
+    } else {
+      if (match.team2_score_set1 > match.team1_score_set1) setsWon++;
+      if (match.team2_score_set2 > match.team1_score_set2) setsWon++;
+      if (match.team1_score_set3 !== null && match.team2_score_set3 !== null && 
+          match.team2_score_set3 > match.team1_score_set3) setsWon++;
+    }
+    
+    return setsWon;
+  };
+
+  const formatDate = (dateString: string | null): string => {
+    if (!dateString) return 'N/A';
+    return format(new Date(dateString), 'MMMM d, yyyy');
+  };
+
+  const formatTime = (dateString: string | null): string => {
+    if (!dateString) return 'N/A';
+    return format(new Date(dateString), 'h:mm a');
   };
 
   const getStatusText = (status: number) => {
-    // Define status codes based on your application logic
     switch (status) {
       case 1: return { text: 'Disputed', color: 'text-red-500' };
       case 2: return { text: 'Pending Confirmation', color: 'text-yellow-500' };
@@ -128,17 +158,51 @@ export default function MatchDetails() {
     <View className="items-center">
       <View className="w-12 h-12 rounded-full bg-primary items-center justify-center mb-2">
         <Text className="text-lg font-bold text-primary-foreground">
-          {player.full_name?.charAt(0)?.toUpperCase() || '?'}
+          {player.full_name?.charAt(0)?.toUpperCase() || player.email.charAt(0).toUpperCase() || '?'}
         </Text>
       </View>
-      <Text className="font-medium text-center">
+      <Text className="font-medium text-center" numberOfLines={1}>
         {player.full_name || player.email.split('@')[0]}
       </Text>
       <Text className="text-xs text-muted-foreground text-center">
-        {player.glicko_rating}
+        {player.glicko_rating ? Math.round(parseFloat(player.glicko_rating)) : '-'}
       </Text>
     </View>
   );
+
+  const renderSetScore = (
+    setNumber: number, 
+    team1Score: number | null, 
+    team2Score: number | null,
+    winnerTeam: number
+  ) => {
+    if (team1Score === null || team2Score === null) return null;
+    
+    const team1Won = team1Score > team2Score;
+    const team2Won = team2Score > team1Score;
+    
+    return (
+      <View className="flex-row items-center justify-between mb-2">
+        <Text className="text-muted-foreground w-16">Set {setNumber}</Text>
+        <View className="flex-row items-center flex-1 justify-center">
+          <Text className={`text-xl font-semibold ${team1Won ? 'text-primary' : ''}`}>
+            {team1Score}
+          </Text>
+          <Text className="text-xl mx-2">-</Text>
+          <Text className={`text-xl font-semibold ${team2Won ? 'text-primary' : ''}`}>
+            {team2Score}
+          </Text>
+        </View>
+        {(team1Won || team2Won) && (
+          <View className="w-16 items-end">
+            <Text className="text-xs text-muted-foreground">
+              {team1Won ? 'Team 1' : 'Team 2'}
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  };
 
   if (loading && !refreshing) {
     return (
@@ -166,13 +230,16 @@ export default function MatchDetails() {
     );
   }
 
-  const datetime = formatDateTime(match.created_at);
   const status = getStatusText(match.status);
   const userId = session?.user?.id;
   const isTeam1 = match.player1_id === userId || match.player2_id === userId;
-  const teamWon = (isTeam1 && match.team1_score > match.team2_score) || 
-                  (!isTeam1 && match.team2_score > match.team1_score);
-  const isTied = match.team1_score === match.team2_score;
+  const isTeam2 = match.player3_id === userId || match.player4_id === userId;
+  
+  const team1Sets = countSetsWon(match, 1);
+  const team2Sets = countSetsWon(match, 2);
+  
+  const userWon = (isTeam1 && team1Sets > team2Sets) || (isTeam2 && team2Sets > team1Sets);
+  const matchTied = team1Sets === team2Sets;
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -201,29 +268,62 @@ export default function MatchDetails() {
         {/* Date, Time and Status */}
         <View className="mb-6 flex-row justify-between items-center">
           <View>
-            <Text className="text-lg font-medium">{datetime.date}</Text>
-            <Text className="text-muted-foreground">{datetime.time}</Text>
+            <Text className="text-lg font-medium">{formatDate(match.start_time || match.created_at)}</Text>
+            <Text className="text-muted-foreground">
+              {formatTime(match.start_time || match.created_at)}
+              {match.end_time ? ` - ${formatTime(match.end_time)}` : ''}
+            </Text>
           </View>
           <View className="bg-card px-3 py-1 rounded-full">
             <Text className={status.color}>{status.text}</Text>
           </View>
         </View>
 
-        {/* Match Score */}
-        <View className="bg-card rounded-xl p-6 mb-6 items-center">
-          <H3 className="mb-4">Match Score</H3>
-          <View className="flex-row items-center">
-            <Text className="text-3xl font-bold">{match.team1_score}</Text>
-            <Text className="text-2xl mx-4">-</Text>
-            <Text className="text-3xl font-bold">{match.team2_score}</Text>
+        {/* Match Location */}
+        {(match.region || match.court) && (
+          <View className="bg-card rounded-xl p-4 mb-6 flex-row items-center">
+            <Ionicons name="location-outline" size={24} color="#fbbf24" className="mr-2" />
+            <View>
+              <Text className="font-medium">
+                {match.court || 'Unknown Court'}
+              </Text>
+              {match.region && (
+                <Text className="text-sm text-muted-foreground">{match.region}</Text>
+              )}
+            </View>
           </View>
-          {userId && (
-            <Text className={`mt-4 font-medium ${
-              teamWon ? 'text-green-500' : (isTied ? 'text-yellow-500' : 'text-red-500')
-            }`}>
-              {teamWon ? 'You Won!' : (isTied ? 'Tie Game' : 'You Lost')}
-            </Text>
-          )}
+        )}
+
+        {/* Match Score */}
+        <View className="bg-card rounded-xl p-6 mb-6">
+          <H3 className="mb-4">Match Score</H3>
+          
+          {/* Final score */}
+          <View className="items-center mb-4">
+            <View className="flex-row items-center justify-center mb-2">
+              <Text className="text-4xl font-bold text-primary">{team1Sets}</Text>
+              <Text className="text-2xl mx-4">-</Text>
+              <Text className="text-4xl font-bold text-primary">{team2Sets}</Text>
+            </View>
+            {userId && (isTeam1 || isTeam2) && (
+              <Text className={`font-medium ${
+                userWon ? 'text-green-500' : (matchTied ? 'text-yellow-500' : 'text-red-500')
+              }`}>
+                {userWon ? 'You Won!' : (matchTied ? 'Tie Game' : 'You Lost')}
+              </Text>
+            )}
+            <Text className="text-xs text-muted-foreground mt-1">Sets</Text>
+          </View>
+          
+          <View className="h-px bg-border my-3" />
+          
+          {/* Set-by-set scores */}
+          <View className="mt-3">
+            {renderSetScore(1, match.team1_score_set1, match.team2_score_set1, match.winner_team)}
+            {renderSetScore(2, match.team1_score_set2, match.team2_score_set2, match.winner_team)}
+            {match.team1_score_set3 !== null && match.team2_score_set3 !== null && 
+              renderSetScore(3, match.team1_score_set3, match.team2_score_set3, match.winner_team)}
+          </View>
         </View>
 
         {/* Teams */}
@@ -232,7 +332,15 @@ export default function MatchDetails() {
           
           {/* Team 1 */}
           <View className="mb-6">
-            <Text className="font-medium text-center mb-3 text-primary">Team 1</Text>
+            <View className="flex-row justify-between items-center mb-3">
+              <Text className="font-medium text-primary">Team 1</Text>
+              {match.winner_team === 1 && (
+                <View className="bg-primary/10 px-2 py-0.5 rounded-full flex-row items-center">
+                  <Ionicons name="trophy" size={14} color="#fbbf24" />
+                  <Text className="text-xs text-primary ml-1">Winner</Text>
+                </View>
+              )}
+            </View>
             <View className="flex-row justify-around">
               {renderPlayerAvatar(match.player1)}
               {renderPlayerAvatar(match.player2)}
@@ -243,7 +351,15 @@ export default function MatchDetails() {
           
           {/* Team 2 */}
           <View>
-            <Text className="font-medium text-center mb-3 text-accent">Team 2</Text>
+            <View className="flex-row justify-between items-center mb-3">
+              <Text className="font-medium text-accent">Team 2</Text>
+              {match.winner_team === 2 && (
+                <View className="bg-primary/10 px-2 py-0.5 rounded-full flex-row items-center">
+                  <Ionicons name="trophy" size={14} color="#fbbf24" />
+                  <Text className="text-xs text-primary ml-1">Winner</Text>
+                </View>
+              )}
+            </View>
             <View className="flex-row justify-around">
               {renderPlayerAvatar(match.player3)}
               {renderPlayerAvatar(match.player4)}
@@ -251,14 +367,40 @@ export default function MatchDetails() {
           </View>
         </View>
 
+        {/* Match Info */}
+        <View className="bg-card rounded-xl p-6 mb-6">
+          <H3 className="mb-4">Match Info</H3>
+          
+          <View className="flex-row justify-between mb-2">
+            <Text className="text-muted-foreground">Created</Text>
+            <Text>{formatDate(match.created_at)} {formatTime(match.created_at)}</Text>
+          </View>
+          
+          {match.completed_at && (
+            <View className="flex-row justify-between mb-2">
+              <Text className="text-muted-foreground">Completed</Text>
+              <Text>{formatDate(match.completed_at)} {formatTime(match.completed_at)}</Text>
+            </View>
+          )}
+          
+          <View className="flex-row justify-between mb-2">
+            <Text className="text-muted-foreground">Match Duration</Text>
+            <Text>
+              {match.start_time && match.end_time 
+                ? getMatchDuration(match.start_time, match.end_time) 
+                : 'N/A'}
+            </Text>
+          </View>
+        </View>
+
         {/* Actions */}
-        <View className="flex-row gap-3 mb-4">
+        <View className="flex-row gap-3 mb-6">
           <Button
             className="flex-1"
             variant="outline"
             onPress={shareMatch}
           >
-            <Ionicons name="share-outline" size={20} className="mr-2" />
+            <Ionicons name="share-outline" size={20} style={{ marginRight: 8 }} />
             <Text>Share</Text>
           </Button>
           
@@ -270,11 +412,28 @@ export default function MatchDetails() {
                 // Future feature: Confirm match score
               }}
             >
-              <Text>Confirm Score</Text>
+              <Text className="text-primary-foreground">Confirm Score</Text>
             </Button>
           )}
         </View>
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+// Helper function to calculate match duration
+function getMatchDuration(startTimeStr: string, endTimeStr: string): string {
+  const startTime = new Date(startTimeStr);
+  const endTime = new Date(endTimeStr);
+  
+  const durationMs = endTime.getTime() - startTime.getTime();
+  const minutes = Math.floor(durationMs / (1000 * 60));
+  
+  if (minutes < 60) {
+    return `${minutes} min`;
+  } else {
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return `${hours}h ${remainingMinutes}m`;
+  }
 }

@@ -183,16 +183,7 @@ export default function Leaderboard() {
         }
         onScrollEndDrag={() => loadMoreUsers()}
       >
-        <View className="flex-row items-center mb-6">
-          <Button 
-            variant="ghost" 
-            onPress={() => router.back()}
-            className="mr-2"
-          >
-            <Ionicons name="arrow-back" size={24} color="#fbbf24" />
-          </Button>
-          <H1>Leaderboard</H1>
-        </View>
+
         
         {/* View toggle buttons */}
         <View className="flex-row gap-2 mb-6">

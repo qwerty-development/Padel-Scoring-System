@@ -1,5 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react'; // Added useCallback
-import { View, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, RefreshControl } from 'react-native'; // Added RefreshControl
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  View, 
+  ScrollView, 
+  TouchableOpacity, 
+  ActivityIndicator, 
+  Alert,
+  RefreshControl,
+  StyleSheet
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 
@@ -9,228 +17,106 @@ import { H1, H3 } from "@/components/ui/typography";
 import { SafeAreaView } from '@/components/safe-area-view';
 import { useAuth } from "@/context/supabase-provider";
 import { supabase } from '@/config/supabase';
+import { Friend } from '@/types';
 
-interface Friend {
+import { calculateMatchRatings } from '@/utils/glickoUtils';
+import { PlayerSelectionModal } from '@/components/create-match/PlayerSelectionModal';
+import { CustomDateTimePicker } from '@/components/create-match/DateTimePicker';
+import { SetScoreInput, SetScore } from '@/components/create-match/SetScoreInput';
+
+interface Profile {
   id: string;
-  full_name: string | null;
   email: string;
-  avatar_url: string | null;
+  full_name: string | null;
+  glicko_rating: string | null;
+  glicko_rd: string | null;
+  glicko_vol: string | null;
 }
 
-// Glicko-2 constants
-const TAU = 0.5; // Reasonable default
-const EPSILON = 0.000001; // Convergence tolerance
-
-/**
- * Calculate the g-function value
- */
-function g(rd: number): number {
-  return 1 / Math.sqrt(1 + (3 * rd * rd) / (Math.PI * Math.PI));
-}
-
-/**
- * Calculate the E-function (expected score)
- */
-function E(rating: number, opponentRating: number, opponentRd: number): number {
-  return 1 / (1 + Math.exp(-g(opponentRd) * (rating - opponentRating) / 400));
-}
-
-/**
- * Calculate the v value (variance)
- */
-function v(rating: number, opponentRatings: number[], opponentRds: number[]): number {
-  let sum = 0;
-  for (let i = 0; i < opponentRatings.length; i++) {
-    const e = E(rating, opponentRatings[i], opponentRds[i]);
-    const gRd = g(opponentRds[i]);
-    sum += gRd * gRd * e * (1 - e);
-  }
-  return 1 / sum;
-}
-
-/**
- * Calculate the delta value
- */
-function delta(v: number, rating: number, opponentRatings: number[], opponentRds: number[], scores: number[]): number {
-  let sum = 0;
-  for (let i = 0; i < opponentRatings.length; i++) {
-    sum += g(opponentRds[i]) * (scores[i] - E(rating, opponentRatings[i], opponentRds[i]));
-  }
-  return v * sum;
-}
-
-/**
- * Calculate updated Glicko-2 rating
- */
-function updateGlicko(
-  rating: number,
-  rd: number,
-  vol: number,
-  opponentRatings: number[],
-  opponentRds: number[],
-  scores: number[]
-): { rating: number; rd: number; vol: number } {
-  // Convert from Glicko to Glicko-2 scale
-  let mu = (rating - 1500) / 173.7178;
-  let phi = rd / 173.7178;
-
-  if (opponentRatings.length === 0) {
-    // If no games played, increase the RD
-    phi = Math.sqrt(phi * phi + vol * vol);
-
-    // Convert back to Glicko scale
-    rd = phi * 173.7178;
-    if (rd > 350) rd = 350; // Cap RD at 350
-
-    return {
-      rating: rating,
-      rd: rd,
-      vol: vol
-    };
-  }
-
-  // Step 3: Calculate the variance
-  const variance = v(mu, opponentRatings.map(r => (r - 1500) / 173.7178), opponentRds.map(r => r / 173.7178));
-
-  // Step 4: Calculate the delta
-  const d = delta(
-    variance,
-    mu,
-    opponentRatings.map(r => (r - 1500) / 173.7178),
-    opponentRds.map(r => r / 173.7178),
-    scores
-  );
-
-  // Step 5: Calculate the new volatility (iterative algorithm)
-  let a = Math.log(vol * vol);
-  let A = a;
-  let B = 0;
-
-  if (d * d > phi * phi + variance) {
-    B = Math.log(d * d - phi * phi - variance);
-  } else {
-    let k = 1;
-    while (f(a - k * Math.sqrt(TAU * TAU), phi, variance, d, a) < 0) {
-      k++;
-    }
-    B = a - k * Math.sqrt(TAU * TAU);
-  }
-
-  // Iterative algorithm
-  let fA = f(A, phi, variance, d, a);
-  let fB = f(B, phi, variance, d, a);
-
-  while (Math.abs(B - A) > EPSILON) {
-    const C = A + (A - B) * fA / (fB - fA);
-    const fC = f(C, phi, variance, d, a);
-
-    if (fC * fB < 0) {
-      A = B;
-      fA = fB;
-    } else {
-      fA = fA / 2;
-    }
-
-    B = C;
-    fB = fC;
-  }
-
-  const newVol = Math.exp(A / 2);
-
-  // Step 6: Update the rating deviation
-  phi = Math.sqrt(phi * phi + newVol * newVol);
-
-  // Step 7: Update the rating
-  const newPhi = 1 / Math.sqrt(1 / (phi * phi) + 1 / variance);
-  const newMu = mu + newPhi * newPhi * d / variance;
-
-  // Convert back to Glicko scale
-  const newRating = 173.7178 * newMu + 1500;
-  const newRd = 173.7178 * newPhi;
-
-  return {
-    rating: newRating,
-    rd: Math.min(newRd, 350), // Cap RD at 350
-    vol: newVol
-  };
-}
-
-// Helper function for the volatility calculation
-function f(x: number, phi: number, v: number, delta: number, a: number): number {
-  const ex = Math.exp(x);
-  const d2 = delta * delta;
-  const phiv = phi * phi + v;
-
-  return (ex * (d2 - phiv - ex)) / (2 * Math.pow(phiv + ex, 2)) - (x - a) / (TAU * TAU);
-}
-
-/**
- * Calculate new ratings for all players after a padel match
- */
-function calculateMatchRatings(
-  player1: { rating: number; rd: number; vol: number },
-  player2: { rating: number; rd: number; vol: number },
-  player3: { rating: number; rd: number; vol: number },
-  player4: { rating: number; rd: number; vol: number },
-  team1Score: number,
-  team2Score: number
-): {
-  player1: { rating: number; rd: number; vol: number };
-  player2: { rating: number; rd: number; vol: number };
-  player3: { rating: number; rd: number; vol: number };
-  player4: { rating: number; rd: number; vol: number };
-} {
-  const totalGames = team1Score + team2Score;
-  if (totalGames === 0) {
-    return { player1, player2, player3, player4 };
-  }
-
-  const team1Result = team1Score / totalGames;
-  const team2Result = team2Score / totalGames;
-
-  const newPlayer1 = updateGlicko(
-    player1.rating, player1.rd, player1.vol,
-    [player3.rating, player4.rating], [player3.rd, player4.rd],
-    [team1Result, team1Result]
-  );
-
-  const newPlayer2 = updateGlicko(
-    player2.rating, player2.rd, player2.vol,
-    [player3.rating, player4.rating], [player3.rd, player4.rd],
-    [team1Result, team1Result]
-  );
-
-  const newPlayer3 = updateGlicko(
-    player3.rating, player3.rd, player3.vol,
-    [player1.rating, player2.rating], [player1.rd, player2.rd],
-    [team2Result, team2Result]
-  );
-
-  const newPlayer4 = updateGlicko(
-    player4.rating, player4.rd, player4.vol,
-    [player1.rating, player2.rating], [player1.rd, player2.rd],
-    [team2Result, team2Result]
-  );
-
-  return { player1: newPlayer1, player2: newPlayer2, player3: newPlayer3, player4: newPlayer4 };
+interface MatchData {
+  id?: string;
+  player1_id: string;
+  player2_id: string;
+  player3_id: string;
+  player4_id: string;
+  status: number;
+  created_at?: string;
+  completed_at: string;
+  team1_score_set1: number;
+  team2_score_set1: number;
+  team1_score_set2: number;
+  team2_score_set2: number;
+  team1_score_set3: number | null;
+  team2_score_set3: number | null;
+  winner_team: number;
+  start_time: string;
+  end_time: string;
+  region: string | null;
+  court: string | null;
 }
 
 export default function CreateMatchScreen() {
   const { friendId } = useLocalSearchParams();
-  const [loading, setLoading] = useState(false); // For initial load and create match
-  const [refreshing, setRefreshing] = useState(false); // For pull to refresh
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [selectedFriends, setSelectedFriends] = useState<string[]>(
     friendId ? [friendId as string] : []
   );
-  const [team1Score, setTeam1Score] = useState('0');
-  const [team2Score, setTeam2Score] = useState('0');
+  const [selectedPlayers, setSelectedPlayers] = useState<Friend[]>([]);
+  const [showPlayerModal, setShowPlayerModal] = useState(false);
+  
+  // Date and time state
+  const [matchDate, setMatchDate] = useState(new Date());
+  const [matchStartTime, setMatchStartTime] = useState(new Date());
+  const [matchEndTime, setMatchEndTime] = useState(() => {
+    const date = new Date();
+    date.setHours(date.getHours() + 1);
+    return date;
+  });
+  
+  // Score state
+  const [set1Score, setSet1Score] = useState<SetScore>({ team1: 0, team2: 0 });
+  const [set2Score, setSet2Score] = useState<SetScore>({ team1: 0, team2: 0 });
+  const [set3Score, setSet3Score] = useState<SetScore>({ team1: 0, team2: 0 });
+  const [isSet1Valid, setIsSet1Valid] = useState(false);
+  const [isSet2Valid, setIsSet2Valid] = useState(false);
+  const [isSet3Valid, setIsSet3Valid] = useState(false);
+  const [showSet3, setShowSet3] = useState(false);
+
+  // Location state
+  const [region, setRegion] = useState('');
+  const [court, setCourt] = useState('');
+  
   const { profile, session } = useAuth();
 
+  // Effect to show/hide set 3 based on set 1 and 2 results
+  useEffect(() => {
+    // Only show set 3 if there's a tie (1-1) in sets
+    const team1WonSet1 = set1Score.team1 > set1Score.team2;
+    const team1WonSet2 = set2Score.team1 > set2Score.team2;
+    
+    const isTied = (team1WonSet1 && !team1WonSet2) || (!team1WonSet1 && team1WonSet2);
+    
+    setShowSet3(isTied && isSet1Valid && isSet2Valid);
+    
+    // Reset set 3 score if we're hiding it
+    if (!isTied) {
+      setSet3Score({ team1: 0, team2: 0 });
+    }
+  }, [set1Score, set2Score, isSet1Valid, isSet2Valid]);
+
+  // Load selected player details
+  useEffect(() => {
+    if (selectedFriends.length > 0) {
+      const selected = friends.filter(friend => selectedFriends.includes(friend.id));
+      setSelectedPlayers(selected);
+    } else {
+      setSelectedPlayers([]);
+    }
+  }, [selectedFriends, friends]);
+
   const fetchFriends = useCallback(async () => {
-    // No need to set setLoading(true) here if it's just for refresh,
-    // initial loading is handled by the useEffect.
-    // If called by onRefresh, setRefreshing(true) is already handled.
     try {
       if (!profile?.friends_list || !Array.isArray(profile.friends_list) || profile.friends_list.length === 0) {
         setFriends([]);
@@ -239,67 +125,95 @@ export default function CreateMatchScreen() {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, email, full_name, avatar_url')
+        .select('id, email, full_name, avatar_url, glicko_rating')
         .in('id', profile.friends_list);
 
       if (error) throw error;
       setFriends(data || []);
     } catch (error) {
       console.error('Error fetching friends:', error);
-      // Optionally, show a toast or message to the user on refresh error
-    } finally {
-      // setLoading(false) is handled by useEffect or createMatch
     }
-  }, [profile]); // Depends on profile
+  }, [profile]);
 
   useEffect(() => {
     if (session?.user?.id) {
       setLoading(true);
       fetchFriends().finally(() => setLoading(false));
     }
-  }, [session, fetchFriends]); // fetchFriends is memoized
+  }, [session, fetchFriends]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchFriends();
     setRefreshing(false);
-  }, [fetchFriends]); // fetchFriends is memoized
+  }, [fetchFriends]);
 
-  const toggleFriendSelection = (friendId: string) => {
-    if (selectedFriends.includes(friendId)) {
-      setSelectedFriends(prev => prev.filter(id => id !== friendId));
-    } else {
-      if (selectedFriends.length < 3) {
-        setSelectedFriends(prev => [...prev, friendId]);
-      }
+  const determineWinnerTeam = (): number => {
+    let team1Sets = 0;
+    let team2Sets = 0;
+    
+    // Count sets won by each team
+    if (set1Score.team1 > set1Score.team2) team1Sets++;
+    else if (set1Score.team2 > set1Score.team1) team2Sets++;
+    
+    if (set2Score.team1 > set2Score.team2) team1Sets++;
+    else if (set2Score.team2 > set2Score.team1) team2Sets++;
+    
+    if (showSet3) {
+      if (set3Score.team1 > set3Score.team2) team1Sets++;
+      else if (set3Score.team2 > set3Score.team1) team2Sets++;
     }
+    
+    // Determine winner
+    if (team1Sets > team2Sets) return 1;
+    if (team2Sets > team1Sets) return 2;
+    return 0; // Tie (should not happen in a valid match)
+  };
+
+  const validateMatch = (): boolean => {
+    // Validate player selection
+    if (selectedFriends.length !== 3) {
+      Alert.alert('Incomplete Selection', 'Please select exactly 3 players to create a match.');
+      return false;
+    }
+    
+    // Validate score
+    if (!isSet1Valid || !isSet2Valid) {
+      Alert.alert('Invalid Score', 'Please enter valid scores for both sets.');
+      return false;
+    }
+    
+    // Validate set 3 if shown
+    if (showSet3 && !isSet3Valid) {
+      Alert.alert('Invalid Score', 'Please enter a valid score for the third set.');
+      return false;
+    }
+    
+    // Validate times
+    if (matchEndTime <= matchStartTime) {
+      Alert.alert('Invalid Time', 'End time must be after start time.');
+      return false;
+    }
+    
+    return true;
   };
 
   const createMatch = async () => {
-    // ... (rest of your createMatch function remains the same)
     try {
-      if (selectedFriends.length !== 3) {
-        alert('Please select exactly 3 friends to create a 2v2 match');
+      if (!validateMatch()) {
         return;
       }
 
-      setLoading(true); // Use general loading for this action
-
-      const team1ScoreNumber = parseInt(team1Score, 10) || 0;
-      const team2ScoreNumber = parseInt(team2Score, 10) || 0;
+      setLoading(true);
       
-      if (team1ScoreNumber === 0 && team2ScoreNumber === 0) {
-        alert('Please enter valid scores for the match');
-        setLoading(false);
-        return;
-      }
-
+      const winnerTeam = determineWinnerTeam();
+      
       const playerIds = [session?.user?.id, ...selectedFriends].filter(id => id != null) as string[];
       if (playerIds.length !== 4) {
-          throw new Error('Could not form a team of 4 players.');
+        throw new Error('Could not form a team of 4 players.');
       }
 
-
+      // Fetch all players' Glicko ratings
       const { data: playersData, error: playersError } = await supabase
         .from('profiles')
         .select('id, glicko_rating, glicko_rd, glicko_vol')
@@ -311,6 +225,7 @@ export default function CreateMatchScreen() {
         throw new Error('Could not fetch all player ratings');
       }
 
+      // Map player IDs to their profiles
       const player1Profile = playersData.find(p => p.id === session?.user?.id);
       const player2Profile = playersData.find(p => p.id === selectedFriends[0]);
       const player3Profile = playersData.find(p => p.id === selectedFriends[1]);
@@ -320,42 +235,63 @@ export default function CreateMatchScreen() {
         throw new Error('Could not match all player IDs from fetched data');
       }
 
+      // Create Glicko rating objects
+      const player1Rating: GlickoRating = {
+        rating: parseFloat(player1Profile.glicko_rating || '1500'),
+        rd: parseFloat(player1Profile.glicko_rd || '350'),
+        vol: parseFloat(player1Profile.glicko_vol || '0.06')
+      };
+      
+      const player2Rating: GlickoRating = {
+        rating: parseFloat(player2Profile.glicko_rating || '1500'),
+        rd: parseFloat(player2Profile.glicko_rd || '350'),
+        vol: parseFloat(player2Profile.glicko_vol || '0.06')
+      };
+      
+      const player3Rating: GlickoRating = {
+        rating: parseFloat(player3Profile.glicko_rating || '1500'),
+        rd: parseFloat(player3Profile.glicko_rd || '350'),
+        vol: parseFloat(player3Profile.glicko_vol || '0.06')
+      };
+      
+      const player4Rating: GlickoRating = {
+        rating: parseFloat(player4Profile.glicko_rating || '1500'),
+        rd: parseFloat(player4Profile.glicko_rd || '350'),
+        vol: parseFloat(player4Profile.glicko_vol || '0.06')
+      };
+
+      // Calculate new ratings
       const newRatings = calculateMatchRatings(
-        {
-          rating: parseFloat(player1Profile.glicko_rating || '1500'),
-          rd: parseFloat(player1Profile.glicko_rd || '350'),
-          vol: parseFloat(player1Profile.glicko_vol || '0.06')
-        },
-        {
-          rating: parseFloat(player2Profile.glicko_rating || '1500'),
-          rd: parseFloat(player2Profile.glicko_rd || '350'),
-          vol: parseFloat(player2Profile.glicko_vol || '0.06')
-        },
-        {
-          rating: parseFloat(player3Profile.glicko_rating || '1500'),
-          rd: parseFloat(player3Profile.glicko_rd || '350'),
-          vol: parseFloat(player3Profile.glicko_vol || '0.06')
-        },
-        {
-          rating: parseFloat(player4Profile.glicko_rating || '1500'),
-          rd: parseFloat(player4Profile.glicko_rd || '350'),
-          vol: parseFloat(player4Profile.glicko_vol || '0.06')
-        },
-        team1ScoreNumber,
-        team2ScoreNumber
+        player1Rating,
+        player2Rating,
+        player3Rating,
+        player4Rating,
+        winnerTeam === 1 ? 1 : 0,
+        winnerTeam === 2 ? 1 : 0
       );
 
-      const matchData = {
-        player1_id: session?.user?.id,
+      // Prepare match data for Supabase
+      const matchData: MatchData = {
+        player1_id: session?.user?.id as string,
         player2_id: selectedFriends[0],
         player3_id: selectedFriends[1],
         player4_id: selectedFriends[2],
-        team1_score: team1ScoreNumber,
-        team2_score: team2ScoreNumber,
-        status: 4, 
-        completed_at: new Date().toISOString()
+        team1_score_set1: set1Score.team1,
+        team2_score_set1: set1Score.team2,
+        team1_score_set2: set2Score.team1,
+        team2_score_set2: set2Score.team2,
+        team1_score_set3: showSet3 ? set3Score.team1 : null,
+        team2_score_set3: showSet3 ? set3Score.team2 : null,
+        winner_team: winnerTeam,
+        status: 4, // Completed
+        completed_at: new Date().toISOString(),
+        start_time: matchStartTime.toISOString(),
+        end_time: matchEndTime.toISOString(),
+        region: region || null,
+        court: court || null
       };
 
+      // Insert match into Supabase
       const { data: matchResult, error: matchError } = await supabase
         .from('matches')
         .insert(matchData)
@@ -364,172 +300,323 @@ export default function CreateMatchScreen() {
 
       if (matchError) throw matchError;
 
+      // Update player ratings
       const updatePromises = [
         supabase.from('profiles').update({
-            glicko_rating: Math.round(newRatings.player1.rating).toString(),
-            glicko_rd: Math.round(newRatings.player1.rd).toString(),
-            glicko_vol: newRatings.player1.vol.toFixed(6)
-          }).eq('id', player1Profile.id),
+          glicko_rating: Math.round(newRatings.player1.rating).toString(),
+          glicko_rd: Math.round(newRatings.player1.rd).toString(),
+          glicko_vol: newRatings.player1.vol.toFixed(6)
+        }).eq('id', player1Profile.id),
+        
         supabase.from('profiles').update({
-            glicko_rating: Math.round(newRatings.player2.rating).toString(),
-            glicko_rd: Math.round(newRatings.player2.rd).toString(),
-            glicko_vol: newRatings.player2.vol.toFixed(6)
-          }).eq('id', player2Profile.id),
+          glicko_rating: Math.round(newRatings.player2.rating).toString(),
+          glicko_rd: Math.round(newRatings.player2.rd).toString(),
+          glicko_vol: newRatings.player2.vol.toFixed(6)
+        }).eq('id', player2Profile.id),
+        
         supabase.from('profiles').update({
-            glicko_rating: Math.round(newRatings.player3.rating).toString(),
-            glicko_rd: Math.round(newRatings.player3.rd).toString(),
-            glicko_vol: newRatings.player3.vol.toFixed(6)
-          }).eq('id', player3Profile.id),
+          glicko_rating: Math.round(newRatings.player3.rating).toString(),
+          glicko_rd: Math.round(newRatings.player3.rd).toString(),
+          glicko_vol: newRatings.player3.vol.toFixed(6)
+        }).eq('id', player3Profile.id),
+        
         supabase.from('profiles').update({
-            glicko_rating: Math.round(newRatings.player4.rating).toString(),
-            glicko_rd: Math.round(newRatings.player4.rd).toString(),
-            glicko_vol: newRatings.player4.vol.toFixed(6)
-          }).eq('id', player4Profile.id)
+          glicko_rating: Math.round(newRatings.player4.rating).toString(),
+          glicko_rd: Math.round(newRatings.player4.rd).toString(),
+          glicko_vol: newRatings.player4.vol.toFixed(6)
+        }).eq('id', player4Profile.id)
       ];
 
       await Promise.all(updatePromises);
 
-      const ratingDiff1 = Math.round(newRatings.player1.rating - parseFloat(player1Profile.glicko_rating || '1500'));
-      alert(`Match created successfully! Your rating changed by ${ratingDiff1 > 0 ? '+' : ''}${ratingDiff1} points.`);
+      // Show success message with rating change
+      const ratingDiff = Math.round(newRatings.player1.rating - player1Rating.rating);
+      Alert.alert(
+        'Match Created', 
+        `Match created successfully! Your rating changed by ${ratingDiff > 0 ? '+' : ''}${ratingDiff} points.`,
+        [{ text: 'OK', onPress: () => router.push('/(protected)/(tabs)') }]
+      );
       
-      router.push('/(protected)/(tabs)');
     } catch (error) {
       console.error('Error creating match:', error);
-      alert(`Failed to create match. ${(error as Error).message || 'Please try again.'}`);
+      Alert.alert('Error', `Failed to create match: ${(error as Error).message}`);
     } finally {
-      setLoading(false); // General loading for create match action
+      setLoading(false);
     }
   };
 
-  const renderFriendItem = (friend: Friend) => {
-    const isSelected = selectedFriends.includes(friend.id);
-    
-    return (
-      <TouchableOpacity
-        key={friend.id}
-        className={`bg-card rounded-lg mb-3 p-4 flex-row items-center ${
-          isSelected ? 'border-2 border-primary' : ''
-        }`}
-        onPress={() => toggleFriendSelection(friend.id)}
-      >
-        <View className="w-12 h-12 rounded-full bg-primary items-center justify-center mr-4">
-          <Text className="text-lg font-bold text-primary-foreground">
-            {friend.full_name?.charAt(0)?.toUpperCase() || '?'}
+  const renderPlayerSection = () => (
+    <View style={styles.section}>
+      <H3 className="mb-2">Players</H3>
+      
+      <View style={styles.playersContainer}>
+        {/* Current user (Player 1) */}
+        <View style={styles.playerCard}>
+          <View style={styles.playerAvatar}>
+            <Text className="text-lg font-bold text-primary-foreground">
+              {profile?.full_name?.charAt(0)?.toUpperCase() || 
+               session?.user?.email?.charAt(0)?.toUpperCase() || '?'}
+            </Text>
+          </View>
+          <Text className="text-sm font-medium mt-1">You</Text>
+          <Text className="text-xs text-muted-foreground">Team 1</Text>
+        </View>
+        
+        {/* Player selection button */}
+        {selectedPlayers.length < 3 && (
+          <TouchableOpacity 
+            style={styles.addPlayerButton}
+            onPress={() => setShowPlayerModal(true)}
+          >
+            <View style={styles.addIconContainer}>
+              <Ionicons name="add" size={30} color="#fbbf24" />
+            </View>
+            <Text className="text-sm font-medium mt-1">Add Players</Text>
+            <Text className="text-xs text-muted-foreground">
+              {selectedPlayers.length}/3 selected
+            </Text>
+          </TouchableOpacity>
+        )}
+        
+        {/* Selected players */}
+        {selectedPlayers.map((player, index) => (
+          <View 
+            key={player.id} 
+            style={styles.playerCard}
+          >
+            <View style={[
+              styles.playerAvatar,
+              { backgroundColor: index === 0 ? '#fbbf24' : '#6366f1' }
+            ]}>
+              <Text className="text-lg font-bold text-primary-foreground">
+                {player.full_name?.charAt(0)?.toUpperCase() || 
+                 player.email?.charAt(0)?.toUpperCase() || '?'}
+              </Text>
+            </View>
+            <Text className="text-sm font-medium mt-1" numberOfLines={1}>
+              {player.full_name || player.email?.split('@')[0]}
+            </Text>
+            <Text className="text-xs text-muted-foreground">
+              {index === 0 ? 'Team 1' : 'Team 2'}
+            </Text>
+          </View>
+        ))}
+      </View>
+      
+      {selectedPlayers.length > 0 && (
+        <TouchableOpacity 
+          style={styles.editButton}
+          onPress={() => setShowPlayerModal(true)}
+        >
+          <Ionicons name="create-outline" size={16} color="#555" />
+          <Text className="text-sm text-muted-foreground ml-1">
+            Edit Players
+          </Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
+  const renderTimeSection = () => (
+    <View style={styles.section}>
+      <H3 className="mb-4">Date & Time</H3>
+      
+      <CustomDateTimePicker
+        label="Match Date"
+        value={matchDate}
+        onChange={setMatchDate}
+        mode="date"
+        maximumDate={new Date()}
+      />
+      
+      <CustomDateTimePicker
+        label="Start Time"
+        value={matchStartTime}
+        onChange={setMatchStartTime}
+        mode="time"
+      />
+      
+      <CustomDateTimePicker
+        label="End Time"
+        value={matchEndTime}
+        onChange={setMatchEndTime}
+        mode="time"
+      />
+    </View>
+  );
+
+  const renderScoreSection = () => (
+    <View style={styles.section}>
+      <H3 className="mb-4">Match Score</H3>
+      
+      <SetScoreInput
+        setNumber={1}
+        value={set1Score}
+        onChange={setSet1Score}
+        onValidate={setIsSet1Valid}
+      />
+      
+      <SetScoreInput
+        setNumber={2}
+        value={set2Score}
+        onChange={setSet2Score}
+        onValidate={setIsSet2Valid}
+      />
+      
+      {showSet3 && (
+        <SetScoreInput
+          setNumber={3}
+          value={set3Score}
+          onChange={setSet3Score}
+          onValidate={setIsSet3Valid}
+        />
+      )}
+      
+      {isSet1Valid && isSet2Valid && (
+        <View style={styles.winnerDisplay}>
+          <Text className="text-lg font-semibold text-center">
+            Winner: {determineWinnerTeam() === 1 ? 'Team 1' : 'Team 2'}
+          </Text>
+          <Text className="text-muted-foreground text-center">
+            {determineWinnerTeam() === 1 
+              ? 'You and Player 2 won this match' 
+              : 'Player 3 and Player 4 won this match'}
           </Text>
         </View>
-        <View className="flex-1">
-          <Text className="font-medium">{friend.full_name || friend.email}</Text>
-          <Text className="text-sm text-muted-foreground">{friend.email}</Text>
-        </View>
-        {isSelected && (
-          <View className="w-8 h-8 rounded-full bg-primary items-center justify-center">
-            <Ionicons name="checkmark" size={20} color="#fff" />
-          </View>
-        )}
-      </TouchableOpacity>
-    );
-  };
+      )}
+    </View>
+  );
 
   return (
     <SafeAreaView className="flex-1 bg-background">
       <ScrollView 
-        className="p-6"
-        refreshControl={ // Added RefreshControl
+        style={styles.container}
+        refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#fbbf24" // iOS
-            colors={['#fbbf24']} // Android
+            tintColor="#fbbf24"
+            colors={['#fbbf24']}
           />
         }
       >
-        <View className="flex-row items-center mb-6">
-          <Button 
-            variant="ghost" 
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backButton}
             onPress={() => router.back()}
-            className="mr-2"
           >
             <Ionicons name="arrow-back" size={24} color="#fbbf24" />
-          </Button>
+          </TouchableOpacity>
           <H1>Create Match</H1>
         </View>
 
-        <H3 className="mb-4">Select 3 Players</H3>
-        <View className="mb-2">
-          <Text className="text-sm text-muted-foreground mb-1">
-            Select 3 friends to create a 2v2 match. You'll be Player 1.
-          </Text>
-          <Text className="text-sm text-primary mb-4">
-            {selectedFriends.length}/3 selected
-          </Text>
-        </View>
-
-        {loading && !refreshing ? ( // Show full screen loader only on initial load
-          <ActivityIndicator size="large" color="#fbbf24" className="my-6" />
-        ) : (
-          <>
-            {friends.length > 0 ? (
-              friends.map(renderFriendItem)
-            ) : (
-              <View className="bg-card rounded-lg p-6 items-center my-6">
-                <Ionicons name="people-outline" size={48} color="#888" />
-                <Text className="text-lg font-medium mt-4 mb-2">No friends yet</Text>
-                <Text className="text-muted-foreground text-center">
-                  Add friends to create a match with them. Pull down to refresh if you've added some recently.
-                </Text>
-              </View>
-            )}
-          </>
-        )}
-
-        {selectedFriends.length === 3 && (
-          <>
-            <H3 className="mb-4 mt-6">Match Score</H3>
-            <View className="flex-row items-center justify-center mb-2">
-              <View className="items-center">
-                <Text className="mb-2 text-muted-foreground">Team 1 (You & Player 2)</Text>
-                <TextInput
-                  className="bg-card border-2 border-border rounded-lg px-4 py-3 text-foreground w-20 text-center text-lg"
-                  value={team1Score}
-                  onChangeText={setTeam1Score}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                />
-              </View>
-              
-              <Text className="mx-6 text-2xl">-</Text>
-              
-              <View className="items-center">
-                <Text className="mb-2 text-muted-foreground">Team 2 (Player 3 & 4)</Text>
-                <TextInput
-                  className="bg-card border-2 border-border rounded-lg px-4 py-3 text-foreground w-20 text-center text-lg"
-                  value={team2Score}
-                  onChangeText={setTeam2Score}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                />
-              </View>
-            </View>
-            <Text className="text-sm text-muted-foreground text-center mb-6">
-              Ratings will be updated based on the match result
-            </Text>
-          </>
-        )}
-
+        <Text className="text-muted-foreground mb-6">
+          Record a match that already happened. All players will have their ratings updated.
+        </Text>
+        
+        {renderPlayerSection()}
+        {renderTimeSection()}
+        {renderScoreSection()}
+        
         <Button
-          className="w-full mt-4"
-          size="default"
+          className="w-full mt-6 mb-10"
+          size="lg"
           variant="default"
           onPress={createMatch}
-          disabled={(loading && !refreshing) || selectedFriends.length !== 3} // Disable if initial loading or not 3 friends
+          disabled={loading || !isSet1Valid || !isSet2Valid || (showSet3 && !isSet3Valid) || selectedFriends.length !== 3}
         >
-          {loading && !refreshing ? ( // Show spinner in button only if it's the createMatch loading
-            <ActivityIndicator size="small" color="#333" />
+          {loading ? (
+            <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text>Create Match</Text>
+            <Text className="text-primary-foreground font-medium">Create Match</Text>
           )}
         </Button>
       </ScrollView>
+      
+      <PlayerSelectionModal
+        visible={showPlayerModal}
+        onClose={() => setShowPlayerModal(false)}
+        friends={friends}
+        selectedFriends={selectedFriends}
+        onSelectFriends={setSelectedFriends}
+        loading={loading}
+      />
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 20,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  backButton: {
+    marginRight: 12,
+  },
+  section: {
+    marginBottom: 24,
+    padding: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  playersContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginVertical: 10,
+  },
+  playerCard: {
+    width: '25%',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  playerAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#fbbf24',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addPlayerButton: {
+    width: '25%',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  addIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 2,
+    borderColor: '#fbbf24',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    padding: 8,
+  },
+  winnerDisplay: {
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#fbbf24',
+  }
+});
