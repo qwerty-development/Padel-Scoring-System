@@ -77,10 +77,15 @@
       }
     },
     "owner": "qwerty-app",
-   "runtimeVersion": "1.0.0",
-    "updates": {
-      "url": "https://u.expo.dev/5b488769-1acb-4415-8ee6-70fd02fef865"
-    },
+"runtimeVersion": {
+  "policy": "sdkVersion"
+},
+"updates": {
+  "enabled": true,
+  "fallbackToCacheTimeout": 0,
+  "url": "https://u.expo.dev/5b488769-1acb-4415-8ee6-70fd02fef865",
+  "checkAutomatically": "ON_LOAD"
+},
     "web": {
       "favicon": "./assets/favicon.png"
     }
