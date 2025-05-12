@@ -14,6 +14,7 @@ import { Text } from "@/components/ui/text";
 import { H1 } from "@/components/ui/typography";
 import { useAuth } from "@/context/supabase-provider";
 import { useColorScheme } from "@/lib/useColorScheme";
+import GoogleSignInButton from "@/components/GoogleSignInButton"; // Import the new component
 
 // Schema for sign-in form validation
 const signInFormSchema = z.object({
@@ -22,13 +23,14 @@ const signInFormSchema = z.object({
 });
 
 export default function SignIn() {
-  const { signIn, appleSignIn } = useAuth();
+  const { signIn, appleSignIn, googleSignIn } = useAuth(); // Add googleSignIn
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
   
   const [error, setError] = useState("");
   const [isEmailLoading, setIsEmailLoading] = useState(false);
   const [isAppleLoading, setIsAppleLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false); // Add Google loading state
   const [appleAuthAvailable, setAppleAuthAvailable] = useState(false);
 
   // Form for email/password sign-in
@@ -92,6 +94,27 @@ export default function SignIn() {
       setError(err.message || "Failed to sign in with Apple.");
     } finally {
       setIsAppleLoading(false);
+    }
+  };
+
+  // Handle Google Sign In
+  const handleGoogleSignIn = async () => {
+    setError("");
+    setIsGoogleLoading(true);
+    
+    try {
+      const { error, needsProfileUpdate } = await googleSignIn();
+      
+      if (error) {
+        setError(error.message || "Google sign in failed.");
+      }
+      
+      // Navigation and profile completion is handled by auth provider
+    } catch (err: any) {
+      console.error("Google sign in error:", err);
+      setError(err.message || "Failed to sign in with Google.");
+    } finally {
+      setIsGoogleLoading(false);
     }
   };
 
@@ -221,7 +244,11 @@ export default function SignIn() {
               </TouchableOpacity>
             )}
             
-            {/* You can add more social sign-in buttons here (Google, etc.) */}
+            {/* Google Sign In Button */}
+            <GoogleSignInButton
+              onPress={handleGoogleSignIn}
+              isLoading={isGoogleLoading}
+            />
           </View>
         </View>
         

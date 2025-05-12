@@ -54,7 +54,8 @@
           "resizeMode": "cover",
           "image": "./assets/splash-dark.png"
         }
-      }
+      },
+      "package": "com.qwertyapp.padel_scoring_app"
     },
     "experiments": {
       "typedRoutes": true
@@ -67,8 +68,7 @@
         {
           "serviceId": "com.qwertyapp.padel-scoring-app"
         }
-      ],
-      "expo-web-browser"
+      ]
     ],
     "extra": {
       "router": {},
@@ -77,9 +77,14 @@
       }
     },
     "owner": "qwerty-app",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "updates": {
-      "url": "https://u.expo.dev/5b488769-1acb-4415-8ee6-70fd02fef865",
-       "runtimeVersion": "1.0.0"
+      "url": "https://u.expo.dev/5b488769-1acb-4415-8ee6-70fd02fef865"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
     }
   }
 }
