@@ -9,8 +9,12 @@ import {
   import { Session } from "@supabase/supabase-js";
   import { supabase } from "@/config/supabase";
   import PadelLoadingScreen from "@/components/PadelLoadingScreen";
-  import * as AppleAuthentication from 'expo-apple-authentication';
-  import { Platform } from "react-native";
+  import * as AppleAuthentication from "expo-apple-authentication";
+  import * as WebBrowser from "expo-web-browser";
+  import { Platform, Linking } from "react-native";
+  
+  // Ensure auth session completion is properly handled
+  WebBrowser.maybeCompleteAuthSession();
   
   SplashScreen.preventAutoHideAsync();
   
@@ -38,7 +42,10 @@ import {
 	session: Session | null;
 	profile: UserProfile | null;
 	isProfileComplete: boolean;
-	signUp: (email: string, password: string) => Promise<{
+	signUp: (
+	  email: string,
+	  password: string,
+	) => Promise<{
 	  error?: Error;
 	  needsEmailVerification?: boolean;
 	  email?: string;
@@ -46,18 +53,30 @@ import {
 	signIn: (email: string, password: string) => Promise<void>;
 	signOut: () => Promise<void>;
 	saveProfile: (profileData: Partial<UserProfile>) => Promise<void>;
-	verifyOtp: (email: string, otp: string) => Promise<{
+	verifyOtp: (
+	  email: string,
+	  otp: string,
+	) => Promise<{
 	  error?: Error;
 	  data?: any;
 	}>;
 	resetPassword: (email: string) => Promise<{
 	  error?: Error;
 	}>;
-	updatePassword: (email: string, code: string, newPassword: string) => Promise<{
+	updatePassword: (
+	  email: string,
+	  code: string,
+	  newPassword: string,
+	) => Promise<{
 	  error?: Error;
 	}>;
-	// Add apple sign in method
+	// Authentication methods
 	appleSignIn: () => Promise<{
+	  error?: Error;
+	  needsProfileUpdate?: boolean;
+	}>;
+	// Add Google sign in method
+	googleSignIn: () => Promise<{
 	  error?: Error;
 	  needsProfileUpdate?: boolean;
 	}>;
@@ -76,6 +95,7 @@ import {
 	resetPassword: async () => ({}),
 	updatePassword: async () => ({}),
 	appleSignIn: async () => ({}),
+	googleSignIn: async () => ({}), // Add Google sign-in placeholder
   });
   
   export const useAuth = () => useContext(AuthContext);
@@ -98,13 +118,17 @@ import {
 	}
   };
   
-  const updatePassword = async (email: string, code: string, newPassword: string) => {
+  const updatePassword = async (
+	email: string,
+	code: string,
+	newPassword: string,
+  ) => {
 	try {
 	  // First verify the OTP
 	  const { data, error } = await supabase.auth.verifyOtp({
 		email,
 		token: code,
-		type: 'recovery',
+		type: "recovery",
 	  });
   
 	  if (error) {
@@ -115,7 +139,7 @@ import {
 	  // If OTP verification succeeded, update the password
 	  if (data.session) {
 		const { error: updateError } = await supabase.auth.updateUser({
-		  password: newPassword
+		  password: newPassword,
 		});
   
 		if (updateError) {
@@ -123,7 +147,9 @@ import {
 		  return { error: updateError };
 		}
 	  } else {
-		return { error: new Error("Verification succeeded but no session was created") };
+		return {
+		  error: new Error("Verification succeeded but no session was created"),
+		};
 	  }
   
 	  return { error: null };
@@ -136,7 +162,7 @@ import {
   // Helper function to check if profile is complete
   const checkProfileComplete = (profile: UserProfile | null): boolean => {
 	if (!profile) return false;
-	
+  
 	// Check required fields are filled
 	return !!(
 	  profile.full_name &&
@@ -161,16 +187,16 @@ import {
 	  try {
 		setIsLoadingProfile(true);
 		const { data, error } = await supabase
-		  .from('profiles')
-		  .select('*')
-		  .eq('id', userId)
+		  .from("profiles")
+		  .select("*")
+		  .eq("id", userId)
 		  .single();
-	  
+  
 		if (error) {
 		  console.error("Error fetching profile:", error);
 		  return;
 		}
-	  
+  
 		setProfile(data);
 	  } catch (error) {
 		console.error("Error fetching profile:", error);
@@ -204,11 +230,11 @@ import {
 		if (data.session) {
 		  setSession(data.session);
 		  console.log("User signed up and automatically signed in:", data.user);
-		  
+  
 		  // Create a profile when the user signs up
 		  if (data.user) {
 			const { error: profileError } = await supabase
-			  .from('profiles')
+			  .from("profiles")
 			  .insert({
 				id: data.user.id,
 				email: data.user.email,
@@ -223,9 +249,9 @@ import {
 		  console.log("User signed up, email verification required");
 		}
   
-		return { 
-		  needsEmailVerification, 
-		  email 
+		return {
+		  needsEmailVerification,
+		  email,
 		};
 	  } catch (error) {
 		console.error("Error signing up:", error);
@@ -237,12 +263,12 @@ import {
 	  try {
 		// Reset verification flag at the beginning of the verification process
 		setIsVerificationComplete(false);
-		
+  
 		// Verify the OTP code
 		const { data, error } = await supabase.auth.verifyOtp({
 		  email,
 		  token: otp,
-		  type: 'signup',
+		  type: "signup",
 		});
   
 		if (error) {
@@ -252,14 +278,15 @@ import {
   
 		if (data.session && data.user) {
 		  // Check if profile exists before proceeding
-		  const { data: existingProfile, error: profileCheckError } = await supabase
-			.from('profiles')
-			.select('id')
-			.eq('id', data.user.id)
-			.single();
+		  const { data: existingProfile, error: profileCheckError } =
+			await supabase
+			  .from("profiles")
+			  .select("id")
+			  .eq("id", data.user.id)
+			  .single();
   
 		  // Handle profile check error, but ignore "no rows returned" error
-		  if (profileCheckError && profileCheckError.code !== 'PGRST116') {
+		  if (profileCheckError && profileCheckError.code !== "PGRST116") {
 			console.error("Error checking profile existence:", profileCheckError);
 			return { error: profileCheckError };
 		  }
@@ -268,7 +295,7 @@ import {
 		  if (!existingProfile) {
 			console.log("Creating new profile after verification");
 			const { error: createError } = await supabase
-			  .from('profiles')
+			  .from("profiles")
 			  .insert({
 				id: data.user.id,
 				email: data.user.email,
@@ -276,18 +303,21 @@ import {
 			  });
   
 			if (createError) {
-			  console.error("Error creating profile after verification:", createError);
+			  console.error(
+				"Error creating profile after verification:",
+				createError,
+			  );
 			  return { error: createError };
 			}
 		  }
   
 		  // Fetch profile before setting session to ensure correct navigation
 		  await fetchProfile(data.user.id);
-		  
+  
 		  // Set session only after profile operations are complete
 		  setSession(data.session);
 		  console.log("User verified and signed in:", data.user);
-		  
+  
 		  // Mark verification as complete - will trigger navigation to onboarding
 		  setIsVerificationComplete(true);
 		}
@@ -314,7 +344,7 @@ import {
 		if (data.session) {
 		  setSession(data.session);
 		  console.log("User signed in:", data.user);
-		  
+  
 		  // Fetch profile when user signs in
 		  if (data.user) {
 			await fetchProfile(data.user.id);
@@ -349,11 +379,11 @@ import {
 		}
   
 		const { data, error } = await supabase
-		  .from('profiles')
+		  .from("profiles")
 		  .update({
 			...profileData,
 		  })
-		  .eq('id', session.user.id)
+		  .eq("id", session.user.id)
 		  .select()
 		  .single();
   
@@ -370,17 +400,143 @@ import {
 	  }
 	};
   
+	// Google Sign In implementation
+	const googleSignIn = async () => {
+	  try {
+		// Define redirect URL using Expo Linking
+		const redirectUrl = Linking.createURL("auth-callback");
+		console.log("Google Sign-In redirect URL:", redirectUrl);
+  
+		// Start the OAuth flow with Supabase
+		const { data, error } = await supabase.auth.signInWithOAuth({
+		  provider: "google",
+		  options: {
+			redirectTo: redirectUrl,
+			// Skip browser redirect for mobile flow
+			skipBrowserRedirect: true,
+		  },
+		});
+  
+		if (error) {
+		  console.error("Error starting Google sign in:", error);
+		  return { error };
+		}
+  
+		if (!data?.url) {
+		  return { error: new Error("No OAuth URL returned from Supabase") };
+		}
+  
+		console.log("Opening auth session with URL:", data.url);
+  
+		// Open browser for authentication
+		const result = await WebBrowser.openAuthSessionAsync(
+		  data.url,
+		  redirectUrl
+		);
+  
+		// Handle authentication result
+		if (result.type === "success") {
+		  console.log("Google auth succeeded, URL:", result.url);
+		  
+		  // Fetch the session to confirm sign-in worked
+		  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+		  
+		  if (sessionError) {
+			console.error("Error getting session after Google sign in:", sessionError);
+			return { error: sessionError };
+		  }
+  
+		  if (sessionData?.session) {
+			// Set session state
+			setSession(sessionData.session);
+			console.log("User signed in with Google:", sessionData.session.user);
+			
+			// Check if user already has a profile
+			if (sessionData.session.user) {
+			  const userId = sessionData.session.user.id;
+			  
+			  // Check if profile exists
+			  const { data: existingProfile, error: profileError } = await supabase
+				.from("profiles")
+				.select("*")
+				.eq("id", userId)
+				.single();
+				
+			  if (profileError && profileError.code !== "PGRST116") {
+				console.error("Error checking profile existence:", profileError);
+				return { error: profileError };
+			  }
+  
+			  // Create profile if it doesn't exist
+			  if (!existingProfile) {
+				console.log("Creating new profile after Google sign in");
+				const { error: createError } = await supabase
+				  .from("profiles")
+				  .insert({
+					id: userId,
+					email: sessionData.session.user.email,
+					// Try to get name from user metadata
+					full_name: sessionData.session.user.user_metadata?.name || 
+							   sessionData.session.user.user_metadata?.full_name || null,
+					created_at: new Date().toISOString(),
+				  });
+  
+				if (createError) {
+				  console.error("Error creating profile after Google sign in:", createError);
+				  return { error: createError };
+				}
+				
+				// Fetch the newly created profile
+				await fetchProfile(userId);
+				
+				// Signal that profile needs to be completed
+				return { needsProfileUpdate: true };
+			  } else {
+				// Fetch the existing profile
+				await fetchProfile(userId);
+				
+				// Check if profile needs to be completed
+				return { needsProfileUpdate: !checkProfileComplete(existingProfile) };
+			  }
+			}
+		  } else {
+			console.log("Session not found after successful OAuth flow");
+			return { error: new Error("Authentication successful but no session was created") };
+		  }
+		} else if (result.type === "cancel") {
+		  console.log("User canceled Google sign-in");
+		  return { error: new Error("User canceled Google sign-in") };
+		} else {
+		  console.log("Google sign-in failed:", result.type);
+		  return { error: new Error("Google sign-in failed") };
+		}
+  
+		return {};
+	  } catch (error) {
+		console.error("Google sign in error:", error);
+		return { error: error as Error };
+	  }
+	};
+  
 	// Apple Sign In implementation
 	const appleSignIn = async () => {
 	  try {
 		// Check if Apple Authentication is available on this device
-		if (Platform.OS !== 'ios') {
-		  return { error: new Error('Apple authentication is only available on iOS devices') };
+		if (Platform.OS !== "ios") {
+		  return {
+			error: new Error(
+			  "Apple authentication is only available on iOS devices",
+			),
+		  };
 		}
-		
+  
 		const isAvailable = await AppleAuthentication.isAvailableAsync();
 		if (!isAvailable) {
-		  return { error: new Error('Apple authentication is not available on this device') };
+		  return {
+			error: new Error(
+			  "Apple authentication is not available on this device",
+			),
+		  };
 		}
   
 		// Request authentication with Apple
@@ -394,7 +550,7 @@ import {
 		// Sign in via Supabase Auth
 		if (credential.identityToken) {
 		  const { data, error } = await supabase.auth.signInWithIdToken({
-			provider: 'apple',
+			provider: "apple",
 			token: credential.identityToken,
 		  });
   
@@ -406,62 +562,67 @@ import {
 		  if (data.session) {
 			setSession(data.session);
 			console.log("User signed in with Apple:", data.user);
-			
+  
 			// Check if this is a new user and if they already have a profile
 			if (data.user) {
-			  const { data: existingProfile, error: profileError } = await supabase
-				.from('profiles')
-				.select('*')
-				.eq('id', data.user.id)
-				.single();
+			  const { data: existingProfile, error: profileError } =
+				await supabase
+				  .from("profiles")
+				  .select("*")
+				  .eq("id", data.user.id)
+				  .single();
   
-			  if (profileError && profileError.code !== 'PGRST116') {
+			  if (profileError && profileError.code !== "PGRST116") {
 				console.error("Error checking profile:", profileError);
 			  }
   
 			  if (!existingProfile) {
 				// Create minimal profile if none exists
 				const { error: createError } = await supabase
-				  .from('profiles')
+				  .from("profiles")
 				  .insert({
 					id: data.user.id,
 					email: data.user.email,
 					// Add name from Apple if available
-					full_name: credential.fullName?.givenName && credential.fullName?.familyName
-					  ? `${credential.fullName.givenName} ${credential.fullName.familyName}`
-					  : null,
+					full_name:
+					  credential.fullName?.givenName &&
+					  credential.fullName?.familyName
+						? `${credential.fullName.givenName} ${credential.fullName.familyName}`
+						: null,
 					created_at: new Date().toISOString(),
 				  });
   
 				if (createError) {
 				  console.error("Error creating profile:", createError);
 				}
-				
+  
 				// Fetch the newly created profile
 				await fetchProfile(data.user.id);
-				
+  
 				// Note that profile needs to be completed
 				return { needsProfileUpdate: true };
 			  } else {
 				// Fetch the existing profile
 				await fetchProfile(data.user.id);
-				
+  
 				// Check if the profile needs to be completed
-				return { needsProfileUpdate: !checkProfileComplete(existingProfile) };
+				return {
+				  needsProfileUpdate: !checkProfileComplete(existingProfile),
+				};
 			  }
 			}
 		  }
 		} else {
-		  return { error: new Error('No identity token received from Apple') };
+		  return { error: new Error("No identity token received from Apple") };
 		}
-		
+  
 		return {};
 	  } catch (error: any) {
-		if (error.code === 'ERR_REQUEST_CANCELED') {
-		  console.log('User canceled Apple sign-in');
+		if (error.code === "ERR_REQUEST_CANCELED") {
+		  console.log("User canceled Apple sign-in");
 		  return {}; // Not an error, just a cancellation
 		}
-		
+  
 		console.error("Apple authentication error:", error);
 		return { error: error as Error };
 	  }
@@ -498,25 +659,27 @@ import {
 	useEffect(() => {
 	  if (initialized) {
 		SplashScreen.hideAsync();
-		
+  
 		if (session) {
-		  console.log('Session exists, checking profile...');
-		  console.log('Profile:', profile);
-		  console.log('Is profile complete:', checkProfileComplete(profile));
-		  
+		  console.log("Session exists, checking profile...");
+		  console.log("Profile:", profile);
+		  console.log("Is profile complete:", checkProfileComplete(profile));
+  
 		  // Don't navigate if still loading profile
 		  if (isLoadingProfile) {
 			return;
 		  }
-		  
+  
 		  // Special handling for just-completed verification - always go to onboarding
 		  if (isVerificationComplete) {
-			console.log('Verification just completed - redirecting to onboarding');
+			console.log(
+			  "Verification just completed - redirecting to onboarding",
+			);
 			setIsVerificationComplete(false); // Reset the flag after navigation
 			router.replace("/onboarding");
 			return;
 		  }
-		  
+  
 		  // Standard navigation logic for non-verification flows
 		  if (!checkProfileComplete(profile)) {
 			router.replace("/onboarding");
@@ -528,12 +691,12 @@ import {
 		}
 	  }
 	}, [initialized, session, profile, isLoadingProfile, isVerificationComplete]);
-	
+  
 	// Show loading screen while initializing OR loading profile
 	if (!initialized || isLoadingProfile) {
 	  return <PadelLoadingScreen />;
 	}
-	
+  
 	return (
 	  <AuthContext.Provider
 		value={{
@@ -548,7 +711,8 @@ import {
 		  verifyOtp,
 		  resetPassword,
 		  updatePassword,
-		  appleSignIn
+		  appleSignIn,
+		  googleSignIn, // Add the Google sign-in method to the context
 		}}
 	  >
 		{children}

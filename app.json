@@ -67,7 +67,11 @@
         {
           "serviceId": "com.qwertyapp.padel-scoring-app"
         }
-      ]
+      ],
+      "expo-web-browser", 
+        {
+          "packageName": "com.qwertyapp.padelscoringapp"
+        }
     ],
     "extra": {
       "router": {},
