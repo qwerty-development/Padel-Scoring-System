@@ -35,6 +35,7 @@
 		"expo-secure-store": "~14.2.3",
 		"expo-status-bar": "~2.2.3",
 		"expo-system-ui": "~5.0.7",
+		"expo-updates": "~0.28.12",
 		"nativewind": "^4.1.23",
 		"react": "19.0.0",
 		"react-dom": "19.0.0",

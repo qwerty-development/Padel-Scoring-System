@@ -35,7 +35,10 @@
         "CFBundleAllowMixedLocalizations": true
       },
       "entitlements": {
-        "com.apple.developer.applesignin": ["Default"]
+        "com.apple.developer.applesignin": [
+          "Default",
+          "Default"
+        ]
       }
     },
     "android": {
@@ -72,6 +75,12 @@
         "projectId": "5b488769-1acb-4415-8ee6-70fd02fef865"
       }
     },
-    "owner": "qwerty-app"
+    "owner": "qwerty-app",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/5b488769-1acb-4415-8ee6-70fd02fef865"
+    }
   }
 }
