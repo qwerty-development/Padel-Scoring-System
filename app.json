@@ -3,7 +3,7 @@
     "name": "PadelScoringApp",
     "slug": "padel-scoring-app",
     "scheme": "padel-scoring-app",
-    "version": "1.0.1",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -77,9 +77,6 @@
       }
     },
     "owner": "qwerty-app",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
     "updates": {
       "url": "https://u.expo.dev/5b488769-1acb-4415-8ee6-70fd02fef865",
        "runtimeVersion": "1.0.0"
