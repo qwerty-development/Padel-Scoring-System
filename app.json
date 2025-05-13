@@ -68,7 +68,8 @@
         {
           "serviceId": "com.qwertyapp.padel-scoring-app"
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "extra": {
       "router": {},
@@ -77,14 +78,14 @@
       }
     },
     "owner": "qwerty-app",
-"runtimeVersion": "1.0.0",
-"updates": {
-  "enabled": true,
-  "fallbackToCacheTimeout": 30000,
-  "url": "https://u.expo.dev/5b488769-1acb-4415-8ee6-70fd02fef865",
-  "checkAutomatically": "ON_LOAD",
-  "channel": "production"
-},
+    "runtimeVersion": "1.0.0",
+    "updates": {
+      "enabled": true,
+      "fallbackToCacheTimeout": 30000,
+      "url": "https://u.expo.dev/5b488769-1acb-4415-8ee6-70fd02fef865",
+      "checkAutomatically": "ON_LOAD",
+      "channel": "production"
+    },
     "web": {
       "favicon": "./assets/favicon.png"
     }
