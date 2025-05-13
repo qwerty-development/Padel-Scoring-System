@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, ActivityIndicator, Share, Dimensions } from "react-native";
+import { View, ScrollView, TouchableOpacity, ActivityIndicator, Share, Dimensions, Alert } from "react-native"; // Added Alert
 import { Ionicons } from '@expo/vector-icons';
 
 
@@ -183,6 +183,27 @@ export default function Profile() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSignOut = async () => {
+    Alert.alert(
+      "Sign Out",
+      "Are you sure you want to sign out?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        { 
+          text: "Sign Out", 
+          onPress: async () => {
+            await signOut();
+            // router.replace('/(auth)/sign-in'); // Optional: redirect after sign out
+          },
+          style: "destructive"
+        }
+      ]
+    );
   };
 
   const shareProfile = async () => {
@@ -378,24 +399,25 @@ export default function Profile() {
 
   return (
     <View className="flex-1 bg-background">
-      <ScrollView>
-        {/* Header with action buttons */}
+      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}> 
+
         <View className="relative pt-12 pb-4 px-6 bg-primary/10">
-          <View className="absolute top-12 right-6 flex-row">
+    
+          <View className="absolute top-12 right-6 flex-row items-center z-10">
             <TouchableOpacity
-              className="w-10 h-10 rounded-full items-center justify-center mr-2 bg-card"
-              onPress={toggleColorScheme}
+              className="w-10 h-10 rounded-full items-center justify-center bg-card shadow-sm" // Added shadow
+              onPress={handleSignOut} // Use the new handler with confirmation
+              aria-label="Sign out"
             >
               <Ionicons 
-                name={colorScheme === "dark" ? "sunny-outline" : "moon-outline"} 
-                size={22} 
-                color="#555"
+                name="log-out-outline" 
+                size={24} // Slightly larger for emphasis
+                color={colorScheme === "dark" ? "#f87171" : "#ef4444"} // Reddish color for sign out
               />
             </TouchableOpacity>
-          
           </View>
           
-          <View className="items-center mt-4">
+          <View className="items-center mt-10"> {/* Adjusted mt for space from icons */}
             {renderAvatar()}
             <View className="flex-row justify-between items-start">
               <View className="flex-1 items-center">
@@ -409,7 +431,7 @@ export default function Profile() {
         </View>
 
         {/* Content */}
-        <View className="px-6 pb-8">
+        <View className="px-6 pb-8 pt-6"> {/* Added pt-6 for spacing from header */}
           {/* Loading indicator */}
           {loading && (
             <View className="py-4 items-center">
@@ -433,10 +455,10 @@ export default function Profile() {
               <TouchableOpacity
                 onPress={() => {router.push('/(protected)/(screens)/edit-profile')}}
               >
-                <Ionicons name="create-outline" size={20} color="#777" />
+                <Ionicons name="create-outline" size={20} color={colorScheme === 'dark' ? '#a1a1aa' : '#777'} />
               </TouchableOpacity>
             </View>
-            {renderInfoCard("Age", profile?.age, "person-outline")}
+            {renderInfoCard("Age", profile?.age ? profile.age.toString() : null, "person-outline")}
             {renderInfoCard("Gender", profile?.sex, "body-outline")}
             {renderInfoCard("Email", profile?.email, "mail-outline")}
           </View>
@@ -447,22 +469,6 @@ export default function Profile() {
             {renderInfoCard("Preferred Hand", profile?.preferred_hand, "hand-left-outline")}
             {renderInfoCard("Court Position", profile?.court_playing_side, "tennisball-outline")}
             {renderInfoCard("Preferred Area", profile?.preferred_area, "location-outline")}
-          </View>
-
-          {/* Account Actions */}
-          <View className="mt-8">
-          
-            <Button
-              className="w-full"
-              size="default"
-              variant="destructive"
-              onPress={async () => {
-                await signOut();
-              }}
-            >
-              <Ionicons name="log-out-outline" size={20} style={{ marginRight: 8 }} />
-              <Text>Sign Out</Text>
-            </Button>
           </View>
         </View>
       </ScrollView>
