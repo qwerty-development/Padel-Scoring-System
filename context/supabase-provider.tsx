@@ -170,20 +170,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
 	
 	// Set up redirect URI for OAuth flows
 	const redirectUri = (() => {
-		// Check if running in development
 		if (__DEV__) {
-		  // Use Expo's auth proxy service for development
-		  const slug = Constants.expoConfig?.slug || "padel-scoring-app";
-		  const owner = Constants.expoConfig?.owner || "qwerty-app";
-		  
-		  // Format: https://auth.expo.io/@owner/slug
-		  return `https://auth.expo.io/@${owner}/${slug}`;
+		  // IMPORTANT: This must match EXACTLY one of the URIs in Google Cloud Console
+		  return "https://auth.expo.io/@qwerty-app/padel-scoring-app";
 		} else {
-		  // Use the app's production redirect URI for production builds
-		  return makeRedirectUri({
-			scheme: "com.qwertyapp.padel-scoring-app",
-			path: "auth/callback"
-		  });
+		  // For production builds
+		  return "https://tfyxkhivanmcokxugmhe.supabase.co/auth/v1/callback";
 		}
 	  })();
 	  
@@ -516,6 +508,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 			  skipBrowserRedirect: true,
 			},
 		  });
+	  
 	  
 		  if (error) {
 			console.error("OAuth initialization error:", error);
