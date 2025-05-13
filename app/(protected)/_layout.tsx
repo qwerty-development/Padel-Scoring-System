@@ -1,6 +1,9 @@
 import { Redirect, Stack } from "expo-router";
 
 import { useAuth } from "@/context/supabase-provider";
+import { LogBox } from "react-native";
+
+LogBox.ignoreAllLogs();
 
 export const unstable_settings = {
 	initialRouteName: "(tabs)",

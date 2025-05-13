@@ -24,6 +24,8 @@ export interface Profile {
     player4_id: string;
     status: number; // 0: scheduled, 1: in progress, 2: completed
     created_at: string;
+    needsScores?: boolean;
+  isTeam1?: boolean;
     completed_at: string | null;
     
     // Set scores
