@@ -299,7 +299,7 @@ export default function WelcomeScreen() {
                 ],
               }}
             >
-              <H1 style={styles.appTitle}>Glicko Rating LB</H1>
+              <H1 style={styles.appTitle}>Padel System</H1>
               <Muted style={styles.appSubtitle}>
                 Track matches, improve your rating, and connect with the padel community
               </Muted>
