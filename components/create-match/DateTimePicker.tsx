@@ -26,7 +26,7 @@ export function CustomDateTimePicker({
   label,
   value,
   onChange,
-  maximumDate = new Date(),
+  maximumDate,
   minimumDate,
   mode = 'datetime'
 }: CustomDateTimePickerProps) {
@@ -83,7 +83,11 @@ export function CustomDateTimePicker({
         onPress={() => setShowPicker(true)}
       >
         <Text className="text-foreground">{getFormattedValue()}</Text>
-        <Ionicons name="calendar" size={20} color="#777" />
+        <Ionicons 
+          name={mode === 'time' ? 'time-outline' : 'calendar-outline'} 
+          size={20} 
+          color="#777" 
+        />
       </TouchableOpacity>
 
       {/* Android uses the native date picker */}
@@ -93,7 +97,7 @@ export function CustomDateTimePicker({
           mode={mode}
           display="default"
           onChange={handleChange}
-          maximumDate={maximumDate}
+        
           minimumDate={minimumDate}
         />
       )}
@@ -125,7 +129,7 @@ export function CustomDateTimePicker({
                     display="spinner"
                     onChange={handleChange}
                     style={styles.iOSPicker}
-                    maximumDate={maximumDate}
+                 
                     minimumDate={minimumDate}
                   />
                 </View>
