@@ -230,7 +230,7 @@ export default function Profile() {
   const renderInfoCard = (title: string, value: string | null, icon: keyof typeof Ionicons.glyphMap) => (
     <View className="bg-card rounded-lg p-4 mb-3 flex-row items-center">
       <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center mr-4">
-        <Ionicons name={icon} size={20} color="#fbbf24" />
+        <Ionicons name={icon} size={20} color="#1a7ebd" />
       </View>
       <View className="flex-1">
         <Text className="text-sm text-muted-foreground">{title}</Text>
@@ -242,7 +242,6 @@ export default function Profile() {
   const renderStatsCard = () => (
     <View className="bg-card rounded-lg p-6 mb-6">
       <View className="flex-row justify-between items-center mb-4">
-        <H3>Player Statistics</H3>
         <View className="flex-row items-center">
           <Text className="text-xs text-muted-foreground mr-2">Current Rating:</Text>
           <Text className="text-base font-bold text-primary">
@@ -289,58 +288,13 @@ export default function Profile() {
           onPress={() => router.push('/(protected)/(screens)/match-history')}
         >
           <Text className="text-primary text-sm mr-1">View Full History</Text>
-          <Ionicons name="chevron-forward" size={14} color="#fbbf24" />
+          <Ionicons name="chevron-forward" size={14} color="#1a7ebd" />
         </TouchableOpacity>
       </View>
     </View>
   );
   
-  const renderQuickActions = () => (
-    <View className="bg-card rounded-lg p-4 mb-6">
-      <H3 className="mb-3">Quick Actions</H3>
-      <View className="flex-row flex-wrap">
-        <TouchableOpacity 
-          className="w-1/4 items-center p-2"
-          onPress={() => router.push('/(protected)/(screens)/create-match')}
-        >
-          <View className="w-12 h-12 rounded-full bg-primary/10 items-center justify-center mb-2">
-            <Ionicons name="add" size={24} color="#fbbf24" />
-          </View>
-          <Text className="text-xs text-center">New Match</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          className="w-1/4 items-center p-2"
-          onPress={() => router.push('/(protected)/(screens)/match-history')}
-        >
-          <View className="w-12 h-12 rounded-full bg-primary/10 items-center justify-center mb-2">
-            <Ionicons name="calendar" size={22} color="#fbbf24" />
-          </View>
-          <Text className="text-xs text-center">Match History</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          className="w-1/4 items-center p-2"
-          onPress={() => router.push('/(protected)/(screens)/leaderboard')}
-        >
-          <View className="w-12 h-12 rounded-full bg-primary/10 items-center justify-center mb-2">
-            <Ionicons name="trophy" size={22} color="#fbbf24" />
-          </View>
-          <Text className="text-xs text-center">Leaderboard</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          className="w-1/4 items-center p-2"
-          onPress={() => router.push('/(protected)/(tabs)/friends')}
-        >
-          <View className="w-12 h-12 rounded-full bg-primary/10 items-center justify-center mb-2">
-            <Ionicons name="people" size={22} color="#fbbf24" />
-          </View>
-          <Text className="text-xs text-center">Friends</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+
   
   const renderMatchesSection = () => {
     // Only show if there are any matches to display
@@ -435,12 +389,10 @@ export default function Profile() {
           {/* Loading indicator */}
           {loading && (
             <View className="py-4 items-center">
-              <ActivityIndicator size="small" color="#fbbf24" />
+              <ActivityIndicator size="small" color="#1a7ebd" />
             </View>
           )}
-          
-          {/* Quick action buttons */}
-          {renderQuickActions()}
+        
           
           {/* Matches section */}
           {renderMatchesSection()}

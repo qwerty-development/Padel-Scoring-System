@@ -116,7 +116,7 @@ const ScoreCard: React.FC<ScoreCardProps> = ({
       {winnerTeam && (
         <View className="absolute top-12 left-1/2 -translate-x-6">
           <View className={`bg-${winnerTeam === 1 ? 'primary' : 'blue-500'}/10 p-2 rounded-full`}>
-            <Ionicons name="trophy" size={24} color={winnerTeam === 1 ? '#fbbf24' : '#3b82f6'} />
+            <Ionicons name="trophy" size={24} color={winnerTeam === 1 ? '#1a7ebd' : '#3b82f6'} />
           </View>
         </View>
       )}

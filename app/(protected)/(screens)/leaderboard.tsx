@@ -169,7 +169,7 @@ export default function Leaderboard() {
   if (loading && !refreshing && page === 0) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#fbbf24" />
+        <ActivityIndicator size="large" color="#1a7ebd" />
       </View>
     );
   }
@@ -222,7 +222,7 @@ export default function Leaderboard() {
         
         {loading && page > 0 && (
           <View className="py-4">
-            <ActivityIndicator size="small" color="#fbbf24" />
+            <ActivityIndicator size="small" color="#1a7ebd" />
           </View>
         )}
       </ScrollView>

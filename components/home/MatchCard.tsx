@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
     borderColor: 'white',
   },
   yourTeamAvatar: {
-    backgroundColor: '#fbbf24', // Primary color
+    backgroundColor: '#1a7ebd', // Primary color
   },
   opponentTeamAvatar: {
     backgroundColor: '#6b7280', // Gray color

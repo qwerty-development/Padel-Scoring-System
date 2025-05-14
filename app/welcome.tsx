@@ -28,7 +28,7 @@ const FEATURES = [
     title: "Match Tracking",
     description: "Record scores, track performance stats, and analyze your game progression",
     icon: "tennisball",
-    color: "#fbbf24" // Primary yellow
+    color: "#1a7ebd" // Primary yellow
   },
   {
     id: 2,
@@ -81,7 +81,7 @@ export default function WelcomeScreen() {
     : ["rgba(255,255,255,0.95)", "rgba(255,255,255,0.85)", "rgba(255,255,255,0.7)"];
     
   // Primary color
-  const primaryColor = "#fbbf24"; 
+  const primaryColor = "#1a7ebd"; 
 
   const startAutoScroll = () => {
 	if (autoScrollTimer.current) {

@@ -23,7 +23,7 @@ interface PlayerStatsCardProps {
 const PlayerStatsCard: React.FC<PlayerStatsCardProps> = ({
   player,
   position,
-  teamColor = '#fbbf24',
+  teamColor = '#1a7ebd',
   onPress
 }) => {
   const handlePress = () => {

@@ -145,7 +145,7 @@ export function PlayerSelectionModal({
           {/* Friends list */}
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#fbbf24" />
+              <ActivityIndicator size="large" color="#1a7ebd" />
             </View>
           ) : (
             <ScrollView style={styles.friendsList} showsVerticalScrollIndicator={false}>
@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#fbbf24',
+    backgroundColor: '#1a7ebd',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 15,
@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: '#fbbf24',
+    backgroundColor: '#1a7ebd',
     alignItems: 'center',
     justifyContent: 'center',
   },

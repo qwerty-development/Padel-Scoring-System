@@ -13,7 +13,7 @@
 		--popover-foreground: 0 0% 14.50%;
 		
 		/* Primary color - Official padel ball yellow */
-		--primary: 45 98% 48%;         /* Padel ball yellow */
+		--primary: 203 76% 42%%;         /* Padel ball yellow */
 		--primary-foreground: 0 0% 14.50%;
 		
 		/* Secondary - Racket colors */
@@ -48,7 +48,7 @@
 		--popover-foreground: 0 0% 98%;
 		
 		/* Primary remains same - padel ball yellow stands out in dark mode */
-		--primary: 45 98% 48%;
+		--primary: 203 76% 42%%;
 		--primary-foreground: 0 0% 14.50%;
 		
 		/* Secondary - Darker racket colors */

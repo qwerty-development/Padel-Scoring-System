@@ -462,7 +462,7 @@ export default function CreateMatchScreen() {
             onPress={() => setShowPlayerModal(true)}
           >
             <View style={styles.addIconContainer}>
-              <Ionicons name="add" size={30} color="#fbbf24" />
+              <Ionicons name="add" size={30} color="#1a7ebd" />
             </View>
             <Text className="text-sm font-medium mt-1">Add Players</Text>
             <Text className="text-xs text-muted-foreground">
@@ -479,7 +479,7 @@ export default function CreateMatchScreen() {
           >
             <View style={[
               styles.playerAvatar,
-              { backgroundColor: index === 0 ? '#fbbf24' : '#6366f1' }
+              { backgroundColor: index === 0 ? '#1a7ebd' : '#6366f1' }
             ]}>
               <Text className="text-lg font-bold text-primary-foreground">
                 {player.full_name?.charAt(0)?.toUpperCase() || 
@@ -625,8 +625,8 @@ export default function CreateMatchScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#fbbf24"
-            colors={['#fbbf24']}
+            tintColor="#1a7ebd"
+            colors={['#1a7ebd']}
           />
         }
       >
@@ -635,7 +635,7 @@ export default function CreateMatchScreen() {
             style={styles.backButton}
             onPress={() => router.back()}
           >
-            <Ionicons name="arrow-back" size={24} color="#fbbf24" />
+            <Ionicons name="arrow-back" size={24} color="#1a7ebd" />
           </TouchableOpacity>
           <H1>{isPastMatch ? 'Record Match' : 'Schedule Match'}</H1>
         </View>
@@ -719,7 +719,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#fbbf24',
+    backgroundColor: '#1a7ebd',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -734,7 +734,7 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 25,
     borderWidth: 2,
-    borderColor: '#fbbf24',
+    borderColor: '#1a7ebd',
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
@@ -752,6 +752,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
     borderRadius: 8,
     borderLeftWidth: 4,
-    borderLeftColor: '#fbbf24',
+    borderLeftColor: '#1a7ebd',
   }
 });

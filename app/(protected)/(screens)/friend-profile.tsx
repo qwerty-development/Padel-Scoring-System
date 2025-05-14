@@ -227,7 +227,7 @@ export default function FriendProfileScreen() {
   const renderInfoCard = (title: string, value: string | null, icon: keyof typeof Ionicons.glyphMap) => (
     <View className="bg-card rounded-lg p-4 mb-3 flex-row items-center">
       <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center mr-4">
-        <Ionicons name={icon} size={20} color="#fbbf24" />
+        <Ionicons name={icon} size={20} color="#1a7ebd" />
       </View>
       <View className="flex-1">
         <Text className="text-sm text-muted-foreground">{title}</Text>
@@ -266,7 +266,7 @@ export default function FriendProfileScreen() {
     if (matchesLoading) {
       return (
         <View className="bg-card rounded-lg p-6 mb-6 items-center">
-          <ActivityIndicator size="small" color="#fbbf24" />
+          <ActivityIndicator size="small" color="#1a7ebd" />
         </View>
       );
     }
@@ -458,7 +458,7 @@ export default function FriendProfileScreen() {
   if (loading && !refreshing) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#fbbf24" />
+        <ActivityIndicator size="large" color="#1a7ebd" />
       </View>
     );
   }
@@ -472,7 +472,7 @@ export default function FriendProfileScreen() {
             onPress={() => router.back()}
             className="mr-2"
           >
-            <Ionicons name="arrow-back" size={24} color="#fbbf24" />
+            <Ionicons name="arrow-back" size={24} color="#1a7ebd" />
           </Button>
           <H1>Profile Not Found</H1>
         </View>
@@ -488,8 +488,8 @@ export default function FriendProfileScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={["#fbbf24"]}
-            tintColor="#fbbf24"
+            colors={["#1a7ebd"]}
+            tintColor="#1a7ebd"
           />
         }
       >
@@ -500,7 +500,7 @@ export default function FriendProfileScreen() {
             onPress={() => router.back()}
             className="mr-2"
           >
-            <Ionicons name="arrow-back" size={24} color="#fbbf24" />
+            <Ionicons name="arrow-back" size={24} color="#1a7ebd" />
           </Button>
           <Text className="text-lg font-medium">Friend Profile</Text>
         </View>

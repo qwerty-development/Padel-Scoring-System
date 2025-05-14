@@ -420,7 +420,7 @@ export default function MatchHistory() {
   if (loading && !refreshing && page === 0) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#fbbf24" />
+        <ActivityIndicator size="large" color="#1a7ebd" />
       </View>
     );
   }
@@ -440,7 +440,7 @@ export default function MatchHistory() {
             onPress={() => router.back()}
             className="mr-2"
           >
-            <Ionicons name="arrow-back" size={24} color="#fbbf24" />
+            <Ionicons name="arrow-back" size={24} color="#1a7ebd" />
           </Button>
           <H1>{friendId ? 'Matches Together' : 'Match History'}</H1>
         </View>
@@ -454,7 +454,7 @@ export default function MatchHistory() {
         
         {loading && page > 0 && (
           <View className="py-4">
-            <ActivityIndicator size="small" color="#fbbf24" />
+            <ActivityIndicator size="small" color="#1a7ebd" />
           </View>
         )}
       </ScrollView>

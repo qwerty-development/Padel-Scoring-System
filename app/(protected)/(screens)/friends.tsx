@@ -324,7 +324,7 @@ export default function FriendsScreen() {
   if (loading) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#fbbf24" />
+        <ActivityIndicator size="large" color="#1a7ebd" />
       </View>
     );
   }
@@ -364,8 +364,8 @@ export default function FriendsScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={["#fbbf24"]}
-              tintColor="#fbbf24"
+              colors={["#1a7ebd"]}
+              tintColor="#1a7ebd"
             />
           }
           className="flex-1"

@@ -52,7 +52,7 @@ export function FriendCard({ friend, expanded, onToggleExpand }: FriendCardProps
           }}
           className="mr-3 p-2"
         >
-          <Ionicons name="person" size={20} color="#fbbf24" />
+          <Ionicons name="person" size={20} color="#1a7ebd" />
         </TouchableOpacity>
         <Ionicons 
           name={expanded ? "chevron-up" : "chevron-down"} 

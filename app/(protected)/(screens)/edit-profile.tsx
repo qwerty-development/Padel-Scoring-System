@@ -125,7 +125,7 @@ export default function EditProfile() {
   if (!profile) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#fbbf24" />
+        <ActivityIndicator size="large" color="#1a7ebd" />
       </View>
     );
   }

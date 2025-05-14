@@ -149,7 +149,7 @@ export function AddFriendModal({ visible, onClose, userId, userProfile }: AddFri
           </View>
 
           {searchLoading ? (
-            <ActivityIndicator size="small" color="#fbbf24" />
+            <ActivityIndicator size="small" color="#1a7ebd" />
           ) : (
             <ScrollView style={{ maxHeight: 300 }}>
               {searchResults.map(renderSearchResult)}

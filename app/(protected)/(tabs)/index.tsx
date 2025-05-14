@@ -241,7 +241,7 @@ export default function Home() {
   if (loading && !refreshing) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#fbbf24" />
+        <ActivityIndicator size="large" color="#1a7ebd" />
       </View>
     );
   }
@@ -255,7 +255,7 @@ export default function Home() {
         }
       >
         <View className="mb-6">
-          <H1 className="mb-2">👋 {profile?.full_name || 'Player'}!</H1>
+          <H1 className="mb-2">👋 {profile?.full_name || 'Player'}</H1>
         </View>
         
         <StatsCard 
@@ -275,7 +275,7 @@ export default function Home() {
                   className="flex-row items-center"
                 >
                   <Text className="text-primary text-sm mr-1">View All</Text>
-                  <Ionicons name="chevron-forward" size={14} color="#fbbf24" />
+                  <Ionicons name="chevron-forward" size={14} color="#1a7ebd" />
                 </TouchableOpacity>
               )}
             </View>
@@ -309,7 +309,7 @@ export default function Home() {
                 className="flex-row items-center"
               >
                 <Text className="text-primary text-sm mr-1">View All</Text>
-                <Ionicons name="chevron-forward" size={14} color="#fbbf24" />
+                <Ionicons name="chevron-forward" size={14} color="#1a7ebd" />
               </TouchableOpacity>
             </View>
             

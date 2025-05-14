@@ -645,7 +645,7 @@ export default function MatchDetails() {
   if (loading && !refreshing) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#fbbf24" />
+        <ActivityIndicator size="large" color="#1a7ebd" />
       </View>
     );
   }
@@ -659,7 +659,7 @@ export default function MatchDetails() {
             onPress={() => router.back()}
             className="mr-2"
           >
-            <Ionicons name="arrow-back" size={24} color="#fbbf24" />
+            <Ionicons name="arrow-back" size={24} color="#1a7ebd" />
           </Button>
           <H1>Match Not Found</H1>
         </View>
@@ -687,8 +687,8 @@ export default function MatchDetails() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={["#fbbf24"]}
-            tintColor="#fbbf24"
+            colors={["#1a7ebd"]}
+            tintColor="#1a7ebd"
           />
         }
       >
@@ -698,7 +698,7 @@ export default function MatchDetails() {
             onPress={() => router.back()}
             className="mr-2"
           >
-            <Ionicons name="arrow-back" size={24} color="#fbbf24" />
+            <Ionicons name="arrow-back" size={24} color="#1a7ebd" />
           </Button>
           <H1>Match Details</H1>
         </View>
@@ -741,7 +741,7 @@ export default function MatchDetails() {
         {/* Match Location */}
         {(match.region || match.court) && (
           <View className="bg-card rounded-xl p-4 mb-6 flex-row items-center">
-            <Ionicons name="location-outline" size={24} color="#fbbf24" className="mr-2" />
+            <Ionicons name="location-outline" size={24} color="#1a7ebd" className="mr-2" />
             <View>
               <Text className="font-medium">
                 {match.court || 'Unknown Court'}
@@ -805,7 +805,7 @@ export default function MatchDetails() {
               <Text className="font-medium text-primary">Team 1</Text>
               {match.winner_team === 1 && (
                 <View className="bg-primary/10 px-2 py-0.5 rounded-full flex-row items-center">
-                  <Ionicons name="trophy" size={14} color="#fbbf24" />
+                  <Ionicons name="trophy" size={14} color="#1a7ebd" />
                   <Text className="text-xs text-primary ml-1">Winner</Text>
                 </View>
               )}
@@ -824,7 +824,7 @@ export default function MatchDetails() {
               <Text className="font-medium text-accent">Team 2</Text>
               {match.winner_team === 2 && (
                 <View className="bg-primary/10 px-2 py-0.5 rounded-full flex-row items-center">
-                  <Ionicons name="trophy" size={14} color="#fbbf24" />
+                  <Ionicons name="trophy" size={14} color="#1a7ebd" />
                   <Text className="text-xs text-primary ml-1">Winner</Text>
                 </View>
               )}
