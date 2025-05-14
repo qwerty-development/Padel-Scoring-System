@@ -66,11 +66,7 @@ type AuthState = {
 		error?: Error;
 		needsProfileUpdate?: boolean;
 	}>;
-	// Add Google sign in method
-	googleSignIn: () => Promise<{
-		error?: Error;
-		needsProfileUpdate?: boolean;
-	}>;
+
 };
 
 export const AuthContext = createContext<AuthState>({
@@ -86,7 +82,7 @@ export const AuthContext = createContext<AuthState>({
 	resetPassword: async () => ({}),
 	updatePassword: async () => ({}),
 	appleSignIn: async () => ({}),
-	googleSignIn: async () => ({}),
+
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -494,168 +490,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
 		}
 	};
 
-	const googleSignIn = async () => {
-		try {
-		  setIsSigningIn(true);
-		  
-		  console.log("Starting Google Sign-In with redirect URI:", redirectUri);
-		  
-		  // Step 1: Initialize OAuth flow with Supabase
-		  const { data, error } = await supabase.auth.signInWithOAuth({
-			provider: 'google',
-			options: {
-			  redirectTo: redirectUri,
-			  skipBrowserRedirect: true,
-			},
-		  });
-	  
-	  
-		  if (error) {
-			console.error("OAuth initialization error:", error);
-			throw error;
-		  }
-	  
-		  if (data?.url) {
-			console.log("Opening auth session with URL:", data.url);
-			
-			// Step 2: Open browser for authentication
-			const result = await WebBrowser.openAuthSessionAsync(
-			  data.url, 
-			  redirectUri, 
-			  { showInRecents: true }
-			);
-			
-			console.log("WebBrowser result type:", result.type);
-			console.log("WebBrowser result URL:", result.url);
-	  
-			// Rest of the function remains the same...
-				if (result.type === 'success') {
-					try {
-						// Step 3: Extract tokens from URL if possible
-						const url = new URL(result.url);
-						const hashParams = new URLSearchParams(url.hash.substring(1));
-						const accessToken = hashParams.get('access_token');
-
-						if (accessToken) {
-							// Step 4: Set session with extracted token
-							const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-								access_token: accessToken,
-								refresh_token: hashParams.get('refresh_token') || '',
-							});
-
-							if (sessionError) throw sessionError;
-
-							if (sessionData.session) {
-								// Update session state
-								setSession(sessionData.session);
-								
-								// Check if this is a new user and if they already have a profile
-								if (sessionData.session.user) {
-									const { data: existingProfile, error: profileError } = await supabase
-										.from('profiles')
-										.select('*')
-										.eq('id', sessionData.session.user.id)
-										.single();
-
-									if (profileError && profileError.code !== 'PGRST116') {
-										console.error("Error checking profile:", profileError);
-									}
-
-									if (!existingProfile) {
-										// Create minimal profile if none exists
-										const userData = sessionData.session.user;
-										const { error: createError } = await supabase
-											.from('profiles')
-											.insert({
-												id: userData.id,
-												email: userData.email,
-												// Extract name from user metadata if available
-												full_name: userData.user_metadata?.name || 
-													userData.user_metadata?.full_name || null,
-												created_at: new Date().toISOString(),
-											});
-
-										if (createError) {
-											console.error("Error creating profile:", createError);
-										}
-										
-										// Fetch the newly created profile
-										await fetchProfile(userData.id);
-										
-										// Note that profile needs to be completed
-										return { needsProfileUpdate: true };
-									} else {
-										// Fetch the existing profile
-										await fetchProfile(sessionData.session.user.id);
-										
-										// Check if the profile needs to be completed
-										return { needsProfileUpdate: !checkProfileComplete(existingProfile) };
-									}
-								}
-							}
-						}
-					} catch (extractError) {
-						console.error("Error processing auth result:", extractError);
-					}
-				}
-			}
-
-			// Fallback: Check if we have a session despite flow issues
-			const { data: currentSession } = await supabase.auth.getSession();
-			if (currentSession?.session?.user) {
-				setSession(currentSession.session);
-				
-				// Check if the user has a profile
-				const { data: existingProfile, error: profileError } = await supabase
-					.from('profiles')
-					.select('*')
-					.eq('id', currentSession.session.user.id)
-					.single();
-
-				if (profileError && profileError.code !== 'PGRST116') {
-					console.error("Error checking profile:", profileError);
-				}
-
-				if (!existingProfile) {
-					// Create minimal profile if none exists
-					const userData = currentSession.session.user;
-					const { error: createError } = await supabase
-						.from('profiles')
-						.insert({
-							id: userData.id,
-							email: userData.email,
-							// Extract name from user metadata if available
-							full_name: userData.user_metadata?.name || 
-								userData.user_metadata?.full_name || null,
-							created_at: new Date().toISOString(),
-						});
-
-					if (createError) {
-						console.error("Error creating profile:", createError);
-					}
-					
-					// Fetch the newly created profile
-					await fetchProfile(userData.id);
-					
-					// Note that profile needs to be completed
-					return { needsProfileUpdate: true };
-				} else {
-					// Fetch the existing profile
-					await fetchProfile(currentSession.session.user.id);
-					
-					// Check if the profile needs to be completed
-					return { needsProfileUpdate: !checkProfileComplete(existingProfile) };
-				}
-			}
-
-			return { error: new Error("Unable to sign in with Google") };
-		} catch (error: any) {
-			console.error('Google sign in error:', error);
-			return { error };
-		} finally {
-			setIsSigningIn(false);
-		}
-	};
 
 	useEffect(() => {
 		// Check initial session
@@ -739,7 +573,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 				resetPassword,
 				updatePassword,
 				appleSignIn,
-				googleSignIn
+		
 			}}
 		>
 			{children}

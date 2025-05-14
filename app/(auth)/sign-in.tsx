@@ -14,7 +14,7 @@ import { Text } from "@/components/ui/text";
 import { H1 } from "@/components/ui/typography";
 import { useAuth } from "@/context/supabase-provider";
 import { useColorScheme } from "@/lib/useColorScheme";
-import GoogleSignInButton from "@/components/GoogleSignInButton"; // Import the new component
+
 
 // Schema for sign-in form validation
 const signInFormSchema = z.object({
@@ -23,7 +23,7 @@ const signInFormSchema = z.object({
 });
 
 export default function SignIn() {
-  const { signIn, appleSignIn, googleSignIn } = useAuth(); // Add googleSignIn
+  const { signIn, appleSignIn } = useAuth(); 
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
   
@@ -97,26 +97,7 @@ export default function SignIn() {
     }
   };
 
-  // Handle Google Sign In
-  const handleGoogleSignIn = async () => {
-    setError("");
-    setIsGoogleLoading(true);
-    
-    try {
-      const { error, needsProfileUpdate } = await googleSignIn();
-      
-      if (error) {
-        setError(error.message || "Google sign in failed.");
-      }
-      
-      // Navigation and profile completion is handled by auth provider
-    } catch (err: any) {
-      console.error("Google sign in error:", err);
-      setError(err.message || "Failed to sign in with Google.");
-    } finally {
-      setIsGoogleLoading(false);
-    }
-  };
+
 
   return (
     <SafeAreaView className="flex-1 bg-background p-4">
@@ -243,12 +224,6 @@ export default function SignIn() {
                 )}
               </TouchableOpacity>
             )}
-            
-            {/* Google Sign In Button */}
-            <GoogleSignInButton
-              onPress={handleGoogleSignIn}
-              isLoading={isGoogleLoading}
-            />
           </View>
         </View>
         
