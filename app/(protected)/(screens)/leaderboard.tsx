@@ -19,58 +19,109 @@ interface UserRanking {
 }
 
 export default function Leaderboard() {
-  const [loading, setLoading] = useState(true);
+  const [globalRankings, setGlobalRankings] = useState<UserRanking[]>([]);
+  const [friendsRankings, setFriendsRankings] = useState<UserRanking[]>([]);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [rankings, setRankings] = useState<UserRanking[]>([]);
-  const [page, setPage] = useState(0);
-  const [hasMoreUsers, setHasMoreUsers] = useState(true);
+  const [globalPage, setGlobalPage] = useState(0);
+  const [friendsPage, setFriendsPage] = useState(0);
+  const [hasMoreGlobalUsers, setHasMoreGlobalUsers] = useState(true);
+  const [hasMoreFriendUsers, setHasMoreFriendUsers] = useState(true);
   const [viewType, setViewType] = useState<'global' | 'friends'>('global');
   const { session, profile } = useAuth();
   const USERS_PER_PAGE = 20;
 
   useEffect(() => {
     if (session?.user?.id) {
-      fetchRankings(0);
+      // Initial data loading
+      if (globalRankings.length === 0) {
+        fetchGlobalRankings(0);
+      }
+      if (friendsRankings.length === 0) {
+        fetchFriendsRankings(0);
+      }
     }
-  }, [session, viewType]);
+  }, [session]);
 
-  const fetchRankings = async (pageIndex: number, shouldRefresh = false) => {
+  const fetchGlobalRankings = async (pageIndex: number, shouldRefresh = false) => {
     try {
+      setLoading(true);
       if (shouldRefresh) {
         setRefreshing(true);
-      } else {
-        setLoading(true);
       }
       
-      let query = supabase
+      const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, email, glicko_rating, avatar_url');
-        
-      // Apply friends filter when needed
-      if (viewType === 'friends' && profile?.friends_list && Array.isArray(profile.friends_list)) {
-        // Add current user to the list to ensure they appear in the ranking
-        const userAndFriends = [...profile.friends_list];
-        if (session?.user?.id) userAndFriends.push(session.user.id);
-        
-        query = query.in('id', userAndFriends);
-      }
-      
-      const { data, error } = await query
+        .select('id, full_name, email, glicko_rating, avatar_url')
         .order('glicko_rating', { ascending: false })
         .range(pageIndex * USERS_PER_PAGE, (pageIndex + 1) * USERS_PER_PAGE - 1);
 
       if (error) throw error;
       
-      if (pageIndex === 0) {
-        setRankings(data || []);
+      if (pageIndex === 0 || shouldRefresh) {
+        setGlobalRankings(data || []);
       } else {
-        setRankings(prev => [...prev, ...(data || [])]);
+        setGlobalRankings(prev => [...prev, ...(data || [])]);
       }
       
-      setHasMoreUsers(data && data.length === USERS_PER_PAGE);
-      setPage(pageIndex);
+      setHasMoreGlobalUsers(data && data.length === USERS_PER_PAGE);
+      setGlobalPage(pageIndex);
     } catch (error) {
-      console.error('Error fetching rankings:', error);
+      console.error('Error fetching global rankings:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const fetchFriendsRankings = async (pageIndex: number, shouldRefresh = false) => {
+    try {
+      setLoading(true);
+      if (shouldRefresh) {
+        setRefreshing(true);
+      }
+      
+      if (!profile?.friends_list || !Array.isArray(profile.friends_list) || profile.friends_list.length === 0) {
+        // If no friends, just show the current user
+        if (session?.user?.id) {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('id, full_name, email, glicko_rating, avatar_url')
+            .eq('id', session.user.id)
+            .single();
+            
+          if (error) throw error;
+          setFriendsRankings(data ? [data] : []);
+        } else {
+          setFriendsRankings([]);
+        }
+        setHasMoreFriendUsers(false);
+        return;
+      }
+      
+      // Add current user to the list to ensure they appear in the ranking
+      const userAndFriends = [...profile.friends_list];
+      if (session?.user?.id) userAndFriends.push(session.user.id);
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, glicko_rating, avatar_url')
+        .in('id', userAndFriends)
+        .order('glicko_rating', { ascending: false })
+        .range(pageIndex * USERS_PER_PAGE, (pageIndex + 1) * USERS_PER_PAGE - 1);
+
+      if (error) throw error;
+      
+      if (pageIndex === 0 || shouldRefresh) {
+        setFriendsRankings(data || []);
+      } else {
+        setFriendsRankings(prev => [...prev, ...(data || [])]);
+      }
+      
+      setHasMoreFriendUsers(data && data.length === USERS_PER_PAGE);
+      setFriendsPage(pageIndex);
+    } catch (error) {
+      console.error('Error fetching friends rankings:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -78,16 +129,25 @@ export default function Leaderboard() {
   };
 
   const loadMoreUsers = () => {
-    if (hasMoreUsers && !loading) {
-      fetchRankings(page + 1);
+    if (loading) return;
+    
+    if (viewType === 'global' && hasMoreGlobalUsers) {
+      fetchGlobalRankings(globalPage + 1);
+    } else if (viewType === 'friends' && hasMoreFriendUsers) {
+      fetchFriendsRankings(friendsPage + 1);
     }
   };
 
   const onRefresh = () => {
-    fetchRankings(0, true);
+    if (viewType === 'global') {
+      fetchGlobalRankings(0, true);
+    } else {
+      fetchFriendsRankings(0, true);
+    }
   };
 
   const renderUserRank = (user: UserRanking, index: number) => {
+    const page = viewType === 'global' ? globalPage : friendsPage;
     const rank = page * USERS_PER_PAGE + index + 1;
     const isCurrentUser = user.id === session?.user?.id;
     
@@ -103,8 +163,8 @@ export default function Leaderboard() {
       <TouchableOpacity
         key={user.id}
         className={`flex-row items-center p-4 mb-2 rounded-xl ${
-          isCurrentUser ? 'bg-primary/10' : 'bg-card'
-        }`}
+          isCurrentUser ? 'bg-primary/10 dark:bg-primary/20' : 'bg-card'
+        } border border-border/30`}
         onPress={() => {
           if (isCurrentUser) {
             router.push('/profile');
@@ -122,7 +182,7 @@ export default function Leaderboard() {
         
         <View className="w-10 h-10 rounded-full bg-primary items-center justify-center mr-4">
           <Text className="text-lg font-bold text-primary-foreground">
-            {user.full_name?.charAt(0)?.toUpperCase() || '?'}
+            {user.full_name?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || '?'}
           </Text>
         </View>
         
@@ -132,7 +192,7 @@ export default function Leaderboard() {
               {user.full_name || user.email.split('@')[0]}
             </Text>
             {isCurrentUser && (
-              <View className="ml-2 px-2 py-1 bg-primary rounded">
+              <View className="ml-2 px-2 py-0.5 bg-primary rounded">
                 <Text className="text-xs text-primary-foreground">You</Text>
               </View>
             )}
@@ -151,7 +211,7 @@ export default function Leaderboard() {
   };
 
   const renderEmptyState = () => (
-    <View className="bg-card rounded-xl p-6 items-center">
+    <View className="bg-card rounded-xl p-6 items-center border border-border/30 my-4">
       <Ionicons name="podium-outline" size={48} color="#888" />
       <Text className="text-lg font-medium mt-4 mb-2">
         {viewType === 'friends' 
@@ -166,64 +226,57 @@ export default function Leaderboard() {
     </View>
   );
 
-  if (loading && !refreshing && page === 0) {
-    return (
-      <View className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#1a7ebd" />
-      </View>
-    );
-  }
-
+  // Get the current rankings based on the active tab
+  const currentRankings = viewType === 'global' ? globalRankings : friendsRankings;
+  
   return (
     <SafeAreaView className="flex-1 bg-background">
+      {/* Tab Navigation */}
+      <View className="flex-row border-b border-border">
+        <TouchableOpacity
+          className={`flex-1 py-3 ${viewType === 'global' ? 'border-b-2 border-primary' : ''}`}
+          onPress={() => setViewType('global')}
+        >
+          <Text className={`text-center font-medium ${viewType === 'global' ? 'text-primary' : 'text-muted-foreground'}`}>
+            Global
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          className={`flex-1 py-3 ${viewType === 'friends' ? 'border-b-2 border-primary' : ''}`}
+          onPress={() => setViewType('friends')}
+        >
+          <Text className={`text-center font-medium ${viewType === 'friends' ? 'text-primary' : 'text-muted-foreground'}`}>
+            Friends
+          </Text>
+        </TouchableOpacity>
+      </View>
+      
+      {/* Content */}
       <ScrollView 
         className="p-6"
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-        onScrollEndDrag={() => loadMoreUsers()}
+        onScrollEndDrag={loadMoreUsers}
       >
-
         
-        {/* View toggle buttons */}
-        <View className="flex-row gap-2 mb-6">
-          <TouchableOpacity
-            className={`flex-1 py-2 rounded-lg ${viewType === 'global' ? 'bg-primary' : 'bg-card'}`}
-            onPress={() => {
-              setViewType('global');
-              setPage(0);
-              setRankings([]);
-              fetchRankings(0);
-            }}
-          >
-            <Text className={`text-center font-medium ${viewType === 'global' ? 'text-primary-foreground' : 'text-foreground'}`}>
-              Global
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            className={`flex-1 py-2 rounded-lg ${viewType === 'friends' ? 'bg-primary' : 'bg-card'}`}
-            onPress={() => {
-              setViewType('friends');
-              setPage(0);
-              setRankings([]);
-              fetchRankings(0);
-            }}
-          >
-            <Text className={`text-center font-medium ${viewType === 'friends' ? 'text-primary-foreground' : 'text-foreground'}`}>
-              Friends
-            </Text>
-          </TouchableOpacity>
-        </View>
-        
-        {rankings.length > 0 
-          ? rankings.map((user, index) => renderUserRank(user, index))
-          : renderEmptyState()
-        }
-        
-        {loading && page > 0 && (
-          <View className="py-4">
-            <ActivityIndicator size="small" color="#1a7ebd" />
+        {loading && currentRankings.length === 0 ? (
+          <View className="items-center justify-center py-12">
+            <ActivityIndicator size="large" color="#1a7ebd" />
           </View>
+        ) : (
+          <>
+            {currentRankings.length > 0 
+              ? currentRankings.map((user, index) => renderUserRank(user, index))
+              : renderEmptyState()
+            }
+            
+            {loading && currentRankings.length > 0 && (
+              <View className="py-4">
+                <ActivityIndicator size="small" color="#1a7ebd" />
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
     </SafeAreaView>

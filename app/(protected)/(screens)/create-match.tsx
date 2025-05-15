@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   View, 
   ScrollView, 
@@ -6,7 +6,6 @@ import {
   ActivityIndicator, 
   Alert,
   RefreshControl,
-  StyleSheet,
   TextInput
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -75,6 +74,14 @@ export default function CreateMatchScreen() {
     date.setHours(date.getHours() + 1);
     return date;
   });
+  
+  // References for score inputs to enable auto-focus
+  const team1Set1Ref = useRef<TextInput>(null);
+  const team2Set1Ref = useRef<TextInput>(null);
+  const team1Set2Ref = useRef<TextInput>(null);
+  const team2Set2Ref = useRef<TextInput>(null);
+  const team1Set3Ref = useRef<TextInput>(null);
+  const team2Set3Ref = useRef<TextInput>(null);
   
   // Score state
   const [set1Score, setSet1Score] = useState<SetScore>({ team1: 0, team2: 0 });
@@ -160,6 +167,37 @@ export default function CreateMatchScreen() {
     await fetchFriends();
     setRefreshing(false);
   }, [fetchFriends]);
+
+  // Handle navigation between score inputs
+  const handleTeam1Set1Change = (text: string) => {
+    if (text.length === 1) {
+      team2Set1Ref.current?.focus();
+    }
+  };
+
+  const handleTeam2Set1Change = (text: string) => {
+    if (text.length === 1) {
+      team1Set2Ref.current?.focus();
+    }
+  };
+
+  const handleTeam1Set2Change = (text: string) => {
+    if (text.length === 1) {
+      team2Set2Ref.current?.focus();
+    }
+  };
+
+  const handleTeam2Set2Change = (text: string) => {
+    if (showSet3 && text.length === 1) {
+      team1Set3Ref.current?.focus();
+    }
+  };
+
+  const handleTeam1Set3Change = (text: string) => {
+    if (text.length === 1) {
+      team2Set3Ref.current?.focus();
+    }
+  };
 
   const determineWinnerTeam = (): number => {
     let team1Sets = 0;
@@ -422,16 +460,16 @@ export default function CreateMatchScreen() {
   };
 
   const renderPlayerSection = () => (
-    <View style={[styles.section, { backgroundColor: isPastMatch ? '#ffffff' : '#f0f9ff' }]}>
-      <View className="flex-row items-center">
-        <H3 className="mb-2">Players</H3>
+    <View className={`mb-6 p-4 rounded-xl ${isPastMatch ? 'bg-card' : 'bg-blue-50 dark:bg-blue-900/30'} border border-border/30`}>
+      <View className="flex-row items-center justify-between mb-2">
+        <H3>Players</H3>
         {isPastMatch ? (
-          <View className="ml-2 px-2 py-1 bg-amber-100 rounded">
-            <Text className="text-xs text-amber-800">Past Match</Text>
+          <View className="px-2 py-1 bg-amber-100 dark:bg-amber-900/40 rounded">
+            <Text className="text-xs text-amber-800 dark:text-amber-200">Past Match</Text>
           </View>
         ) : (
-          <View className="ml-2 px-2 py-1 bg-blue-100 rounded">
-            <Text className="text-xs text-blue-800">Future Match</Text>
+          <View className="px-2 py-1 bg-blue-100 dark:bg-blue-900/50 rounded">
+            <Text className="text-xs text-blue-800 dark:text-blue-200">Future Match</Text>
           </View>
         )}
       </View>
@@ -442,29 +480,29 @@ export default function CreateMatchScreen() {
         </Text>
       )}
       
-      <View style={styles.playersContainer}>
+      <View className="flex-row flex-wrap mt-2">
         {/* Current user (Player 1) */}
-        <View style={styles.playerCard}>
-          <View style={styles.playerAvatar}>
+        <View className="w-1/4 items-center mb-4">
+          <View className="w-14 h-14 rounded-full bg-primary items-center justify-center mb-1">
             <Text className="text-lg font-bold text-primary-foreground">
               {profile?.full_name?.charAt(0)?.toUpperCase() || 
                session?.user?.email?.charAt(0)?.toUpperCase() || '?'}
             </Text>
           </View>
-          <Text className="text-sm font-medium mt-1">You</Text>
+          <Text className="text-sm font-medium">You</Text>
           <Text className="text-xs text-muted-foreground">Team 1</Text>
         </View>
         
         {/* Player selection button */}
         {(selectedPlayers.length < 3 || !isPastMatch) && (
           <TouchableOpacity 
-            style={styles.addPlayerButton}
+            className="w-1/4 items-center mb-4"
             onPress={() => setShowPlayerModal(true)}
           >
-            <View style={styles.addIconContainer}>
+            <View className="w-14 h-14 rounded-full border-2 border-dashed border-primary/70 items-center justify-center mb-1">
               <Ionicons name="add" size={30} color="#1a7ebd" />
             </View>
-            <Text className="text-sm font-medium mt-1">Add Players</Text>
+            <Text className="text-sm font-medium">Add Players</Text>
             <Text className="text-xs text-muted-foreground">
               {selectedPlayers.length}/{isPastMatch ? '3' : '3+'} selected
             </Text>
@@ -475,18 +513,17 @@ export default function CreateMatchScreen() {
         {selectedPlayers.map((player, index) => (
           <View 
             key={player.id} 
-            style={styles.playerCard}
+            className="w-1/4 items-center mb-4"
           >
-            <View style={[
-              styles.playerAvatar,
-              { backgroundColor: index === 0 ? '#1a7ebd' : '#6366f1' }
-            ]}>
-              <Text className="text-lg font-bold text-primary-foreground">
+            <View className={`w-14 h-14 rounded-full items-center justify-center mb-1 ${
+              index === 0 ? 'bg-primary' : 'bg-indigo-500 dark:bg-indigo-600'
+            }`}>
+              <Text className="text-lg font-bold text-white">
                 {player.full_name?.charAt(0)?.toUpperCase() || 
                  player.email?.charAt(0)?.toUpperCase() || '?'}
               </Text>
             </View>
-            <Text className="text-sm font-medium mt-1" numberOfLines={1}>
+            <Text className="text-sm font-medium text-center" numberOfLines={1}>
               {player.full_name || player.email?.split('@')[0]}
             </Text>
             <Text className="text-xs text-muted-foreground">
@@ -494,14 +531,24 @@ export default function CreateMatchScreen() {
             </Text>
           </View>
         ))}
+        
+        {/* Empty slots */}
+        {Array(3 - selectedPlayers.length).fill(0).map((_, i) => (
+          <View key={`empty-${i}`} className="w-1/4 items-center mb-4 opacity-30">
+            <View className="w-14 h-14 rounded-full border-2 border-dashed border-muted-foreground/40 items-center justify-center mb-1">
+              <Text className="text-lg text-muted-foreground">?</Text>
+            </View>
+            <Text className="text-xs text-muted-foreground">Empty Slot</Text>
+          </View>
+        ))}
       </View>
       
       {selectedPlayers.length > 0 && (
         <TouchableOpacity 
-          style={styles.editButton}
+          className="flex-row items-center justify-center mt-2 p-2"
           onPress={() => setShowPlayerModal(true)}
         >
-          <Ionicons name="create-outline" size={16} color="#555" />
+          <Ionicons name="create-outline" size={16} color="#888" />
           <Text className="text-sm text-muted-foreground ml-1">
             Edit Players
           </Text>
@@ -511,50 +558,63 @@ export default function CreateMatchScreen() {
   );
 
   const renderTimeSection = () => (
-    <View style={[styles.section, { backgroundColor: isPastMatch ? '#ffffff' : '#f0f9ff' }]}>
+    <View className="mb-6 p-4 rounded-xl bg-card border border-border/30">
       <H3 className="mb-4">Date & Time</H3>
       
-      <CustomDateTimePicker
-        label="Match Date"
-        value={matchDate}
-        onChange={setMatchDate}
-        mode="date"
-        maximumDate={isPastMatch ? new Date() : undefined}
-      />
-      
-      <CustomDateTimePicker
-        label="Start Time"
-        value={matchStartTime}
-        onChange={setMatchStartTime}
-        mode="time"
-      />
-      
-      <CustomDateTimePicker
-        label="End Time"
-        value={matchEndTime}
-        onChange={setMatchEndTime}
-        mode="time"
-      />
-      
-      {/* Location fields */}
-      <View className="mb-4 mt-4">
-        <Text className="text-sm font-medium mb-2 text-muted-foreground">Court</Text>
-        <TextInput
-          className="bg-background border border-border rounded-lg px-4 py-2 text-foreground"
-          value={court}
-          onChangeText={setCourt}
-          placeholder="Enter court name"
+      <View className="bg-background/60 dark:bg-background/30 rounded-lg p-4 mb-4">
+        <CustomDateTimePicker
+          label="Match Date"
+          value={matchDate}
+          onChange={setMatchDate}
+          mode="date"
+          maximumDate={isPastMatch ? new Date() : undefined}
         />
+        
+        <View className="flex-row gap-4">
+          <View className="flex-1">
+            <CustomDateTimePicker
+              label="Start Time"
+              value={matchStartTime}
+              onChange={setMatchStartTime}
+              mode="time"
+            />
+          </View>
+          <View className="flex-1">
+            <CustomDateTimePicker
+              label="End Time"
+              value={matchEndTime}
+              onChange={setMatchEndTime}
+              mode="time"
+            />
+          </View>
+        </View>
       </View>
       
-      <View className="mb-2">
-        <Text className="text-sm font-medium mb-2 text-muted-foreground">Region/Location</Text>
-        <TextInput
-          className="bg-background border border-border rounded-lg px-4 py-2 text-foreground"
-          value={region}
-          onChangeText={setRegion}
-          placeholder="Enter match location"
-        />
+      {/* Location fields */}
+      <View className="bg-background/60 dark:bg-background/30 rounded-lg p-4">
+        <Text className="text-base font-medium mb-3">Location Details</Text>
+        
+        <View className="mb-4">
+          <Text className="text-sm font-medium mb-2 text-muted-foreground">Court</Text>
+          <TextInput
+            className="bg-background dark:bg-background/60 border border-border rounded-lg px-4 py-2 text-foreground"
+            value={court}
+            onChangeText={setCourt}
+            placeholder="Enter court name"
+            placeholderTextColor="#888"
+          />
+        </View>
+        
+        <View>
+          <Text className="text-sm font-medium mb-2 text-muted-foreground">Region/Location</Text>
+          <TextInput
+            className="bg-background dark:bg-background/60 border border-border rounded-lg px-4 py-2 text-foreground"
+            value={region}
+            onChangeText={setRegion}
+            placeholder="Enter match location"
+            placeholderTextColor="#888"
+          />
+        </View>
       </View>
     </View>
   );
@@ -564,7 +624,7 @@ export default function CreateMatchScreen() {
     if (!isPastMatch) return null;
     
     return (
-      <View style={styles.section}>
+      <View className="mb-6 p-4 rounded-xl bg-card border border-border/30">
         <H3 className="mb-4">Match Score</H3>
         
         <SetScoreInput
@@ -572,6 +632,10 @@ export default function CreateMatchScreen() {
           value={set1Score}
           onChange={setSet1Score}
           onValidate={setIsSet1Valid}
+          team1Ref={team1Set1Ref}
+          team2Ref={team2Set1Ref}
+          onTeam1Change={handleTeam1Set1Change}
+          onTeam2Change={handleTeam2Set1Change}
         />
         
         <SetScoreInput
@@ -579,6 +643,10 @@ export default function CreateMatchScreen() {
           value={set2Score}
           onChange={setSet2Score}
           onValidate={setIsSet2Valid}
+          team1Ref={team1Set2Ref}
+          team2Ref={team2Set2Ref}
+          onTeam1Change={handleTeam1Set2Change}
+          onTeam2Change={handleTeam2Set2Change}
         />
         
         {showSet3 && (
@@ -587,15 +655,18 @@ export default function CreateMatchScreen() {
             value={set3Score}
             onChange={setSet3Score}
             onValidate={setIsSet3Valid}
+            team1Ref={team1Set3Ref}
+            team2Ref={team2Set3Ref}
+            onTeam1Change={handleTeam1Set3Change}
           />
         )}
         
         {isSet1Valid && isSet2Valid && (
-          <View style={styles.winnerDisplay}>
-            <Text className="text-lg font-semibold text-center">
+          <View className="mt-4 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border-l-4 border-primary">
+            <Text className="text-lg font-semibold">
               Winner: {determineWinnerTeam() === 1 ? 'Team 1' : 'Team 2'}
             </Text>
-            <Text className="text-muted-foreground text-center">
+            <Text className="text-muted-foreground">
               {determineWinnerTeam() === 1 
                 ? 'You and Player 2 won this match' 
                 : 'Player 3 and Player 4 won this match'}
@@ -620,7 +691,8 @@ export default function CreateMatchScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background">
       <ScrollView 
-        style={styles.container}
+        className="flex-1 px-6"
+        contentContainerStyle={{ paddingBottom: 40 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -630,9 +702,9 @@ export default function CreateMatchScreen() {
           />
         }
       >
-        <View style={styles.header}>
+        <View className="flex-row items-center pt-4 pb-2">
           <TouchableOpacity 
-            style={styles.backButton}
+            className="w-10 h-10 rounded-full items-center justify-center mr-3 bg-background dark:bg-card"
             onPress={() => router.back()}
           >
             <Ionicons name="arrow-back" size={24} color="#1a7ebd" />
@@ -640,7 +712,7 @@ export default function CreateMatchScreen() {
           <H1>{isPastMatch ? 'Record Match' : 'Schedule Match'}</H1>
         </View>
 
-        <Text className="text-muted-foreground mb-6">
+        <Text className="text-muted-foreground mb-6 ml-1">
           {isPastMatch 
             ? 'Record a match that already happened. All players will have their ratings updated.'
             : 'Schedule a future match. Invite players you want to play with.'}
@@ -651,7 +723,7 @@ export default function CreateMatchScreen() {
         {renderScoreSection()}
         
         <Button
-          className="w-full mt-6 mb-10"
+          className="w-full mt-2 mb-10"
           size="lg"
           variant="default"
           onPress={createMatch}
@@ -679,79 +751,3 @@ export default function CreateMatchScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  backButton: {
-    marginRight: 12,
-  },
-  section: {
-    marginBottom: 24,
-    padding: 16,
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  playersContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginVertical: 10,
-  },
-  playerCard: {
-    width: '25%',
-    alignItems: 'center',
-    marginBottom: 12,
-    paddingHorizontal: 4,
-  },
-  playerAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#1a7ebd',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addPlayerButton: {
-    width: '25%',
-    alignItems: 'center',
-    marginBottom: 12,
-    paddingHorizontal: 4,
-  },
-  addIconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    borderWidth: 2,
-    borderColor: '#1a7ebd',
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  editButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'center',
-    padding: 8,
-  },
-  winnerDisplay: {
-    marginTop: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#f8fafc',
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: '#1a7ebd',
-  }
-});

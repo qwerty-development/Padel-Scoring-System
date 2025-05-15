@@ -1,8 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, TextInput, TouchableOpacity } from 'react-native';
+import { 
+  View, 
+  TextInput, 
+  TouchableOpacity 
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Text } from '@/components/ui/text';
+import { useColorScheme } from '@/lib/useColorScheme';
 
 // Valid padel set scores
 const VALID_SCORES = [
@@ -39,14 +44,25 @@ interface SetScoreInputProps {
   value: SetScore;
   onChange: (score: SetScore) => void;
   onValidate: (isValid: boolean) => void;
+  team1Ref?: React.RefObject<TextInput>;
+  team2Ref?: React.RefObject<TextInput>;
+  onTeam1Change?: (text: string) => void;
+  onTeam2Change?: (text: string) => void;
 }
 
 export function SetScoreInput({ 
   setNumber, 
   value, 
   onChange, 
-  onValidate 
+  onValidate,
+  team1Ref,
+  team2Ref,
+  onTeam1Change,
+  onTeam2Change
 }: SetScoreInputProps) {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  
   // Initialize with empty strings if value is 0, otherwise use the value
   const [team1Input, setTeam1Input] = useState(value.team1 === 0 ? '' : value.team1.toString());
   const [team2Input, setTeam2Input] = useState(value.team2 === 0 ? '' : value.team2.toString());
@@ -96,6 +112,16 @@ export function SetScoreInput({
       // Only update parent if it's a number or empty
       const numValue = text === '' ? 0 : parseInt(text);
       onChange({ ...value, team1: numValue });
+      
+      // Auto-jump to team2 input if a valid digit is entered
+      if (text.length === 1 && team2Ref?.current) {
+        team2Ref.current.focus();
+      }
+      
+      // Call the onTeam1Change callback if provided
+      if (onTeam1Change) {
+        onTeam1Change(text);
+      }
     }
   };
 
@@ -107,6 +133,11 @@ export function SetScoreInput({
       // Only update parent if it's a number or empty
       const numValue = text === '' ? 0 : parseInt(text);
       onChange({ ...value, team2: numValue });
+      
+      // Call the onTeam2Change callback if provided
+      if (onTeam2Change) {
+        onTeam2Change(text);
+      }
     }
   };
 
@@ -154,25 +185,27 @@ export function SetScoreInput({
   };
 
   return (
-    <View className="mb-6 bg-white rounded-xl p-4 shadow">
+    <View className="mb-4 p-4 bg-background dark:bg-background/40 rounded-xl border border-border/30">
       <Text className="font-semibold text-lg mb-2">Set {setNumber}</Text>
       
       <View className="flex-row items-center justify-center mt-2">
         <View className="items-center w-20">
           <Text className="text-sm text-muted-foreground mb-2">Team 1</Text>
           <TextInput
+            ref={team1Ref}
             className={`w-16 h-16 border rounded-lg text-center text-2xl font-bold ${
               isValid 
-                ? 'border-green-500 bg-green-50' 
+                ? 'border-green-500 bg-green-50 dark:bg-green-900/20' 
                 : team1Input !== '' 
-                  ? 'border-red-500 bg-red-50' 
-                  : 'border-gray-300 bg-gray-50'
+                  ? 'border-red-500 bg-red-50 dark:bg-red-900/20' 
+                  : 'border-border bg-card dark:bg-card/50'
             }`}
             value={team1Input}
             onChangeText={handleTeam1Change}
             keyboardType="number-pad"
             maxLength={1}
-            placeholder=""
+            selectTextOnFocus
+            placeholderTextColor={isDark ? '#999' : '#777'}
           />
         </View>
         
@@ -181,18 +214,20 @@ export function SetScoreInput({
         <View className="items-center w-20">
           <Text className="text-sm text-muted-foreground mb-2">Team 2</Text>
           <TextInput
+            ref={team2Ref}
             className={`w-16 h-16 border rounded-lg text-center text-2xl font-bold ${
               isValid 
-                ? 'border-green-500 bg-green-50' 
+                ? 'border-green-500 bg-green-50 dark:bg-green-900/20' 
                 : team2Input !== '' 
-                  ? 'border-red-500 bg-red-50' 
-                  : 'border-gray-300 bg-gray-50'
+                  ? 'border-red-500 bg-red-50 dark:bg-red-900/20' 
+                  : 'border-border bg-card dark:bg-card/50'
             }`}
             value={team2Input}
             onChangeText={handleTeam2Change}
             keyboardType="number-pad"
             maxLength={1}
-            placeholder=""
+            selectTextOnFocus
+            placeholderTextColor={isDark ? '#999' : '#777'}
           />
         </View>
       </View>
@@ -202,13 +237,13 @@ export function SetScoreInput({
         {team1Input !== '' || team2Input !== '' ? (
           isValid ? (
             <View className="flex-row items-center">
-              <Ionicons name="checkmark-circle" size={16} color="#22c55e" />
-              <Text className="text-green-600 ml-1">Valid score</Text>
+              <Ionicons name="checkmark-circle" size={16} color={isDark ? '#4ade80' : '#22c55e'} />
+              <Text className="text-green-600 dark:text-green-400 ml-1">Valid score</Text>
             </View>
           ) : (
             <View className="flex-row items-center">
-              <Ionicons name="alert-circle" size={16} color="#ef4444" />
-              <Text className="text-red-500 ml-1">{errorMessage}</Text>
+              <Ionicons name="alert-circle" size={16} color={isDark ? '#f87171' : '#ef4444'} />
+              <Text className="text-red-500 dark:text-red-400 ml-1 flex-shrink text-xs">{errorMessage}</Text>
             </View>
           )
         ) : null}
@@ -216,16 +251,16 @@ export function SetScoreInput({
       
       {/* Score suggestions */}
       {(!isValid && (team1Input !== '' || team2Input !== '')) && (
-        <View className="mt-4 p-3 bg-gray-50 rounded-lg">
+        <View className="mt-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
           <Text className="text-xs text-muted-foreground mb-2">{suggestionsTitle}</Text>
           <View className="flex-row flex-wrap">
             {suggestions.map((suggestion, index) => (
               <TouchableOpacity
                 key={index}
-                className="bg-primary/10 rounded-full py-1.5 px-3 m-1"
+                className="bg-primary/10 dark:bg-primary/20 rounded-full py-1.5 px-3 m-1"
                 onPress={() => applySuggestion(suggestion)}
               >
-                <Text className="text-primary">{suggestion}</Text>
+                <Text className="text-primary dark:text-primary-foreground">{suggestion}</Text>
               </TouchableOpacity>
             ))}
           </View>

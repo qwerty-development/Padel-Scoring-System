@@ -86,8 +86,9 @@ export function FriendRequestsModal({
       transparent
       animationType="slide"
       onRequestClose={onClose}
+    
     >
-      <View className="flex-1 bg-background/95 pt-12">
+      <View className="flex-1 bg-background pt-12">
         <View className="flex-row justify-between items-center px-6 pb-4 border-b border-border">
           <Text className="text-xl font-bold">Friend Requests</Text>
           <TouchableOpacity onPress={onClose} className="p-2">

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { 
   View, 
   TouchableOpacity, 
-  StyleSheet, 
   Platform, 
   Modal,
   TouchableWithoutFeedback
@@ -12,6 +11,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
 
 import { Text } from '@/components/ui/text';
+import { useColorScheme } from '@/lib/useColorScheme';
 
 interface CustomDateTimePickerProps {
   label: string;
@@ -30,6 +30,7 @@ export function CustomDateTimePicker({
   minimumDate,
   mode = 'datetime'
 }: CustomDateTimePickerProps) {
+  const { colorScheme } = useColorScheme();
   const [showPicker, setShowPicker] = useState(false);
   const [tempDate, setTempDate] = useState(value);
 
@@ -73,20 +74,20 @@ export function CustomDateTimePicker({
   };
 
   return (
-    <View style={styles.container}>
+    <View className="mb-4">
       <Text className="text-sm font-medium text-muted-foreground mb-1">
         {label}
       </Text>
       
       <TouchableOpacity
-        style={styles.pickerButton}
+        className="flex-row justify-between items-center p-3 border border-border rounded-lg bg-background dark:bg-background/40"
         onPress={() => setShowPicker(true)}
       >
         <Text className="text-foreground">{getFormattedValue()}</Text>
         <Ionicons 
           name={mode === 'time' ? 'time-outline' : 'calendar-outline'} 
           size={20} 
-          color="#777" 
+          color={colorScheme === 'dark' ? '#ddd' : '#555'} 
         />
       </TouchableOpacity>
 
@@ -97,7 +98,7 @@ export function CustomDateTimePicker({
           mode={mode}
           display="default"
           onChange={handleChange}
-        
+          maximumDate={maximumDate}
           minimumDate={minimumDate}
         />
       )}
@@ -110,10 +111,10 @@ export function CustomDateTimePicker({
           animationType="slide"
         >
           <TouchableWithoutFeedback onPress={cancelIOSDate}>
-            <View style={styles.modalOverlay}>
+            <View className="flex-1 justify-end bg-black/50">
               <TouchableWithoutFeedback>
-                <View style={styles.modalContent}>
-                  <View style={styles.modalHeader}>
+                <View className="bg-card rounded-t-xl">
+                  <View className="flex-row justify-between items-center p-4 border-b border-border">
                     <TouchableOpacity onPress={cancelIOSDate}>
                       <Text className="text-primary">Cancel</Text>
                     </TouchableOpacity>
@@ -128,9 +129,10 @@ export function CustomDateTimePicker({
                     mode={mode}
                     display="spinner"
                     onChange={handleChange}
-                    style={styles.iOSPicker}
-                 
+                    style={{ height: 200 }}
+                    maximumDate={maximumDate}
                     minimumDate={minimumDate}
+                    textColor={colorScheme === 'dark' ? '#fff' : '#000'}
                   />
                 </View>
               </TouchableWithoutFeedback>
@@ -141,42 +143,3 @@ export function CustomDateTimePicker({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    marginBottom: 16,
-  },
-  pickerButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    backgroundColor: '#f9f9f9',
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingBottom: 20,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  iOSPicker: {
-    height: 200,
-  },
-});

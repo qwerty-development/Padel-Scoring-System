@@ -24,6 +24,7 @@ import { FriendLeaderboard } from "@/components/friends/FriendLeaderboard";
 import { FriendRequestsModal } from "@/components/friends/FriendRequestModal";
 import { Friend, FriendRequest } from "@/types";
 
+
 // Get screen dimensions for layout calculations
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -38,10 +39,10 @@ export enum MatchStatus {
 
 export default function FriendsScreen() {
   const { tab } = useLocalSearchParams<{ tab?: string }>();
-  const [activeTab, setActiveTab] = useState<"friends" | "leaderboard" | "requests">(
-    tab === "leaderboard" ? "leaderboard" : 
-    tab === "requests" ? "requests" : "friends"
-  );
+const [activeTab, setActiveTab] = useState<"friends" | "leaderboard">(
+  tab === "leaderboard" ? "leaderboard" : "friends"
+);
+
   const [friends, setFriends] = useState<Friend[]>([]);
   const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
   const [sentRequests, setSentRequests] = useState<FriendRequest[]>([]);
@@ -49,9 +50,11 @@ export default function FriendsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [expandedFriend, setExpandedFriend] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showRequestsModal, setShowRequestsModal] = useState(false);
+  // Make sure to initialize this to false (it's already there)
+const [showRequestsModal, setShowRequestsModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
+  // Make sure to initialize this to false (it's already there)
   const [friendActivity, setFriendActivity] = useState<{[key: string]: {
     lastMatch: string | null;
     scheduledMatch: string | null;
@@ -601,11 +604,10 @@ export default function FriendsScreen() {
     <SafeAreaView className="flex-1 bg-background">
       <View className="flex-1">
         {/* Tab navigation */}
-        <View className="flex-row">
-          {renderTabButton("friends", "Friends")}
-          {renderTabButton("leaderboard", "Leaderboard")}
-          {renderTabButton("requests", "Requests", friendRequests.length)}
-        </View>
+<View className="flex-row">
+  {renderTabButton("friends", "Friends")}
+  {renderTabButton("leaderboard", "Leaderboard")}
+</View>
 
         {/* Search bar and action buttons - only show in Friends tab */}
         {activeTab === "friends" && (
@@ -620,21 +622,22 @@ export default function FriendsScreen() {
             <View className="w-1/4">
               <View className="flex-row px-4 gap-3">
                 {/* Friend Requests Button */}
-                <TouchableOpacity 
-                  className="w-10 h-10 rounded-full items-center justify-center"
-                  onPress={() => setActiveTab("requests")}
-                >
-                  <View className="relative">
-                    <Ionicons name="mail-outline" size={24} color="#555" />
-                    {friendRequests.length > 0 && (
-                      <View className="absolute -top-1 -right-1 bg-red-500 rounded-full w-5 h-5 items-center justify-center">
-                        <Text className="text-white text-xs font-bold">
-                          {friendRequests.length}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                </TouchableOpacity>
+{/* Friend Requests Button */}
+<TouchableOpacity 
+  className="w-10 h-10 rounded-full items-center justify-center"
+  onPress={() => setShowRequestsModal(true)}
+>
+  <View className="relative">
+    <Ionicons name="mail-outline" size={24} color="#555" />
+    {friendRequests.length > 0 && (
+      <View className="absolute -top-1 -right-1 bg-red-500 rounded-full w-5 h-5 items-center justify-center">
+        <Text className="text-white text-xs font-bold">
+          {friendRequests.length}
+        </Text>
+      </View>
+    )}
+  </View>
+</TouchableOpacity>
 
                 {/* Add Friend Button */}
                 <AddFriendButton onPress={() => setShowAddModal(true)} />

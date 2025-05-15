@@ -169,13 +169,18 @@ export function FriendLeaderboard({ friends, userId }: FriendLeaderboardProps) {
             className=" items-center" 
             onPress={() => router.push('/leaderboard')}
           >
-            <Text className="bg-primary rounded-3xl mt-5 p-3 mr-1">See All</Text>
           </TouchableOpacity>
         )}
           </>
         )
         : renderEmptyState()
       }
+                <TouchableOpacity 
+            className=" items-center" 
+            onPress={() => router.push('/leaderboard')}
+          >
+            <Text className="bg-primary rounded-3xl mt-5 p-3 mr-1">See All</Text>
+          </TouchableOpacity>
     </View>
   );
 }

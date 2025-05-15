@@ -357,19 +357,7 @@ export default function Profile() {
 
         <View className="relative pt-12 pb-4 px-6 bg-primary/10">
     
-          <View className="absolute top-12 right-6 flex-row items-center z-10">
-            <TouchableOpacity
-              className="w-10 h-10 rounded-full items-center justify-center bg-card shadow-sm" // Added shadow
-              onPress={handleSignOut} // Use the new handler with confirmation
-              aria-label="Sign out"
-            >
-              <Ionicons 
-                name="log-out-outline" 
-                size={24} // Slightly larger for emphasis
-                color={colorScheme === "dark" ? "#f87171" : "#ef4444"} // Reddish color for sign out
-              />
-            </TouchableOpacity>
-          </View>
+
           
           <View className="items-center mt-10"> {/* Adjusted mt for space from icons */}
             {renderAvatar()}
@@ -423,6 +411,22 @@ export default function Profile() {
             {renderInfoCard("Preferred Area", profile?.preferred_area, "location-outline")}
           </View>
         </View>
+        {/* Sign Out Button */}
+<View className="px-6 mb-6">
+  <Button 
+    variant="destructive"
+    className="w-full py-3 flex-row justify-center items-center"
+    onPress={handleSignOut}
+  >
+    <Ionicons 
+      name="log-out-outline" 
+      size={20} 
+      color="white" 
+      style={{ marginRight: 8 }} 
+    />
+    <Text className="text-white font-medium">Sign Out</Text>
+  </Button>
+</View>
       </ScrollView>
     </View>
   );
