@@ -138,21 +138,24 @@ export function FriendLeaderboard({ friends, userId }: FriendLeaderboardProps) {
   };
 
   const renderEmptyState = () => (
-    <View className="bg-card rounded-xl p-6 items-center border border-border/40" style={styles.cardShadow}>
-      <View className="bg-muted/30 p-4 rounded-full mb-4">
-        <Ionicons name="people" size={32} color="#888" />
-      </View>
-      <Text className="text-lg font-medium mb-2">No friends yet</Text>
-      <Text className="text-muted-foreground text-center mb-4">
-        Add friends to see how you rank against them!
-      </Text>
-      <TouchableOpacity 
-        className="bg-primary px-4 py-2 rounded-lg" 
-        onPress={() => router.push('/friends/add')}
-      >
-        <Text className="text-primary-foreground font-medium">Add Friends</Text>
-      </TouchableOpacity>
-    </View>
+        <View
+          className="bg-card rounded-lg p-6 items-center mt-4 border border-border/40"
+          style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.1,
+            shadowRadius: 2,
+            elevation: 2,
+          }}
+        >
+          <Ionicons name="people-outline" size={48} color="#888" />
+          <Text className="text-lg font-medium mt-4 mb-2">
+            No friends found
+          </Text>
+          <Text className="text-muted-foreground text-center">
+   Connect with other players to see their rank
+          </Text>
+        </View>
   );
 
   return (
@@ -179,7 +182,7 @@ export function FriendLeaderboard({ friends, userId }: FriendLeaderboardProps) {
             className=" items-center" 
             onPress={() => router.push('/leaderboard')}
           >
-            <Text className="bg-primary rounded-3xl mt-5 p-3 mr-1">See All</Text>
+            <Text className="bg-primary px-5 py-2 rounded-3xl mt-5 ">More</Text>
           </TouchableOpacity>
     </View>
   );
