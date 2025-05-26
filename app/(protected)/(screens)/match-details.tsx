@@ -25,7 +25,7 @@ import {
 } from "@/components/create-match/SetScoreInput";
 import { useColorScheme } from "@/lib/useColorScheme";
 
-// TECHNICAL SPECIFICATION: Enhanced match status enumeration
+// TECHNICAL SPECIFICATION: Enhanced match status enumeration with string conversion utilities
 export enum MatchStatus {
   PENDING = 1,
   NEEDS_CONFIRMATION = 2,
@@ -34,6 +34,20 @@ export enum MatchStatus {
   NEEDS_SCORES = 5, // Custom UI status
   RECRUITING = 6,
 }
+
+// UTILITY: Status conversion functions for database compatibility
+const statusToString = (status: MatchStatus): string => String(status);
+const statusFromString = (status: string | number): number => {
+  if (typeof status === 'string') {
+    return parseInt(status, 10);
+  }
+  return status;
+};
+
+// UTILITY: Safe status comparison function
+const isStatusEqual = (dbStatus: string | number, compareStatus: MatchStatus): boolean => {
+  return statusFromString(dbStatus) === compareStatus;
+};
 
 // TECHNICAL SPECIFICATION: Enhanced interface definitions
 interface PlayerDetail {
@@ -52,7 +66,7 @@ interface MatchDetail {
   player2_id: string | null;
   player3_id: string | null;
   player4_id: string | null;
-  status: number;
+  status: string | number; // FIXED: Support both string and number types
   created_at: string;
   completed_at: string | null;
   team1_score_set1: number | null;
@@ -81,7 +95,7 @@ interface GlickoRating {
   vol: number;
 }
 
-// TECHNICAL SPECIFICATION: Enhanced match state interface with cancellation logic
+// TECHNICAL SPECIFICATION: Enhanced match state interface with permission controls
 interface MatchState {
   isFuture: boolean;
   isPast: boolean;
@@ -94,8 +108,10 @@ interface MatchState {
   team2Sets: number;
   winnerTeam: number;
   userWon: boolean | null;
-  canCancel: boolean; // NEW: Determines if match can be cancelled
-  hoursFromCompletion: number; // NEW: Hours since completion
+  canCancel: boolean;
+  hoursFromCompletion: number;
+  isCreator: boolean; // NEW: Indicates if current user is the match creator
+  canEnterScores: boolean; // NEW: Indicates if current user can enter scores
 }
 
 export default function EnhancedMatchDetails() {
@@ -117,7 +133,7 @@ export default function EnhancedMatchDetails() {
   const [isSet3Valid, setIsSet3Valid] = useState(false);
   const [showSet3, setShowSet3] = useState(false);
 
-  // REQUIREMENT 1: Enhanced match state calculation with cancellation logic
+  // REQUIREMENT 1: Enhanced match state calculation with permission controls and fixed status handling
   const matchState = useMemo((): MatchState => {
     if (!match || !session?.user?.id) {
       return {
@@ -134,6 +150,8 @@ export default function EnhancedMatchDetails() {
         userWon: null,
         canCancel: false,
         hoursFromCompletion: 0,
+        isCreator: false,
+        canEnterScores: false,
       };
     }
 
@@ -148,7 +166,9 @@ export default function EnhancedMatchDetails() {
     const isFuture = startTime > now;
     const isPast = endTime ? endTime < now : startTime < now;
     const hasScores = match.team1_score_set1 !== null && match.team2_score_set1 !== null;
-    const needsScores = isPast && !hasScores && match.status !== MatchStatus.CANCELLED;
+    
+    // FIXED: Use safe status comparison
+    const needsScores = isPast && !hasScores && !isStatusEqual(match.status, MatchStatus.CANCELLED);
 
     // NEW: Calculate hours from completion for cancellation logic
     let hoursFromCompletion = 0;
@@ -158,17 +178,19 @@ export default function EnhancedMatchDetails() {
       hoursFromCompletion = (now.getTime() - endTime.getTime()) / (1000 * 60 * 60);
     }
 
-    // NEW: Determine if match can be cancelled
-    // Rules: 
-    // 1. User must be the organizer (player1)
-    // 2. Match is either upcoming OR completed/ended less than 24 hours ago
-    // 3. Match is not already cancelled
-    const isOrganizer = session.user.id === match.player1_id;
-    const canCancel = isOrganizer && 
-                     match.status !== MatchStatus.CANCELLED &&
+    // ENHANCED: Permission system implementation
+    const userId = session.user.id;
+    const isCreator = userId === match.player1_id;
+    
+    // NEW: Determine if match can be cancelled (creator only)
+    const canCancel = isCreator && 
+                     !isStatusEqual(match.status, MatchStatus.CANCELLED) &&
                      (isFuture || hoursFromCompletion < 24);
 
-    console.log('⏰ Enhanced Match Details: Time analysis:', {
+    // NEW: Determine if user can enter scores (creator only)
+    const canEnterScores = isCreator && needsScores;
+
+    console.log('⏰ Enhanced Match Details: Permission and time analysis:', {
       startTime: startTime.toISOString(),
       endTime: endTime?.toISOString(),
       completedTime: completedTime?.toISOString(),
@@ -179,11 +201,13 @@ export default function EnhancedMatchDetails() {
       needsScores,
       hoursFromCompletion,
       canCancel,
-      isOrganizer
+      isCreator,
+      canEnterScores,
+      dbStatus: match.status,
+      statusType: typeof match.status
     });
 
     // REQUIREMENT 2: User participation analysis
-    const userId = session.user.id;
     const isPlayer1 = match.player1_id === userId;
     const isPlayer2 = match.player2_id === userId;
     const isPlayer3 = match.player3_id === userId;
@@ -203,7 +227,8 @@ export default function EnhancedMatchDetails() {
       userParticipating,
       userTeam,
       canJoin,
-      hasOpenSlots
+      hasOpenSlots,
+      isCreator
     });
 
     // REQUIREMENT 4: FIXED comprehensive set counting and winner determination
@@ -277,6 +302,8 @@ export default function EnhancedMatchDetails() {
       userWon,
       canCancel,
       hoursFromCompletion,
+      isCreator,
+      canEnterScores,
     };
 
     console.log('✅ Enhanced Match Details: Final match state:', finalState);
@@ -370,6 +397,7 @@ export default function EnhancedMatchDetails() {
       console.log('📊 Enhanced Match Details: Match data received:', {
         id: data.id,
         status: data.status,
+        statusType: typeof data.status,
         hasScores: data.team1_score_set1 !== null,
         startTime: data.start_time
       });
@@ -458,9 +486,15 @@ export default function EnhancedMatchDetails() {
     return 0; // Tie (should not happen in a valid match)
   };
 
-  // REQUIREMENT 14: FIXED - Enhanced match score saving with proper integer handling
+  // REQUIREMENT 14: FIXED - Enhanced match score saving with proper string status handling
   const saveMatchScores = async () => {
     if (!match || !session?.user?.id) return;
+
+    // PERMISSION CHECK: Only creator can enter scores
+    if (!matchState.isCreator) {
+      Alert.alert("Permission Denied", "Only the match creator can enter scores.");
+      return;
+    }
 
     // Validate scores
     if (!isSet1Valid || !isSet2Valid || (showSet3 && !isSet3Valid)) {
@@ -475,20 +509,20 @@ export default function EnhancedMatchDetails() {
       
       console.log('💾 Enhanced Match Details: Saving scores with winner:', winnerTeam);
 
-      // FIXED: Ensure all numeric values are properly typed as integers
+      // FIXED: Convert status to string for database compatibility
       const updateData = {
-        team1_score_set1: Number(set1Score.team1), // Explicit conversion to number
+        team1_score_set1: Number(set1Score.team1),
         team2_score_set1: Number(set1Score.team2),
         team1_score_set2: Number(set2Score.team1),
         team2_score_set2: Number(set2Score.team2),
         team1_score_set3: showSet3 ? Number(set3Score.team1) : null,
         team2_score_set3: showSet3 ? Number(set3Score.team2) : null,
-        winner_team: Number(winnerTeam), // Explicit conversion to number
-        status: MatchStatus.COMPLETED, // Explicit conversion to number
+        winner_team: Number(winnerTeam),
+        status: statusToString(MatchStatus.COMPLETED), // FIXED: Convert to string
         completed_at: new Date().toISOString(),
       };
 
-      console.log('🔧 Enhanced Match Details: Update data with explicit typing:', updateData);
+      console.log('🔧 Enhanced Match Details: Update data with string status:', updateData);
 
       // Update the match
       const { data, error } = await supabase
@@ -681,9 +715,15 @@ export default function EnhancedMatchDetails() {
     }
   };
 
-  // NEW REQUIREMENT: Enhanced match cancellation with complete deletion
+  // NEW REQUIREMENT: Enhanced match cancellation with creator-only permission
   const cancelMatch = async () => {
     if (!match || !session?.user?.id || !matchState.canCancel) return;
+
+    // PERMISSION CHECK: Only creator can delete matches
+    if (!matchState.isCreator) {
+      Alert.alert("Permission Denied", "Only the match creator can delete matches.");
+      return;
+    }
 
     try {
       setSaving(true);
@@ -755,7 +795,7 @@ export default function EnhancedMatchDetails() {
     return format(new Date(dateString), "h:mm a");
   };
 
-  // REQUIREMENT 18: Enhanced status determination
+  // REQUIREMENT 18: Enhanced status determination with fixed status handling
   const getStatusText = () => {
     if (matchState.isFuture) {
       return { text: "Upcoming", color: "text-blue-500" };
@@ -765,7 +805,9 @@ export default function EnhancedMatchDetails() {
       return { text: "Needs Scores", color: "text-amber-500" };
     }
 
-    switch (match?.status) {
+    // FIXED: Use safe status comparison
+    const statusNum = statusFromString(match?.status || 0);
+    switch (statusNum) {
       case MatchStatus.PENDING:
         return { text: "Pending", color: "text-blue-500" };
       case MatchStatus.NEEDS_CONFIRMATION:
@@ -828,9 +870,10 @@ export default function EnhancedMatchDetails() {
     return setsPlayed || 'N/A';
   };
 
-  // REQUIREMENT 21: Enhanced match status text
-  const getMatchStatus = (status: number) => {
-    switch (status) {
+  // REQUIREMENT 21: Enhanced match status text with fixed status handling
+  const getMatchStatus = (status: string | number) => {
+    const statusNum = statusFromString(status);
+    switch (statusNum) {
       case 1: return 'Pending';
       case 2: return 'Needs Confirmation';
       case 3: return 'Cancelled';
@@ -883,8 +926,30 @@ export default function EnhancedMatchDetails() {
     );
   };
 
-  // REQUIREMENT 23: Enhanced score editing section
+  // REQUIREMENT 23: Enhanced score editing section with permission check
   const renderScoreEditSection = () => {
+    // PERMISSION CHECK: Only show editing interface to creator
+    if (!matchState.isCreator) {
+      return (
+        <View className="bg-card rounded-xl p-6 mb-6 border border-amber-200 dark:border-amber-800">
+          <View className="flex-row items-center mb-4">
+            <Ionicons name="lock-closed-outline" size={24} color="#d97706" style={{ marginRight: 8 }} />
+            <H3>Score Entry Restricted</H3>
+          </View>
+          <Text className="text-muted-foreground mb-4">
+            Only the match creator ({match?.player1?.full_name || match?.player1?.email}) can enter scores for this match.
+          </Text>
+          <Button
+            variant="outline"
+            onPress={() => setEditingScores(false)}
+            className="w-full"
+          >
+            <Text>Close</Text>
+          </Button>
+        </View>
+      );
+    }
+
     return (
       <View className="bg-card rounded-xl p-6 mb-6">
         <View className="flex-row justify-between items-center mb-4">
@@ -968,14 +1033,14 @@ export default function EnhancedMatchDetails() {
     if (!matchState.canCancel) return '';
     
     if (matchState.isFuture) {
-      return 'Can cancel until match starts';
+      return 'Can delete until match starts';
     } else {
       const hoursRemaining = 24 - matchState.hoursFromCompletion;
       if (hoursRemaining > 1) {
-        return `Can cancel for ${Math.floor(hoursRemaining)} more hours`;
+        return `Can delete for ${Math.floor(hoursRemaining)} more hours`;
       } else {
         const minutesRemaining = Math.floor(hoursRemaining * 60);
-        return `Can cancel for ${minutesRemaining} more minutes`;
+        return `Can delete for ${minutesRemaining} more minutes`;
       }
     }
   };
@@ -1032,7 +1097,7 @@ export default function EnhancedMatchDetails() {
           />
         }
       >
-        {/* Enhanced Status Banners */}
+        {/* Enhanced Status Banners with Permission Context */}
         {matchState.needsScores && (
           <View className="bg-amber-100 dark:bg-amber-900/30 rounded-xl p-4 mb-4 flex-row items-center">
             <Ionicons
@@ -1046,7 +1111,9 @@ export default function EnhancedMatchDetails() {
                 Match Needs Scores
               </Text>
               <Text className="text-amber-700 dark:text-amber-400">
-                This match is missing scores. As a participant, you can enter them.
+                {matchState.isCreator 
+                  ? "As the match creator, you can enter the scores." 
+                  : "Only the match creator can enter scores for this match."}
               </Text>
             </View>
           </View>
@@ -1069,7 +1136,7 @@ export default function EnhancedMatchDetails() {
           </View>
         )}
 
-        {/* NEW: Cancellation Warning Banner */}
+        {/* NEW: Creator-specific cancellation warning banner */}
         {matchState.canCancel && !matchState.isFuture && (
           <View className="bg-red-100 dark:bg-red-900/30 rounded-xl p-4 mb-4 flex-row items-center">
             <Ionicons
@@ -1080,7 +1147,7 @@ export default function EnhancedMatchDetails() {
             />
             <View className="flex-1">
               <Text className="font-bold text-red-800 dark:text-red-300">
-                Cancellation Window Active
+                Deletion Window Active (Creator Only)
               </Text>
               <Text className="text-red-700 dark:text-red-400">
                 {getCancellationTimeInfo()}
@@ -1134,7 +1201,7 @@ export default function EnhancedMatchDetails() {
           </View>
         </View>
 
-        {/* Score Editing Section */}
+        {/* Score Editing Section with Permission Checks */}
         {editingScores && renderScoreEditSection()}
 
         {/* Enhanced Match Score Display */}
@@ -1197,10 +1264,12 @@ export default function EnhancedMatchDetails() {
         <View className="bg-card rounded-xl p-4 mb-6 border border-border/30">
           <View className="flex-row justify-between items-center mb-3">
             <H3>Teams</H3>
-            {matchState.isFuture && userId === match.player1_id && (
-              <Text className="text-xs text-muted-foreground">
-                You are the organizer
-              </Text>
+            {matchState.isCreator && (
+              <View className="bg-primary/10 px-2 py-1 rounded-full">
+                <Text className="text-xs text-primary font-medium">
+                  Match Creator
+                </Text>
+              </View>
             )}
           </View>
 
@@ -1245,7 +1314,7 @@ export default function EnhancedMatchDetails() {
                       </Text>
                       {isUserPlayer(match.player1?.id) && (
                         <Text className="text-xs text-primary font-bold">
-                          You
+                          You {matchState.isCreator && "(Creator)"}
                         </Text>
                       )}
                     </View>
@@ -1439,7 +1508,7 @@ export default function EnhancedMatchDetails() {
           </View>
 
           {/* Enhanced Additional Match Stats */}
-          {(matchState.hasScores || match.status === 4) && (
+          {(matchState.hasScores || statusFromString(match.status) === 4) && (
             <View className="mt-5 pt-5 border-t border-border/50">
               <View className="flex-row justify-between">
                 <View className="items-center">
@@ -1476,7 +1545,7 @@ export default function EnhancedMatchDetails() {
           )}
         </View>
 
-        {/* Enhanced Match Actions Card */}
+        {/* Enhanced Match Actions Card with Permission-based Controls */}
         <View className="bg-card rounded-xl border border-border/30 p-5 mb-6">
           <View className="flex-row items-center mb-4">
             <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mr-3">
@@ -1484,11 +1553,13 @@ export default function EnhancedMatchDetails() {
             </View>
             <View className="flex-1">
               <Text className="font-medium text-base">Match Actions</Text>
-              {match.status === MatchStatus.NEEDS_CONFIRMATION && (
+              {statusFromString(match.status) === MatchStatus.NEEDS_CONFIRMATION && (
                 <Text className="text-xs text-amber-500 dark:text-amber-400">This match needs confirmation</Text>
               )}
               {matchState.needsScores && (
-                <Text className="text-xs text-amber-500 dark:text-amber-400">This match needs scores</Text>
+                <Text className="text-xs text-amber-500 dark:text-amber-400">
+                  This match needs scores {matchState.isCreator ? "(you can enter them)" : "(creator only)"}
+                </Text>
               )}
               {matchState.canJoin && (
                 <Text className="text-xs text-blue-500 dark:text-blue-400">Spots available to join</Text>
@@ -1499,7 +1570,7 @@ export default function EnhancedMatchDetails() {
             </View>
           </View>
 
-          {/* Enhanced Action Buttons Layout */}
+          {/* Enhanced Action Buttons Layout with Permission Checks */}
           <View className="flex-row flex-wrap gap-3">
             {/* Share Match Button - Always visible */}
             <TouchableOpacity 
@@ -1533,8 +1604,8 @@ export default function EnhancedMatchDetails() {
               </TouchableOpacity>
             )}
 
-            {/* Enter Scores Button */}
-            {matchState.needsScores && !editingScores && (
+            {/* Enter Scores Button - Creator Only */}
+            {matchState.canEnterScores && !editingScores && (
               <TouchableOpacity 
                 className="flex-row items-center bg-green-600 border border-green-600 rounded-xl p-3 flex-1" 
                 onPress={() => setEditingScores(true)}
@@ -1546,8 +1617,8 @@ export default function EnhancedMatchDetails() {
               </TouchableOpacity>
             )}
 
-            {/* Confirm Match Button */}
-            {match.status === MatchStatus.NEEDS_CONFIRMATION && userId && (
+            {/* Confirm Match Button - Enhanced with Permission Check */}
+            {statusFromString(match.status) === MatchStatus.NEEDS_CONFIRMATION && userId && matchState.isCreator && (
               <TouchableOpacity 
                 className="flex-row items-center bg-amber-500 border border-amber-500 rounded-xl p-3 flex-1" 
                 onPress={() => {
@@ -1563,7 +1634,7 @@ export default function EnhancedMatchDetails() {
                             setSaving(true);
                             const { error } = await supabase
                               .from("matches")
-                              .update({ status: Number(MatchStatus.COMPLETED) })
+                              .update({ status: statusToString(MatchStatus.COMPLETED) })
                               .eq("id", match.id);
                               
                             if (error) throw error;
@@ -1590,7 +1661,7 @@ export default function EnhancedMatchDetails() {
             )}
           </View>
 
-          {/* ENHANCED: Delete Match Section with Time-based Logic */}
+          {/* ENHANCED: Delete Match Section with Creator-Only Permission */}
           {matchState.canCancel && (
             <View className="mt-4 pt-4 border-t border-border/30">
               <TouchableOpacity 
@@ -1617,7 +1688,7 @@ export default function EnhancedMatchDetails() {
                 ) : (
                   <>
                     <Ionicons name="trash-outline" size={16} color="#ef4444" />
-                    <Text className="ml-2 text-red-500">Delete Match</Text>
+                    <Text className="ml-2 text-red-500">Delete Match (Creator Only)</Text>
                   </>
                 )}
               </TouchableOpacity>
