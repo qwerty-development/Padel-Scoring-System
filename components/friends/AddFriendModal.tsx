@@ -19,6 +19,7 @@ interface SearchUser {
   id: string;
   email: string;
   full_name: string | null;
+  nickname: string | null; // Added nickname
 }
 
 export function AddFriendModal({ visible, onClose, userId, userProfile }: AddFriendModalProps) {
@@ -37,19 +38,14 @@ export function AddFriendModal({ visible, onClose, userId, userProfile }: AddFri
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, email, full_name')
-        .eq('email', query.toLowerCase())
+        .select('id, email, full_name, nickname') // Added nickname to select
+        .or(`full_name.ilike.%${query}%,nickname.ilike.%${query}%`) // Search by full_name or nickname (case-insensitive like)
         .neq('id', userId) // Exclude current user
         .limit(10);
 
       if (error) throw error;
       
-      // Filter out users who are already friends
-      const filteredResults = data?.filter(user => 
-        !userProfile?.friends_list?.includes(user.id)
-      ) || [];
-      
-      setSearchResults(filteredResults);
+      setSearchResults(data || []); // Keep all results, including existing friends
     } catch (error) {
       console.error('Error searching users:', error);
     } finally {
@@ -85,26 +81,33 @@ export function AddFriendModal({ visible, onClose, userId, userProfile }: AddFri
 
   const renderSearchResult = (user: SearchUser) => {
     const isSent = sentRequests.has(user.id);
+    const isAlreadyFriend = userProfile?.friends_list?.includes(user.id);
     
     return (
       <View key={user.id} className="bg-card rounded-lg mb-3 p-4">
         <View className="flex-row items-center">
           <View className="w-12 h-12 rounded-full bg-primary items-center justify-center mr-4">
             <Text className="text-lg font-bold text-primary-foreground">
-              {user.full_name?.charAt(0)?.toUpperCase() || user.email.charAt(0).toUpperCase() || '?'}
+              {user.full_name?.charAt(0)?.toUpperCase() || user.nickname?.charAt(0)?.toUpperCase() || user.email.charAt(0).toUpperCase() || '?'}
             </Text>
           </View>
           <View className="flex-1">
-            <Text className="font-medium">{user.full_name || user.email}</Text>
+            <Text className="font-medium">{user.full_name || user.nickname || user.email}</Text>
             <Text className="text-sm text-muted-foreground">{user.email}</Text>
           </View>
-          <Button
-            variant={isSent ? "secondary" : "default"}
-            onPress={() => sendFriendRequest(user.id)}
-            disabled={isSent}
-          >
-            <Text>{isSent ? 'Sent' : 'Add Friend'}</Text>
-          </Button>
+          {isAlreadyFriend ? (
+            <Button variant="outline" disabled>
+              <Text>Friends</Text>
+            </Button>
+          ) : (
+            <Button
+              variant={isSent ? "secondary" : "default"}
+              onPress={() => sendFriendRequest(user.id)}
+              disabled={isSent}
+            >
+              <Text>{isSent ? 'Sent' : 'Add Friend'}</Text>
+            </Button>
+          )}
         </View>
       </View>
     );
@@ -130,13 +133,13 @@ export function AddFriendModal({ visible, onClose, userId, userProfile }: AddFri
             <View className="flex-1 mr-3">
               <TextInput
                 className="bg-card border-2 border-border rounded-lg px-4 py-3 text-foreground"
-                placeholder="Search by email"
+                placeholder="Search by name or nickname"
                 placeholderTextColor="#888"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 autoCapitalize="none"
                 autoCorrect={false}
-                keyboardType="email-address"
+                keyboardType="default" // Changed keyboard type as it's no longer just email
               />
             </View>
             <Button 
@@ -155,7 +158,7 @@ export function AddFriendModal({ visible, onClose, userId, userProfile }: AddFri
               {searchResults.map(renderSearchResult)}
               {searchResults.length === 0 && searchQuery && (
                 <Text className="text-center text-muted-foreground">
-                  No users found with this email
+                  No users found with this name or nickname
                 </Text>
               )}
             </ScrollView>
