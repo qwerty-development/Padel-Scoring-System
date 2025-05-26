@@ -81,7 +81,7 @@ interface GlickoRating {
   vol: number;
 }
 
-// TECHNICAL SPECIFICATION: Enhanced match state interface
+// TECHNICAL SPECIFICATION: Enhanced match state interface with cancellation logic
 interface MatchState {
   isFuture: boolean;
   isPast: boolean;
@@ -94,6 +94,8 @@ interface MatchState {
   team2Sets: number;
   winnerTeam: number;
   userWon: boolean | null;
+  canCancel: boolean; // NEW: Determines if match can be cancelled
+  hoursFromCompletion: number; // NEW: Hours since completion
 }
 
 export default function EnhancedMatchDetails() {
@@ -115,7 +117,7 @@ export default function EnhancedMatchDetails() {
   const [isSet3Valid, setIsSet3Valid] = useState(false);
   const [showSet3, setShowSet3] = useState(false);
 
-  // REQUIREMENT 1: Comprehensive match state calculation with enhanced logic
+  // REQUIREMENT 1: Enhanced match state calculation with cancellation logic
   const matchState = useMemo((): MatchState => {
     if (!match || !session?.user?.id) {
       return {
@@ -130,6 +132,8 @@ export default function EnhancedMatchDetails() {
         team2Sets: 0,
         winnerTeam: 0,
         userWon: null,
+        canCancel: false,
+        hoursFromCompletion: 0,
       };
     }
 
@@ -139,20 +143,43 @@ export default function EnhancedMatchDetails() {
     const now = new Date();
     const startTime = new Date(match.start_time);
     const endTime = match.end_time ? new Date(match.end_time) : null;
+    const completedTime = match.completed_at ? new Date(match.completed_at) : null;
     
     const isFuture = startTime > now;
     const isPast = endTime ? endTime < now : startTime < now;
     const hasScores = match.team1_score_set1 !== null && match.team2_score_set1 !== null;
     const needsScores = isPast && !hasScores && match.status !== MatchStatus.CANCELLED;
 
+    // NEW: Calculate hours from completion for cancellation logic
+    let hoursFromCompletion = 0;
+    if (completedTime) {
+      hoursFromCompletion = (now.getTime() - completedTime.getTime()) / (1000 * 60 * 60);
+    } else if (endTime && !isFuture) {
+      hoursFromCompletion = (now.getTime() - endTime.getTime()) / (1000 * 60 * 60);
+    }
+
+    // NEW: Determine if match can be cancelled
+    // Rules: 
+    // 1. User must be the organizer (player1)
+    // 2. Match is either upcoming OR completed/ended less than 24 hours ago
+    // 3. Match is not already cancelled
+    const isOrganizer = session.user.id === match.player1_id;
+    const canCancel = isOrganizer && 
+                     match.status !== MatchStatus.CANCELLED &&
+                     (isFuture || hoursFromCompletion < 24);
+
     console.log('⏰ Enhanced Match Details: Time analysis:', {
       startTime: startTime.toISOString(),
       endTime: endTime?.toISOString(),
+      completedTime: completedTime?.toISOString(),
       now: now.toISOString(),
       isFuture,
       isPast,
       hasScores,
-      needsScores
+      needsScores,
+      hoursFromCompletion,
+      canCancel,
+      isOrganizer
     });
 
     // REQUIREMENT 2: User participation analysis
@@ -248,6 +275,8 @@ export default function EnhancedMatchDetails() {
       team2Sets,
       winnerTeam,
       userWon,
+      canCancel,
+      hoursFromCompletion,
     };
 
     console.log('✅ Enhanced Match Details: Final match state:', finalState);
@@ -429,7 +458,7 @@ export default function EnhancedMatchDetails() {
     return 0; // Tie (should not happen in a valid match)
   };
 
-  // REQUIREMENT 14: Enhanced match score saving with rating updates
+  // REQUIREMENT 14: FIXED - Enhanced match score saving with proper integer handling
   const saveMatchScores = async () => {
     if (!match || !session?.user?.id) return;
 
@@ -446,18 +475,20 @@ export default function EnhancedMatchDetails() {
       
       console.log('💾 Enhanced Match Details: Saving scores with winner:', winnerTeam);
 
-      // Prepare update data
+      // FIXED: Ensure all numeric values are properly typed as integers
       const updateData = {
-        team1_score_set1: set1Score.team1,
-        team2_score_set1: set1Score.team2,
-        team1_score_set2: set2Score.team1,
-        team2_score_set2: set2Score.team2,
-        team1_score_set3: showSet3 ? set3Score.team1 : null,
-        team2_score_set3: showSet3 ? set3Score.team2 : null,
-        winner_team: winnerTeam,
-        status: MatchStatus.COMPLETED,
+        team1_score_set1: Number(set1Score.team1), // Explicit conversion to number
+        team2_score_set1: Number(set1Score.team2),
+        team1_score_set2: Number(set2Score.team1),
+        team2_score_set2: Number(set2Score.team2),
+        team1_score_set3: showSet3 ? Number(set3Score.team1) : null,
+        team2_score_set3: showSet3 ? Number(set3Score.team2) : null,
+        winner_team: Number(winnerTeam), // Explicit conversion to number
+        status: MatchStatus.COMPLETED, // Explicit conversion to number
         completed_at: new Date().toISOString(),
       };
+
+      console.log('🔧 Enhanced Match Details: Update data with explicit typing:', updateData);
 
       // Update the match
       const { data, error } = await supabase
@@ -466,7 +497,10 @@ export default function EnhancedMatchDetails() {
         .eq("id", match.id)
         .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Enhanced Match Details: Database update error:', error);
+        throw error;
+      }
 
       // If all players are present, calculate and update Glicko ratings
       if (
@@ -644,6 +678,44 @@ export default function EnhancedMatchDetails() {
     } catch (error) {
       console.error("❌ Enhanced Match Details: Error updating player ratings:", error);
       throw error;
+    }
+  };
+
+  // NEW REQUIREMENT: Enhanced match cancellation with complete deletion
+  const cancelMatch = async () => {
+    if (!match || !session?.user?.id || !matchState.canCancel) return;
+
+    try {
+      setSaving(true);
+
+      console.log('🗑️ Enhanced Match Details: Deleting match:', match.id);
+
+      // DELETE the match completely instead of updating status
+      const { error } = await supabase
+        .from("matches")
+        .delete()
+        .eq("id", match.id);
+        
+      if (error) {
+        console.error('❌ Enhanced Match Details: Delete error:', error);
+        throw error;
+      }
+      
+      Alert.alert(
+        "Match Deleted", 
+        "The match has been permanently removed.",
+        [
+          { 
+            text: "OK", 
+            onPress: () => router.replace("/(protected)/(tabs)") // Navigate back to home
+          }
+        ]
+      );
+    } catch (error) {
+      console.error("❌ Enhanced Match Details: Error deleting match:", error);
+      Alert.alert("Error", "Failed to delete match");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -891,6 +963,23 @@ export default function EnhancedMatchDetails() {
     }
   };
 
+  // NEW: Function to format time remaining for cancellation
+  const getCancellationTimeInfo = (): string => {
+    if (!matchState.canCancel) return '';
+    
+    if (matchState.isFuture) {
+      return 'Can cancel until match starts';
+    } else {
+      const hoursRemaining = 24 - matchState.hoursFromCompletion;
+      if (hoursRemaining > 1) {
+        return `Can cancel for ${Math.floor(hoursRemaining)} more hours`;
+      } else {
+        const minutesRemaining = Math.floor(hoursRemaining * 60);
+        return `Can cancel for ${minutesRemaining} more minutes`;
+      }
+    }
+  };
+
   // REQUIREMENT 25: Loading and error states
   if (loading && !refreshing) {
     return (
@@ -975,6 +1064,26 @@ export default function EnhancedMatchDetails() {
               <Text className="font-bold text-blue-800 dark:text-blue-300">Upcoming Match</Text>
               <Text className="text-blue-700 dark:text-blue-400">
                 This match is scheduled for the future.
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* NEW: Cancellation Warning Banner */}
+        {matchState.canCancel && !matchState.isFuture && (
+          <View className="bg-red-100 dark:bg-red-900/30 rounded-xl p-4 mb-4 flex-row items-center">
+            <Ionicons
+              name="warning-outline"
+              size={24}
+              color="#dc2626"
+              style={{ marginRight: 8 }}
+            />
+            <View className="flex-1">
+              <Text className="font-bold text-red-800 dark:text-red-300">
+                Cancellation Window Active
+              </Text>
+              <Text className="text-red-700 dark:text-red-400">
+                {getCancellationTimeInfo()}
               </Text>
             </View>
           </View>
@@ -1384,6 +1493,9 @@ export default function EnhancedMatchDetails() {
               {matchState.canJoin && (
                 <Text className="text-xs text-blue-500 dark:text-blue-400">Spots available to join</Text>
               )}
+              {matchState.canCancel && (
+                <Text className="text-xs text-red-500 dark:text-red-400">Can be deleted - {getCancellationTimeInfo()}</Text>
+              )}
             </View>
           </View>
 
@@ -1451,7 +1563,7 @@ export default function EnhancedMatchDetails() {
                             setSaving(true);
                             const { error } = await supabase
                               .from("matches")
-                              .update({ status: MatchStatus.COMPLETED })
+                              .update({ status: Number(MatchStatus.COMPLETED) })
                               .eq("id", match.id);
                               
                             if (error) throw error;
@@ -1478,46 +1590,36 @@ export default function EnhancedMatchDetails() {
             )}
           </View>
 
-          {/* Enhanced Secondary Actions */}
-          {match.status !== MatchStatus.CANCELLED && (userId === match.player1_id) && (
+          {/* ENHANCED: Delete Match Section with Time-based Logic */}
+          {matchState.canCancel && (
             <View className="mt-4 pt-4 border-t border-border/30">
               <TouchableOpacity 
                 className="flex-row items-center justify-center py-2"
                 onPress={() => {
+                  const timeInfo = getCancellationTimeInfo();
                   Alert.alert(
-                    "Cancel Match",
-                    "Are you sure you want to cancel this match? This action cannot be undone.",
+                    "Delete Match",
+                    `Are you sure you want to permanently delete this match? This action cannot be undone.\n\n${timeInfo}`,
                     [
-                      { text: "No", style: "cancel" },
+                      { text: "Cancel", style: "cancel" },
                       { 
-                        text: "Yes, Cancel", 
+                        text: "Delete", 
                         style: "destructive",
-                        onPress: async () => {
-                          try {
-                            setSaving(true);
-                            const { error } = await supabase
-                              .from("matches")
-                              .update({ status: MatchStatus.CANCELLED })
-                              .eq("id", match.id);
-                              
-                            if (error) throw error;
-                            
-                            fetchMatchDetails(match.id);
-                            Alert.alert("Match Cancelled", "The match has been cancelled successfully.");
-                          } catch (error) {
-                            console.error("Error cancelling match:", error);
-                            Alert.alert("Error", "Failed to cancel match");
-                          } finally {
-                            setSaving(false);
-                          }
-                        }
+                        onPress: cancelMatch
                       }
                     ]
                   );
                 }}
+                disabled={saving}
               >
-                <Ionicons name="close-circle-outline" size={16} color="#ef4444" />
-                <Text className="ml-2 text-red-500">Cancel Match</Text>
+                {saving ? (
+                  <ActivityIndicator size="small" color="#ef4444" />
+                ) : (
+                  <>
+                    <Ionicons name="trash-outline" size={16} color="#ef4444" />
+                    <Text className="ml-2 text-red-500">Delete Match</Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
           )}
