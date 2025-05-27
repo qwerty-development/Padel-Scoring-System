@@ -601,9 +601,32 @@ export default function EnhancedHome() {
     </View>
   );
 
+  // ENHANCEMENT: Visibility Badge Component for Match Visibility Indicator
+  const renderVisibilityBadge = (isPublic: boolean) => {
+    return (
+      <View className={`flex-row items-center px-2 py-1 rounded-full ${
+        isPublic 
+          ? 'bg-blue-100 dark:bg-blue-900/30' 
+          : 'bg-gray-100 dark:bg-gray-800/50'
+      }`}>
+        <Ionicons 
+          name={isPublic ? 'globe-outline' : 'lock-closed-outline'} 
+          size={12} 
+          color={isPublic ? '#2563eb' : '#6b7280'} 
+          style={{ marginRight: 4 }}
+        />
+        <Text className={`text-xs font-medium ${
+          isPublic 
+            ? 'text-blue-700 dark:text-blue-300' 
+            : 'text-gray-600 dark:text-gray-400'
+        }`}>
+          {isPublic ? 'Public' : 'Private'}
+        </Text>
+      </View>
+    );
+  };
 
-
-  // Component: Enhanced Match Card with Rich Information
+  // Component: Enhanced Match Card with Rich Information INCLUDING VISIBILITY INDICATOR
   const renderMatchCard = (match: EnhancedMatchData, type: 'upcoming' | 'attention' | 'recent') => {
     const startTime = new Date(match.start_time);
     const formattedDate = startTime.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -642,15 +665,19 @@ export default function EnhancedHome() {
         className={`mb-3 p-4 rounded-xl ${getBgColor()} border border-border/30`}
         onPress={() => handleMatchAction(match)}
       >
-        {/* Header with Status and Time */}
+        {/* ENHANCED Header with Status, Time, AND VISIBILITY INDICATOR */}
         <View className="flex-row justify-between items-center mb-3">
-          <View className="flex-row items-center">
+          <View className="flex-row items-center flex-1">
             <View className="w-8 h-8 rounded-full bg-white items-center justify-center mr-2">
               <Ionicons name={statusInfo.icon as any} size={16} color={statusInfo.color} />
             </View>
             <Text className="font-medium" style={{ color: statusInfo.color }}>
               {statusInfo.text}
             </Text>
+            {/* VISIBILITY BADGE - Positioned after status text */}
+            <View className="ml-2">
+              {renderVisibilityBadge(match.is_public)}
+            </View>
           </View>
           <View className="items-end">
             <Text className="text-sm font-medium">{formattedDate}</Text>
@@ -658,7 +685,7 @@ export default function EnhancedHome() {
           </View>
         </View>
         
-        {/* Location Info */}
+        {/* Location Info with Enhanced Layout */}
         {(match.region || match.court) && (
           <View className="flex-row items-center mb-2">
             <Ionicons name="location-outline" size={14} color="#888" style={{ marginRight: 4 }} />
@@ -668,19 +695,30 @@ export default function EnhancedHome() {
           </View>
         )}
         
-        {/* Team Composition */}
+        {/* ENHANCED Team Composition with Public Match Context */}
         <View className="mb-3">
           <Text className="font-medium mb-1">
             You {teammate ? `& ${teammate.full_name || teammate.email.split('@')[0]}` : ''}
           </Text>
-          <Text className="text-sm text-muted-foreground">
-            vs. {opponents.filter(Boolean).map(p => 
-              p?.full_name || p?.email?.split('@')[0] || 'TBD'
-            ).join(' & ')}
-          </Text>
+          <View className="flex-row items-center justify-between">
+            <Text className="text-sm text-muted-foreground">
+              vs. {opponents.filter(Boolean).map(p => 
+                p?.full_name || p?.email?.split('@')[0] || 'TBD'
+              ).join(' & ')}
+            </Text>
+            {/* ADDITIONAL Public Match Indicator for Future Matches */}
+            {match.is_public && type === 'upcoming' && (
+              <View className="flex-row items-center">
+                <Ionicons name="people-outline" size={12} color="#2563eb" style={{ marginRight: 2 }} />
+                <Text className="text-xs text-blue-600 dark:text-blue-400">
+                  Others can join
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
         
-        {/* Score Display */}
+        {/* Score Display with Enhanced Visibility Context */}
         {match.setScores ? (
           <View className="flex-row items-center justify-between">
             <View className="flex-row items-center">
@@ -760,8 +798,6 @@ export default function EnhancedHome() {
     );
   };
 
-
-
   // Loading state with enhanced UI
   if (loading && !refreshing) {
     return (
@@ -791,8 +827,6 @@ export default function EnhancedHome() {
       >
         {/* Enhanced User Header */}
         {renderUserHeader()}
-        
-   
         
         {/* Priority: Matches Needing Attention */}
         {categorizedMatches.needsAttention.length > 0 && (
@@ -833,10 +867,6 @@ export default function EnhancedHome() {
             )}
           </View>
         )}
-        
-
-        
-
         
         {/* Recent Matches */}
         {categorizedMatches.recent.length > 0 && (
@@ -890,10 +920,10 @@ export default function EnhancedHome() {
             </View>
           </View>
         )}
-                {/* Friends Activity */}
-                {renderFriendsActivity()}
+        
+        {/* Friends Activity */}
+        {renderFriendsActivity()}
       </ScrollView>
-      
       
       {/* Floating Action Button for Quick Match Creation */}
       <TouchableOpacity

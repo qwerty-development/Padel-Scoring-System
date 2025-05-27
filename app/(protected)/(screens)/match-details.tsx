@@ -173,7 +173,7 @@ interface ScoreEntryState {
   suggestedWinner: number | null;
 }
 
-export default function EnhancedMatchDetailsWithFixedTypes() {
+export default function EnhancedMatchDetailsWithVisibility() {
   const { matchId, mode } = useLocalSearchParams();
   const { colorScheme } = useColorScheme();
   const [match, setMatch] = useState<MatchDetail | null>(null);
@@ -201,6 +201,87 @@ export default function EnhancedMatchDetailsWithFixedTypes() {
   // ENHANCED: UI state management
   const [showAdvancedStats, setShowAdvancedStats] = useState(false);
   const [animatedValue] = useState(new Animated.Value(0));
+
+  // ENHANCEMENT: Visibility Badge Component for Match Visibility Indicator
+  const renderVisibilityBadge = (isPublic: boolean, size: 'small' | 'medium' = 'small') => {
+    const iconSize = size === 'medium' ? 16 : 12;
+    const textClass = size === 'medium' ? 'text-sm' : 'text-xs';
+    const paddingClass = size === 'medium' ? 'px-3 py-2' : 'px-2 py-1';
+    
+    return (
+      <View className={`flex-row items-center ${paddingClass} rounded-full ${
+        isPublic 
+          ? 'bg-blue-100 dark:bg-blue-900/30' 
+          : 'bg-gray-100 dark:bg-gray-800/50'
+      }`}>
+        <Ionicons 
+          name={isPublic ? 'globe-outline' : 'lock-closed-outline'} 
+          size={iconSize} 
+          color={isPublic ? '#2563eb' : '#6b7280'} 
+          style={{ marginRight: 4 }}
+        />
+        <Text className={`${textClass} font-medium ${
+          isPublic 
+            ? 'text-blue-700 dark:text-blue-300' 
+            : 'text-gray-600 dark:text-gray-400'
+        }`}>
+          {isPublic ? 'Public' : 'Private'}
+        </Text>
+      </View>
+    );
+  };
+
+  // ENHANCEMENT: Detailed visibility status component for match info section
+  const renderDetailedVisibilityInfo = (isPublic: boolean) => {
+    return (
+      <View className={`p-4 rounded-lg border ${
+        isPublic 
+          ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' 
+          : 'bg-gray-50 dark:bg-gray-800/20 border-gray-200 dark:border-gray-700'
+      }`}>
+        <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center flex-1">
+            <View className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${
+              isPublic ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-gray-100 dark:bg-gray-700'
+            }`}>
+              <Ionicons 
+                name={isPublic ? 'globe' : 'lock-closed'} 
+                size={20} 
+                color={isPublic ? '#2563eb' : '#6b7280'} 
+              />
+            </View>
+            <View className="flex-1">
+              <Text className={`font-medium ${
+                isPublic ? 'text-blue-800 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'
+              }`}>
+                {isPublic ? 'Public Match' : 'Private Match'}
+              </Text>
+              <Text className={`text-sm ${
+                isPublic ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
+              }`}>
+                {isPublic 
+                  ? 'Visible to all users • Anyone can discover and join' 
+                  : 'Invitation only • Only selected players can see this match'}
+              </Text>
+            </View>
+          </View>
+          {renderVisibilityBadge(isPublic, 'medium')}
+        </View>
+        
+        {/* ENHANCEMENT: Additional context for public matches */}
+        {isPublic && (
+          <View className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
+            <View className="flex-row items-center">
+              <Ionicons name="people-outline" size={16} color="#2563eb" style={{ marginRight: 6 }} />
+              <Text className="text-sm text-blue-600 dark:text-blue-400">
+                This match is discoverable by all users and appears in public match listings
+              </Text>
+            </View>
+          </View>
+        )}
+      </View>
+    );
+  };
 
   // REQUIREMENT 1: Enhanced match state calculation with comprehensive analysis
   const matchState = useMemo((): MatchState => {
@@ -508,7 +589,8 @@ export default function EnhancedMatchDetailsWithFixedTypes() {
         status: data.status,
         statusType: typeof data.status,
         hasScores: data.team1_score_set1 !== null,
-        startTime: data.start_time
+        startTime: data.start_time,
+        isPublic: data.is_public
       });
 
       setMatch(data);
@@ -661,31 +743,38 @@ export default function EnhancedMatchDetailsWithFixedTypes() {
     await performScoreSave();
   };
 
-  // CRITICAL FIX: Score saving logic with proper TEXT status handling
-  const performScoreSave = async () => {
-    if (!match) return;
+  // CRITICAL FIX: Score saving with explicit INTEGER type enforcement for PostgreSQL constraints
+const performScoreSave = async () => {
+  if (!match) return;
 
-    try {
-      setSaving(true);
+  try {
+    setSaving(true);
 
-      const winnerTeam = scoreValidation.suggestedWinner || 0;
-      
-      console.log('💾 Enhanced Match Details: Saving scores with winner:', winnerTeam);
+    const winnerTeam = scoreValidation.suggestedWinner || 0;
+    
+    console.log('💾 Enhanced Match Details: Saving scores with winner:', winnerTeam);
 
-      // CRITICAL FIX: Convert status to STRING for TEXT database field
-      const updateData = {
-        team1_score_set1: ensureInteger(set1Score.team1),
-        team2_score_set1: ensureInteger(set1Score.team2),
-        team1_score_set2: ensureInteger(set2Score.team1),
-        team2_score_set2: ensureInteger(set2Score.team2),
-        team1_score_set3: showSet3 ? ensureInteger(set3Score.team1) : null,
-        team2_score_set3: showSet3 ? ensureInteger(set3Score.team2) : null,
-        winner_team: ensureInteger(winnerTeam),
-        status: "4", // CRITICAL FIX: Convert to string for TEXT field
-        completed_at: new Date().toISOString(),
-      };
+    // CRITICAL FIX: Explicit INTEGER casting to resolve PostgreSQL constraint validation
+    // Ensures all numeric values are properly typed for INTEGER database fields
+    const updateData = {
+      team1_score_set1: Number(ensureInteger(set1Score.team1)),
+      team2_score_set1: Number(ensureInteger(set1Score.team2)),
+      team1_score_set2: Number(ensureInteger(set2Score.team1)),
+      team2_score_set2: Number(ensureInteger(set2Score.team2)),
+      team1_score_set3: showSet3 ? Number(ensureInteger(set3Score.team1)) : null,
+      team2_score_set3: showSet3 ? Number(ensureInteger(set3Score.team2)) : null,
+      winner_team: Number(ensureInteger(winnerTeam)),
+      status: "4", // String for TEXT field
+      completed_at: new Date().toISOString(),
+    };
 
-      console.log('🔧 Enhanced Match Details: Update data with STRING status for TEXT field:', updateData);
+    console.log('🔧 Enhanced Match Details: Update data with explicit INTEGER casting:', updateData);
+    console.log('🔧 Type verification:', {
+      team1_score_set1_type: typeof updateData.team1_score_set1,
+      team1_score_set1_value: updateData.team1_score_set1,
+      winner_team_type: typeof updateData.winner_team,
+      winner_team_value: updateData.winner_team
+    });
 
       const { data, error } = await supabase
         .from("matches")
@@ -859,7 +948,7 @@ export default function EnhancedMatchDetailsWithFixedTypes() {
     );
   };
 
-  // ENHANCED: Advanced sharing with multiple formats
+  // ENHANCED: Advanced sharing with multiple formats AND VISIBILITY CONTEXT
   const shareMatch = async () => {
     if (!match) return;
 
@@ -871,17 +960,26 @@ export default function EnhancedMatchDetailsWithFixedTypes() {
         match.player4?.full_name || "Player 4"
       ];
 
+      // ENHANCEMENT: Include visibility context in shared message
+      const visibilityText = match.is_public ? '🌍 Public Match' : '🔒 Private Match';
+      
       let message = '';
       
       if (matchState.isFuture) {
-        message = `🎾 Padel Match Invitation\n\n` +
+        message = `🎾 Padel Match Invitation\n${visibilityText}\n\n` +
                  `📅 ${formatDate(match.start_time)} at ${formatTime(match.start_time)}\n` +
                  `📍 ${match.region || 'TBD'}${match.court ? `, Court ${match.court}` : ''}\n\n` +
                  `Team 1: ${playerNames[0]} & ${playerNames[1]}\n` +
-                 `Team 2: ${playerNames[2]} & ${playerNames[3]}\n\n` +
-                 `Join us for some padel! 🏆`;
+                 `Team 2: ${playerNames[2]} & ${playerNames[3]}\n\n`;
+        
+        // ENHANCEMENT: Add visibility-specific context
+        if (match.is_public) {
+          message += `This is a public match - anyone can discover and join! 🌟\n\n`;
+        }
+        
+        message += `Join us for some padel! 🏆`;
       } else {
-        message = `🏆 Padel Match Result\n\n` +
+        message = `🏆 Padel Match Result\n${visibilityText}\n\n` +
                  `📊 Final Score: ${matchState.team1Sets}-${matchState.team2Sets}\n` +
                  `🏅 Winner: Team ${matchState.winnerTeam}\n\n` +
                  `Team 1: ${playerNames[0]} & ${playerNames[1]}\n` +
@@ -1243,7 +1341,7 @@ export default function EnhancedMatchDetailsWithFixedTypes() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Enhanced Status Banners with Better Visual Hierarchy */}
+        {/* ENHANCED Status Banners with VISIBILITY INDICATORS */}
         {matchState.needsScores && (
           <Animated.View 
             style={{ opacity: animatedValue }}
@@ -1257,9 +1355,13 @@ export default function EnhancedMatchDetailsWithFixedTypes() {
                 style={{ marginRight: 12 }}
               />
               <View className="flex-1">
-                <Text className="font-bold text-amber-800 dark:text-amber-300">
-                  Match Needs Scores
-                </Text>
+                <View className="flex-row items-center justify-between mb-1">
+                  <Text className="font-bold text-amber-800 dark:text-amber-300">
+                    Match Needs Scores
+                  </Text>
+                  {/* ENHANCEMENT: Add visibility indicator to status banner */}
+                  {renderVisibilityBadge(match.is_public)}
+                </View>
                 <Text className="text-amber-700 dark:text-amber-400 text-sm">
                   {matchState.isCreator 
                     ? "As the match creator, you can enter the scores." 
@@ -1288,11 +1390,22 @@ export default function EnhancedMatchDetailsWithFixedTypes() {
                 style={{ marginRight: 12 }}
               />
               <View className="flex-1">
-                <Text className="font-bold text-blue-800 dark:text-blue-300">
-                  Upcoming Match
-                </Text>
+                <View className="flex-row items-center justify-between mb-1">
+                  <Text className="font-bold text-blue-800 dark:text-blue-300">
+                    Upcoming Match
+                  </Text>
+                  {/* ENHANCEMENT: Add visibility indicator to status banner */}
+                  {renderVisibilityBadge(match.is_public)}
+                </View>
                 <Text className="text-blue-700 dark:text-blue-400 text-sm">
                   {formatRelativeTime(match.start_time)} • {formatTime(match.start_time)}
+                  {/* ENHANCEMENT: Add context for public matches */}
+                  {match.is_public && (
+                    <>
+                      {" • "}
+                      <Text className="font-medium">Open for anyone to join</Text>
+                    </>
+                  )}
                 </Text>
               </View>
             </View>
@@ -1309,9 +1422,13 @@ export default function EnhancedMatchDetailsWithFixedTypes() {
                 style={{ marginRight: 12 }}
               />
               <View className="flex-1">
-                <Text className="font-bold text-red-800 dark:text-red-300">
-                  Deletion Window Active
-                </Text>
+                <View className="flex-row items-center justify-between mb-1">
+                  <Text className="font-bold text-red-800 dark:text-red-300">
+                    Deletion Window Active
+                  </Text>
+                  {/* ENHANCEMENT: Add visibility indicator to status banner */}
+                  {renderVisibilityBadge(match.is_public)}
+                </View>
                 <Text className="text-red-700 dark:text-red-400 text-sm">
                   {getCancellationTimeInfo()}
                 </Text>
@@ -1336,13 +1453,15 @@ export default function EnhancedMatchDetailsWithFixedTypes() {
                   {match.end_time ? ` - ${formatTime(match.end_time)}` : ""}
                 </Text>
                 
-                {/* Duration and Phase Info */}
+                {/* ENHANCED Duration and Phase Info WITH VISIBILITY */}
                 <View className="flex-row items-center flex-wrap gap-2">
                   <View className="bg-primary/10 px-2 py-1 rounded-full">
                     <Text className="text-xs font-medium text-primary">
                       {matchState.matchPhase.toUpperCase()}
                     </Text>
                   </View>
+                  {/* ENHANCEMENT: Add visibility badge in header info */}
+                  {renderVisibilityBadge(match.is_public)}
                   {match.start_time && match.end_time && (
                     <View className="bg-muted/50 px-2 py-1 rounded-full">
                       <Text className="text-xs text-muted-foreground">
@@ -1661,13 +1780,19 @@ export default function EnhancedMatchDetailsWithFixedTypes() {
           </View>
         </View>
 
-        {/* Enhanced Match Info Section */}
+        {/* ENHANCED Match Info Section WITH DETAILED VISIBILITY INFO */}
         <View className="bg-card rounded-xl p-5 mb-6 border border-border/30">
           <View className="flex-row items-center mb-4">
             <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mr-3">
               <Ionicons name="information-circle" size={20} color="#1a7ebd" />
             </View>
             <H3>Match Information</H3>
+          </View>
+
+          {/* ENHANCEMENT: Detailed Visibility Information Section */}
+          <View className="mb-6">
+            <Text className="font-medium mb-3">Match Visibility</Text>
+            {renderDetailedVisibilityInfo(match.is_public)}
           </View>
 
           {/* Enhanced Timeline with Better Visual Design */}
@@ -1760,7 +1885,7 @@ export default function EnhancedMatchDetailsWithFixedTypes() {
           )}
         </View>
 
-        {/* Enhanced Match Actions with Better Visual Hierarchy */}
+        {/* ENHANCED Match Actions WITH VISIBILITY CONTEXT */}
         <View className="bg-card rounded-xl border border-border/30 p-5 mb-6">
           <View className="flex-row items-center mb-4">
             <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mr-3">
@@ -1771,7 +1896,7 @@ export default function EnhancedMatchDetailsWithFixedTypes() {
               <Text className="text-xs text-muted-foreground">
                 {matchState.needsScores ? 
                   `Scores needed ${matchState.isCreator ? '• You can enter them' : '• Creator only'}` :
-                  matchState.canJoin ? 'Spots available to join' :
+                  matchState.canJoin ? `Spots available to join ${match.is_public ? '• Public match' : '• Private match'}` :
                   matchState.canCancel ? `Can be deleted • ${getCancellationTimeInfo()}` :
                   'No actions available'
                 }
@@ -1783,7 +1908,7 @@ export default function EnhancedMatchDetailsWithFixedTypes() {
           <View className="space-y-3">
             {/* Primary Actions Row */}
             <View className="flex-row gap-3">
-              {/* Share Match Button */}
+              {/* ENHANCED Share Match Button WITH VISIBILITY CONTEXT */}
               <TouchableOpacity 
                 className="flex-1 flex-row items-center bg-background dark:bg-background/40 border border-border rounded-xl p-4"
                 onPress={shareMatch}
@@ -1794,12 +1919,15 @@ export default function EnhancedMatchDetailsWithFixedTypes() {
                 <View className="flex-1">
                   <Text className="font-medium">Share</Text>
                   <Text className="text-xs text-muted-foreground">
-                    {matchState.isFuture ? 'Invite others' : 'Share result'}
+                    {matchState.isFuture 
+                      ? (match.is_public ? 'Public invitation' : 'Private invitation')
+                      : (match.is_public ? 'Public result' : 'Private result')
+                    }
                   </Text>
                 </View>
               </TouchableOpacity>
 
-              {/* Join Match Button */}
+              {/* ENHANCED Join Match Button WITH VISIBILITY CONTEXT */}
               {matchState.canJoin && (
                 <TouchableOpacity 
                   className="flex-1 flex-row items-center bg-primary border border-primary rounded-xl p-4" 
@@ -1817,6 +1945,7 @@ export default function EnhancedMatchDetailsWithFixedTypes() {
                         <Text className="font-medium text-white">Join Match</Text>
                         <Text className="text-xs text-white/80">
                           {[match.player1_id, match.player2_id, match.player3_id, match.player4_id].filter(Boolean).length}/4 players
+                          {match.is_public && ' • Public'}
                         </Text>
                       </View>
                     </>
