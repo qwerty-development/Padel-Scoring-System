@@ -6,6 +6,7 @@ import {
   ScrollView, 
   TextInput, 
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -22,6 +23,92 @@ interface PlayerSelectionModalProps {
   onSelectFriends: (selectedIds: string[]) => void;
   loading: boolean;
   maxSelections?: number;
+}
+
+interface UserAvatarProps {
+  user: Friend;
+  size?: 'sm' | 'md' | 'lg';
+  teamIndex?: number;
+}
+
+function UserAvatar({ user, size = 'md', teamIndex }: UserAvatarProps) {
+  const [imageLoadError, setImageLoadError] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
+
+  const sizeClasses = {
+    sm: 'w-8 h-8',
+    md: 'w-12 h-12',
+    lg: 'w-16 h-16'
+  }[size];
+
+  const sizeStyle = {
+    sm: { width: 32, height: 32, borderRadius: 16 },
+    md: { width: 48, height: 48, borderRadius: 24 },
+    lg: { width: 64, height: 64, borderRadius: 32 }
+  }[size];
+
+  const textSize = {
+    sm: 'text-sm',
+    md: 'text-lg',
+    lg: 'text-xl'
+  }[size];
+
+  // Get the fallback initial
+  const getInitial = () => {
+    if (user.full_name?.trim()) {
+      return user.full_name.charAt(0).toUpperCase();
+    }
+    if (user.email) {
+      return user.email.charAt(0).toUpperCase();
+    }
+    return '?';
+  };
+
+  // Get background color based on team
+  const getBgColor = () => {
+    if (teamIndex === 0) return 'bg-primary'; // Team 1 - Blue
+    if (teamIndex === 1 || teamIndex === 2) return 'bg-yellow-500'; // Team 2 - Yellow
+    return 'bg-primary'; // Default
+  };
+
+  const shouldShowImage = user.avatar_url && !imageLoadError;
+
+  if (shouldShowImage) {
+    return (
+      <View className={`${sizeClasses} rounded-full ${getBgColor()} items-center justify-center overflow-hidden`}>
+        <Image
+          source={{ uri: user.avatar_url }}
+          style={sizeStyle}
+          resizeMode="cover"
+          onLoad={() => setImageLoading(false)}
+          onError={() => {
+            setImageLoadError(true);
+            setImageLoading(false);
+          }}
+          onLoadStart={() => setImageLoading(true)}
+        />
+        {/* Loading state overlay */}
+        {imageLoading && (
+          <View 
+            className={`absolute inset-0 ${getBgColor()} items-center justify-center`}
+          >
+            <Text className={`${textSize} font-bold text-white`}>
+              {getInitial()}
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  // Fallback to text initial
+  return (
+    <View className={`${sizeClasses} rounded-full ${getBgColor()} items-center justify-center`}>
+      <Text className={`${textSize} font-bold text-white`}>
+        {getInitial()}
+      </Text>
+    </View>
+  );
 }
 
 export function PlayerSelectionModal({
@@ -106,22 +193,48 @@ export function PlayerSelectionModal({
         key={friend.id}
         className={`flex-row items-center p-3 mb-2 rounded-xl ${getSelectionStyle()}`}
         onPress={() => toggleFriendSelection(friend.id)}
+        style={{
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: isSelected ? 2 : 1 },
+          shadowOpacity: isSelected ? 0.1 : 0.05,
+          shadowRadius: isSelected ? 3 : 2,
+          elevation: isSelected ? 3 : 1,
+        }}
       >
-        <View className="relative">
-          <View className="w-12 h-12 rounded-full bg-primary dark:bg-primary/80 items-center justify-center mr-4">
-            <Text className="text-lg font-bold text-white">
-              {friend.full_name?.charAt(0)?.toUpperCase() || 
-              friend.email.charAt(0).toUpperCase() || '?'}
-            </Text>
-          </View>
+        <View className="relative mr-4">
+          <UserAvatar 
+            user={friend} 
+            size="md" 
+            teamIndex={isSelected ? selectionIndex : undefined}
+          />
           {isSelected && getTeamIndicator(selectionIndex)}
         </View>
         
         <View className="flex-1">
-          <Text className="font-medium">
+          <Text className="font-medium text-foreground">
             {friend.full_name || friend.email.split('@')[0]}
           </Text>
           <Text className="text-sm text-muted-foreground">{friend.email}</Text>
+          
+          {/* Additional player info */}
+          <View className="flex-row items-center gap-3 mt-1">
+            {friend.glicko_rating && (
+              <View className="flex-row items-center">
+                <Ionicons name="stats-chart" size={12} color="#888" />
+                <Text className="text-xs text-muted-foreground ml-1">
+                  {friend.glicko_rating.toFixed(0)}
+                </Text>
+              </View>
+            )}
+            {friend.preferred_hand && (
+              <View className="flex-row items-center">
+                <Ionicons name="hand-left-outline" size={12} color="#888" />
+                <Text className="text-xs text-muted-foreground ml-1">
+                  {friend.preferred_hand}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
         
         {isSelected && (
@@ -149,33 +262,61 @@ export function PlayerSelectionModal({
           </TouchableOpacity>
         </View>
         
-        <View className="flex-row justify-between bg-background dark:bg-gray-800/60 rounded-lg p-3">
+        <View className="flex-row justify-between bg-background dark:bg-gray-800/60 rounded-lg p-3 border border-border/30">
           {/* Team 1 */}
-          <View className="flex-row items-center">
-            <View className="w-8 h-8 rounded-full bg-primary items-center justify-center mr-2">
+          <View className="flex-row items-center flex-1">
+            <View className="w-8 h-8 rounded-full bg-primary items-center justify-center mr-3">
               <Text className="text-sm font-bold text-white">T1</Text>
             </View>
-            <View>
+            <View className="flex-1">
               {localSelectedFriends.length > 0 ? (
-                <Text className="text-xs" numberOfLines={1}>
-                  {getFriendName(localSelectedFriends[0])}
-                </Text>
+                <View className="flex-row items-center">
+                  {(() => {
+                    const friend = getFriendById(localSelectedFriends[0]);
+                    return friend ? (
+                      <>
+                        <UserAvatar user={friend} size="sm" teamIndex={0} />
+                        <View className="ml-2 flex-1">
+                          <Text className="text-xs font-medium" numberOfLines={1}>
+                            {getFriendName(localSelectedFriends[0])}
+                          </Text>
+                        </View>
+                      </>
+                    ) : null;
+                  })()}
+                </View>
               ) : (
                 <Text className="text-xs text-muted-foreground">Not selected</Text>
               )}
             </View>
           </View>
           
+          {/* Divider */}
+          <View className="w-px bg-border mx-3 self-stretch" />
+          
           {/* Team 2 */}
-          <View className="flex-row items-center">
-            <View className="w-8 h-8 rounded-full bg-yellow-500 items-center justify-center mr-2">
+          <View className="flex-row items-center flex-1">
+            <View className="w-8 h-8 rounded-full bg-yellow-500 items-center justify-center mr-3">
               <Text className="text-sm font-bold text-white">T2</Text>
             </View>
-            <View>
+            <View className="flex-1">
               {localSelectedFriends.length > 1 ? (
-                <Text className="text-xs" numberOfLines={1}>
-                  {getFriendName(localSelectedFriends[1])}{localSelectedFriends.length > 2 ? ` + ${getFriendName(localSelectedFriends[2])}` : ''}
-                </Text>
+                <View className="flex-row items-center">
+                  {(() => {
+                    const friend = getFriendById(localSelectedFriends[1]);
+                    return friend ? (
+                      <>
+                        <UserAvatar user={friend} size="sm" teamIndex={1} />
+                        <View className="ml-2 flex-1">
+                          <Text className="text-xs font-medium" numberOfLines={1}>
+                            {getFriendName(localSelectedFriends[1])}
+                            {localSelectedFriends.length > 2 ? ` + ${getFriendName(localSelectedFriends[2])}` : ''}
+                          </Text>
+                        </View>
+                      </>
+                    ) : null;
+                  })()}
+                </View>
               ) : (
                 <Text className="text-xs text-muted-foreground">Not selected</Text>
               )}
@@ -192,6 +333,35 @@ export function PlayerSelectionModal({
     return friend ? (friend.full_name || friend.email.split('@')[0]) : '';
   };
 
+  // Helper to get friend object by ID
+  const getFriendById = (friendId: string) => {
+    return friends.find(f => f.id === friendId);
+  };
+
+  const renderEmptyState = () => (
+    <View className="items-center justify-center py-12">
+      <View className="bg-muted/30 p-4 rounded-full mb-4">
+        <Ionicons name="people-outline" size={48} color={isDark ? '#777' : '#999'} />
+      </View>
+      <Text className="text-lg font-medium mt-4 mb-2">
+        {searchQuery ? "No results found" : "No friends yet"}
+      </Text>
+      <Text className="text-muted-foreground text-center max-w-xs">
+        {searchQuery 
+          ? "Try a different search term or check spelling" 
+          : "Add friends to create matches with them"}
+      </Text>
+      {searchQuery && (
+        <TouchableOpacity 
+          className="mt-3 px-4 py-2 bg-primary/10 rounded-lg"
+          onPress={() => setSearchQuery('')}
+        >
+          <Text className="text-primary text-sm">Clear search</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
   return (
     <Modal
       visible={visible}
@@ -200,13 +370,22 @@ export function PlayerSelectionModal({
       onRequestClose={onClose}
     >
       <View className="flex-1 bg-black/50 justify-end">
-        <View className={`h-[90%] rounded-t-3xl ${isDark ? 'bg-card' : 'bg-white'} shadow-lg`}>
+        <View 
+          className={`h-[90%] rounded-t-3xl ${isDark ? 'bg-card' : 'bg-white'} shadow-lg`}
+          style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.25,
+            shadowRadius: 8,
+            elevation: 8,
+          }}
+        >
           {/* Header */}
           <View className="flex-row justify-between items-center p-5 border-b border-border">
             <View>
               <Text className="text-xl font-bold">Select Players</Text>
               <Text className="text-sm text-muted-foreground">
-                {localSelectedFriends.length}/{maxSelections} selected
+                {localSelectedFriends.length}/{maxSelections} selected • {filteredFriends.length} available
               </Text>
             </View>
             
@@ -222,18 +401,20 @@ export function PlayerSelectionModal({
           {renderSelectedTeams()}
           
           {/* Search bar */}
-          <View className="px-6 py-5 mb-2">
-            <View className="flex-row items-center bg-gray-100 dark:bg-gray-800 rounded-xl px-4 h-12">
-              <Ionicons name="search" size={20} color={isDark ? '#aaa' : '#777'} className="mr-2" />
+          <View className="px-6 py-3 mb-2">
+            <View className="flex-row items-center bg-gray-100 dark:bg-gray-800 rounded-xl px-4 h-12 border border-border/50">
+              <Ionicons name="search" size={20} color={isDark ? '#aaa' : '#777'} />
               <TextInput
-                className="flex-1 h-full text-foreground"
+                className="flex-1 h-full text-foreground ml-3"
                 placeholder="Search friends..."
                 placeholderTextColor={isDark ? '#aaa' : '#888'}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
+                autoCapitalize="none"
+                autoCorrect={false}
               />
               {searchQuery.length > 0 && (
-                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <TouchableOpacity onPress={() => setSearchQuery('')} className="p-1">
                   <Ionicons name="close-circle" size={20} color={isDark ? '#aaa' : '#777'} />
                 </TouchableOpacity>
               )}
@@ -244,39 +425,54 @@ export function PlayerSelectionModal({
           {loading ? (
             <View className="flex-1 justify-center items-center">
               <ActivityIndicator size="large" color="#1a7ebd" />
+              <Text className="text-muted-foreground mt-3">Loading friends...</Text>
             </View>
           ) : (
             <ScrollView 
               className="flex-1 px-6"
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 100 }}
+              contentContainerStyle={{ 
+                paddingBottom: 100,
+                flexGrow: filteredFriends.length === 0 ? 1 : 0 
+              }}
             >
               {filteredFriends.length > 0 ? (
-                filteredFriends.map(renderFriendItem)
+                <>
+                  {/* Selection hint */}
+                  {localSelectedFriends.length < maxSelections && (
+                    <View className="mb-3 p-2 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
+                      <Text className="text-xs text-blue-700 dark:text-blue-300 text-center">
+                        Select {maxSelections === 3 ? '3 players: 1 for Team 1, 2 for Team 2' : `${maxSelections} players`}
+                      </Text>
+                    </View>
+                  )}
+                  
+                  {filteredFriends.map(renderFriendItem)}
+                </>
               ) : (
-                <View className="items-center justify-center py-12">
-                  <Ionicons name="people-outline" size={48} color={isDark ? '#777' : '#999'} />
-                  <Text className="text-lg font-medium mt-4 mb-2">
-                    {searchQuery ? "No results found" : "No friends yet"}
-                  </Text>
-                  <Text className="text-muted-foreground text-center">
-                    {searchQuery 
-                      ? "Try a different search term" 
-                      : "Add friends to create matches with them"}
-                  </Text>
-                </View>
+                renderEmptyState()
               )}
             </ScrollView>
           )}
           
           {/* Footer buttons */}
-          <View className="p-5 border-t border-border">
+          <View 
+            className="p-5 border-t border-border bg-background/95"
+            style={{
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: -2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+              elevation: 4,
+            }}
+          >
             <View className="flex-row gap-3">
               <Button
                 variant="outline"
                 className="flex-1"
                 onPress={onClose}
               >
+                <Ionicons name="close-outline" size={16} style={{ marginRight: 4 }} />
                 <Text>Cancel</Text>
               </Button>
               
@@ -286,8 +482,14 @@ export function PlayerSelectionModal({
                 onPress={handleConfirm}
                 disabled={localSelectedFriends.length === 0 || (maxSelections === 3 && localSelectedFriends.length !== 3)}
               >
+                <Ionicons name="checkmark-circle" size={16} style={{ marginRight: 4 }} />
                 <Text className="text-primary-foreground">
-                  {localSelectedFriends.length === 0 ? 'Select Players' : 'Confirm Selection'}
+                  {localSelectedFriends.length === 0 
+                    ? 'Select Players' 
+                    : maxSelections === 3 && localSelectedFriends.length !== 3
+                      ? `Select ${3 - localSelectedFriends.length} More`
+                      : 'Confirm Selection'
+                  }
                 </Text>
               </Button>
             </View>

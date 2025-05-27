@@ -1005,7 +1005,7 @@ export default function EnhancedHome() {
               </View>
               <View>
                 <Text className="font-medium text-sm">Your Team</Text>
-                <Text className="text-xs text-muted-foreground">
+                <Text className="text-xs text-muted-foreground mt-2">
                   You {teammate ? `& ${teammate.full_name || teammate.email.split('@')[0]}` : ''}
                 </Text>
               </View>
@@ -1020,7 +1020,7 @@ export default function EnhancedHome() {
             <View className="flex-row items-center flex-1 justify-end">
               <View className="mr-2">
                 <Text className="text-right font-medium text-sm">Opponents</Text>
-                <Text className="text-xs text-muted-foreground text-right">
+                <Text className="text-xs text-muted-foreground text-right mt-2">
                   {opponents.filter(Boolean).map(p => 
                     p?.full_name || p?.email?.split('@')[0] || 'TBD'
                   ).join(' & ')}

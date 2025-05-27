@@ -6,7 +6,8 @@ import {
   ActivityIndicator, 
   Alert,
   RefreshControl,
-  TextInput
+  TextInput,
+  Image
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -64,6 +65,369 @@ interface MatchData {
   court: string | null;
   is_public: boolean;
   description?: string;
+}
+
+/**
+ * Advanced Match Player Avatar Component
+ * Implements comprehensive image loading with team-specific styling
+ * Optimized for create match screen with contextual visual enhancements
+ */
+interface MatchPlayerAvatarProps {
+  player: {
+    id?: string;
+    full_name: string | null;
+    email: string;
+    avatar_url?: string | null;
+    isCurrentUser?: boolean;
+  } | null;
+  team?: 1 | 2;
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+  showBorder?: boolean;
+  showTeamIndicator?: boolean;
+  isPlaceholder?: boolean;
+  showShadow?: boolean;
+}
+
+function MatchPlayerAvatar({ 
+  player, 
+  team = 1,
+  size = 'md', 
+  showBorder = false,
+  showTeamIndicator = false,
+  isPlaceholder = false,
+  showShadow = true
+}: MatchPlayerAvatarProps) {
+  // State management for image loading lifecycle
+  const [imageLoadError, setImageLoadError] = useState<boolean>(false);
+  const [imageLoading, setImageLoading] = useState<boolean>(true);
+
+  // Comprehensive size configuration matrix
+  const avatarSizeConfiguration = {
+    xs: {
+      containerClass: 'w-6 h-6',
+      imageStyle: { width: 24, height: 24, borderRadius: 12 },
+      textClass: 'text-xs',
+      borderWidth: 1,
+      indicatorSize: 'w-3 h-3',
+      indicatorTextClass: 'text-[8px]'
+    },
+    sm: {
+      containerClass: 'w-8 h-8',
+      imageStyle: { width: 32, height: 32, borderRadius: 16 },
+      textClass: 'text-sm',
+      borderWidth: 2,
+      indicatorSize: 'w-4 h-4',
+      indicatorTextClass: 'text-[9px]'
+    },
+    md: {
+      containerClass: 'w-12 h-12',
+      imageStyle: { width: 48, height: 48, borderRadius: 24 },
+      textClass: 'text-lg',
+      borderWidth: 2,
+      indicatorSize: 'w-5 h-5',
+      indicatorTextClass: 'text-[10px]'
+    },
+    lg: {
+      containerClass: 'w-16 h-16',
+      imageStyle: { width: 64, height: 64, borderRadius: 32 },
+      textClass: 'text-xl',
+      borderWidth: 3,
+      indicatorSize: 'w-6 h-6',
+      indicatorTextClass: 'text-xs'
+    },
+    xl: {
+      containerClass: 'w-20 h-20',
+      imageStyle: { width: 80, height: 80, borderRadius: 40 },
+      textClass: 'text-2xl',
+      borderWidth: 4,
+      indicatorSize: 'w-7 h-7',
+      indicatorTextClass: 'text-sm'
+    }
+  };
+
+  const sizeConfig = avatarSizeConfiguration[size];
+
+  // Team-specific styling configuration
+  const getTeamStyling = () => {
+    const baseStyles = {
+      1: {
+        bgColor: 'bg-primary',
+        bgColorFallback: 'bg-primary/80',
+        borderColor: '#1a7ebd',
+        indicatorBg: 'bg-primary',
+        teamLabel: 'T1',
+        teamColor: '#ffffff'
+      },
+      2: {
+        bgColor: 'bg-indigo-500',
+        bgColorFallback: 'bg-indigo-500/80',
+        borderColor: '#6366f1',
+        indicatorBg: 'bg-indigo-500',
+        teamLabel: 'T2',
+        teamColor: '#ffffff'
+      }
+    };
+    return baseStyles[team];
+  };
+
+  const teamStyle = getTeamStyling();
+
+  /**
+   * Advanced Fallback Character Extraction Algorithm
+   * Priority: full_name -> email -> placeholder
+   */
+  const extractPlayerInitial = (): string => {
+    if (isPlaceholder) return '?';
+    if (!player) return '?';
+    
+    // Primary extraction: full_name
+    if (player.full_name?.trim()) {
+      const sanitizedName = player.full_name.trim();
+      if (sanitizedName.length > 0) {
+        return sanitizedName.charAt(0).toUpperCase();
+      }
+    }
+    
+    // Secondary extraction: email
+    if (player.email?.trim()) {
+      const sanitizedEmail = player.email.trim();
+      if (sanitizedEmail.length > 0) {
+        return sanitizedEmail.charAt(0).toUpperCase();
+      }
+    }
+    
+    return '?';
+  };
+
+  /**
+   * Avatar Image Availability Validation
+   */
+  const shouldDisplayAvatarImage = (): boolean => {
+    if (isPlaceholder || !player?.avatar_url) return false;
+    
+    const trimmedUrl = player.avatar_url.trim();
+    return Boolean(
+      trimmedUrl &&
+      trimmedUrl.length > 0 &&
+      !imageLoadError
+    );
+  };
+
+  /**
+   * Dynamic Container Styling with Team Context
+   */
+  const getContainerStyle = () => {
+    let baseStyle = {
+      shadowColor: showShadow ? "#000" : "transparent",
+      shadowOffset: showShadow ? { width: 0, height: 2 } : { width: 0, height: 0 },
+      shadowOpacity: showShadow ? 0.15 : 0,
+      shadowRadius: showShadow ? 4 : 0,
+      elevation: showShadow ? 3 : 0,
+    };
+
+    if (showBorder) {
+      baseStyle = {
+        ...baseStyle,
+        borderWidth: sizeConfig.borderWidth,
+        borderColor: teamStyle.borderColor,
+      };
+    }
+
+    return baseStyle;
+  };
+
+  /**
+   * Image Loading Event Handlers
+   */
+  const handleImageLoadSuccess = (): void => {
+    setImageLoading(false);
+  };
+
+  const handleImageLoadFailure = (): void => {
+    console.warn(`Match player avatar load failure:`, {
+      playerId: player?.id,
+      playerName: player?.full_name || player?.email,
+      avatarUrl: player?.avatar_url,
+      team,
+      component: 'MatchPlayerAvatar'
+    });
+    
+    setImageLoadError(true);
+    setImageLoading(false);
+  };
+
+  const handleImageLoadStart = (): void => {
+    setImageLoading(true);
+  };
+
+  // Placeholder Avatar Rendering
+  if (isPlaceholder) {
+    return (
+      <View className="relative">
+        <View 
+          className={`${sizeConfig.containerClass} rounded-full border-2 border-dashed items-center justify-center ${
+            team === 1 ? 'border-primary/40' : 'border-indigo-500/40'
+          }`}
+          style={getContainerStyle()}
+        >
+          <Text className={`${sizeConfig.textClass} ${
+            team === 1 ? 'text-primary/60' : 'text-indigo-500/60'
+          }`}>
+            ?
+          </Text>
+        </View>
+        
+        {showTeamIndicator && (
+          <View className={`absolute -top-1 -right-1 ${sizeConfig.indicatorSize} rounded-full ${teamStyle.indicatorBg} items-center justify-center border-2 border-white dark:border-gray-800`}>
+            <Text className={`${sizeConfig.indicatorTextClass} font-bold text-white`}>
+              {teamStyle.teamLabel}
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  // Avatar Image Rendering Branch
+  if (shouldDisplayAvatarImage()) {
+    return (
+      <View className="relative">
+        <View 
+          className={`${sizeConfig.containerClass} rounded-full ${teamStyle.bgColor} items-center justify-center overflow-hidden`}
+          style={getContainerStyle()}
+        >
+          <Image
+            source={{ uri: player!.avatar_url! }}
+            style={sizeConfig.imageStyle}
+            resizeMode="cover"
+            onLoad={handleImageLoadSuccess}
+            onError={handleImageLoadFailure}
+            onLoadStart={handleImageLoadStart}
+          />
+          
+          {/* Loading State Overlay */}
+          {imageLoading && (
+            <View 
+              className={`absolute inset-0 ${teamStyle.bgColorFallback} items-center justify-center`}
+            >
+              <Text className={`${sizeConfig.textClass} font-bold text-white`}>
+                {extractPlayerInitial()}
+              </Text>
+              
+              {/* Subtle loading indicator */}
+              <View 
+                className="absolute bottom-1 right-1 bg-white/20 rounded-full p-0.5"
+                style={{
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.2,
+                  shadowRadius: 1,
+                  elevation: 1,
+                }}
+              >
+               
+              </View>
+            </View>
+          )}
+        </View>
+        
+        {/* Team Indicator Badge */}
+        {showTeamIndicator && (
+          <View className={`absolute -top-1 -right-1 ${sizeConfig.indicatorSize} rounded-full ${teamStyle.indicatorBg} items-center justify-center border-2 border-white dark:border-gray-800`}>
+            <Text className={`${sizeConfig.indicatorTextClass} font-bold text-white`}>
+              {teamStyle.teamLabel}
+            </Text>
+          </View>
+        )}
+        
+        {/* Current User Indicator */}
+        {player?.isCurrentUser && (
+          <View className="absolute -bottom-1 -left-1 w-4 h-4 rounded-full bg-green-500 items-center justify-center border-2 border-white dark:border-gray-800">
+            <Ionicons name="person" size={8} color="white" />
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  // Text Initial Fallback with Team Styling
+  return (
+    <View className="relative">
+      <View 
+        className={`${sizeConfig.containerClass} rounded-full ${teamStyle.bgColor} items-center justify-center`}
+        style={getContainerStyle()}
+      >
+        <Text className={`${sizeConfig.textClass} font-bold text-white`}>
+          {extractPlayerInitial()}
+        </Text>
+      </View>
+      
+      {/* Team Indicator Badge */}
+      {showTeamIndicator && (
+        <View className={`absolute -top-1 -right-1 ${sizeConfig.indicatorSize} rounded-full ${teamStyle.indicatorBg} items-center justify-center border-2 border-white dark:border-gray-800`}>
+          <Text className={`${sizeConfig.indicatorTextClass} font-bold text-white`}>
+            {teamStyle.teamLabel}
+          </Text>
+        </View>
+      )}
+      
+      {/* Current User Indicator */}
+      {player?.isCurrentUser && (
+        <View className="absolute -bottom-1 -left-1 w-4 h-4 rounded-full bg-green-500 items-center justify-center border-2 border-white dark:border-gray-800">
+          <Ionicons name="person" size={8} color="white" />
+        </View>
+      )}
+    </View>
+  );
+}
+
+/**
+ * Enhanced Team Player Row Component
+ * Displays individual player with avatar and contextual information
+ */
+interface TeamPlayerRowProps {
+  player: {
+    id: string;
+    name: string;
+    isCurrentUser: boolean;
+    email?: string;
+    avatar_url?: string | null;
+    glicko_rating?: string | null;
+  };
+  team: 1 | 2;
+  showRating?: boolean;
+}
+
+function TeamPlayerRow({ player, team, showRating = false }: TeamPlayerRowProps) {
+  return (
+    <View className="flex-row items-center mb-2 p-2 w-32 rounded-lg bg-white/40 dark:bg-white/5">
+      <MatchPlayerAvatar
+        player={{
+          id: player.id,
+          full_name: player.name,
+          email: player.email || '',
+          avatar_url: player.avatar_url,
+          isCurrentUser: player.isCurrentUser
+        }}
+        team={team}
+        size="md"
+        showBorder={true}
+        showShadow={true}
+      />
+      
+      <View className="flex-1 ml-3">
+        <View className="flex-row items-center">
+          <Text className="font-medium" numberOfLines={1}>
+            {player.isCurrentUser ? 'You' : player.name}
+          </Text>
+          
+        </View>
+        
+        
+      </View>
+  
+    </View>
+  );
 }
 
 export default function CreateMatchScreen() {
@@ -146,26 +510,39 @@ export default function CreateMatchScreen() {
     return combinedStartTime.getTime() > (now.getTime() + minFutureTime);
   }, [matchDate, matchStartTime]);
 
-  // Enhanced team composition analysis
+  // Enhanced team composition analysis with avatar support
   const teamComposition = useMemo(() => {
     const totalPlayers = 1 + selectedFriends.length; // Including current user
     const availableSlots = 4 - totalPlayers;
     
-    // Assign players to teams for display purposes
+    // Assign players to teams with full avatar information
     const team1Players = [
       { 
         id: session?.user?.id || '', 
         name: profile?.full_name || session?.user?.email?.split('@')[0] || 'You',
-        isCurrentUser: true 
+        isCurrentUser: true,
+        email: session?.user?.email || '',
+        avatar_url: profile?.avatar_url || null,
+        glicko_rating: profile?.glicko_rating || null
       }
     ];
-    const team2Players: Array<{ id: string; name: string; isCurrentUser: boolean }> = [];
+    const team2Players: Array<{ 
+      id: string; 
+      name: string; 
+      isCurrentUser: boolean;
+      email: string;
+      avatar_url: string | null;
+      glicko_rating: string | null;
+    }> = [];
     
     selectedPlayers.forEach((player, index) => {
       const playerInfo = {
         id: player.id,
         name: player.full_name || player.email?.split('@')[0] || 'Player',
-        isCurrentUser: false
+        isCurrentUser: false,
+        email: player.email,
+        avatar_url: player.avatar_url || null,
+        glicko_rating: player.glicko_rating || null
       };
       
       if (index === 0) {
@@ -184,7 +561,7 @@ export default function CreateMatchScreen() {
       isValidForPast: totalPlayers === 4,
       isValidForFuture: totalPlayers >= 1 // At least current user
     };
-  }, [selectedFriends, selectedPlayers, session?.user?.id, profile?.full_name]);
+  }, [selectedFriends, selectedPlayers, session?.user?.id, profile]);
 
   // Effect to show/hide set 3 based on set 1 and 2 results
   useEffect(() => {
@@ -602,21 +979,34 @@ export default function CreateMatchScreen() {
     }
   };
 
-  // Enhanced player section with team visualization
+  // Enhanced player section with premium avatar visualization
   const renderPlayerSection = () => (
-    <View className={`mb-6 p-4 rounded-xl border border-border/30 ${
+    <View className={`mb-6 p-5 rounded-2xl border border-border/30 ${
       isPastMatch 
-        ? 'bg-amber-50 dark:bg-amber-900/20' 
-        : 'bg-blue-50 dark:bg-blue-900/20'
-    }`}>
-      <View className="flex-row items-center justify-between mb-2">
-        <H3>Players ({teamComposition.totalPlayers}/4)</H3>
-        <View className={`px-3 py-1 rounded-full ${
+        ? 'bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20' 
+        : 'bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20'
+    }`} style={{
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 4,
+    }}>
+      
+      {/* Enhanced Header */}
+      <View className="flex-row items-center justify-between mb-4">
+        <View>
+          <H3>Team Composition</H3>
+          <Text className="text-sm text-muted-foreground">
+            {teamComposition.totalPlayers}/4 players selected
+          </Text>
+        </View>
+        <View className={`px-4 py-2 rounded-full ${
           isPastMatch 
-            ? 'bg-amber-100 dark:bg-amber-900/40' 
-            : 'bg-blue-100 dark:bg-blue-900/40'
+            ? 'bg-amber-100 dark:bg-amber-900/40 border border-amber-200 dark:border-amber-800' 
+            : 'bg-blue-100 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-800'
         }`}>
-          <Text className={`text-xs font-medium ${
+          <Text className={`text-sm font-bold ${
             isPastMatch 
               ? 'text-amber-800 dark:text-amber-200' 
               : 'text-blue-800 dark:text-blue-200'
@@ -626,125 +1016,207 @@ export default function CreateMatchScreen() {
         </View>
       </View>
       
-      <Text className="text-xs text-muted-foreground mb-4">
-        {isPastMatch 
-          ? 'Past matches require exactly 4 players for rating calculations'
-          : 'Future matches can have 1-4 players. Missing spots can be filled later.'}
-      </Text>
+      {/* Context Information */}
+      <View className="mb-6 p-4 rounded-xl bg-white/60 dark:bg-white/5 border border-white/50">
+        <View className="flex-row items-center mb-2">
+          <Ionicons 
+            name={isPastMatch ? "time-outline" : "calendar-outline"} 
+            size={16} 
+            color={isPastMatch ? "#d97706" : "#2563eb"} 
+          />
+          <Text className="ml-2 text-sm font-medium">
+            {isPastMatch ? 'Recording Completed Match' : 'Scheduling Future Match'}
+          </Text>
+        </View>
+        <Text className="text-xs text-muted-foreground leading-relaxed">
+          {isPastMatch 
+            ? 'Past matches require exactly 4 players for accurate rating calculations. All player ratings will be updated based on the match results.'
+            : 'Future matches can be created with 1-4 players. Missing positions can be filled later by inviting friends or making the match public.'}
+        </Text>
+      </View>
       
-      {/* Team Composition Display */}
-      <View className="bg-background/60 dark:bg-background/30 rounded-lg p-4 mb-4">
+      {/* Enhanced Team Visualization */}
+      <View className="bg-white/80 dark:bg-white/10 rounded-2xl p-5 mb-6 border border-white/50" style={{
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
+      }}>
         <View className="flex-row justify-between">
-          {/* Team 1 */}
-          <View className="flex-1 mr-2">
-            <View className="flex-row items-center mb-2">
-              <View className="w-6 h-6 rounded-full bg-primary items-center justify-center mr-2">
-                <Text className="text-xs font-bold text-white">T1</Text>
+          {/* Team 1 - Enhanced */}
+          <View className="flex-1 mr-3">
+            <View className="flex-row items-center mb-4">
+              <View className="w-8 h-8 rounded-xl bg-primary items-center justify-center mr-3 shadow-sm">
+                <Text className="text-sm font-bold text-white">T1</Text>
               </View>
-              <Text className="text-sm font-medium">Team 1</Text>
-            </View>
-            {teamComposition.team1Players.map((player, index) => (
-              <View key={player.id} className="flex-row items-center mb-1">
-                <View className="w-8 h-8 rounded-full bg-primary/80 items-center justify-center mr-2">
-                  <Text className="text-xs font-bold text-white">
-                    {player.name.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-                <Text className="text-sm" numberOfLines={1}>
-                  {player.isCurrentUser ? 'You' : player.name}
+              <View>
+                <Text className="font-bold text-primary">Team 1</Text>
+                <Text className="text-xs text-muted-foreground">
+                  {teamComposition.team1Players.length}/2 players
                 </Text>
               </View>
-            ))}
-            {Array(2 - teamComposition.team1Players.length).fill(0).map((_, i) => (
-              <View key={`team1-empty-${i}`} className="flex-row items-center mb-1 opacity-40">
-                <View className="w-8 h-8 rounded-full border-2 border-dashed border-primary/40 items-center justify-center mr-2">
-                  <Text className="text-xs text-primary/60">?</Text>
-                </View>
-                <Text className="text-sm text-muted-foreground">Open</Text>
-              </View>
-            ))}
-          </View>
-          
-          {/* VS Divider */}
-          <View className="items-center justify-center px-2">
-            <Text className="text-lg font-bold text-muted-foreground">VS</Text>
-          </View>
-          
-          {/* Team 2 */}
-          <View className="flex-1 ml-2">
-            <View className="flex-row items-center mb-2">
-              <View className="w-6 h-6 rounded-full bg-indigo-500 items-center justify-center mr-2">
-                <Text className="text-xs font-bold text-white">T2</Text>
-              </View>
-              <Text className="text-sm font-medium">Team 2</Text>
             </View>
-            {teamComposition.team2Players.map((player, index) => (
-              <View key={player.id} className="flex-row items-center mb-1">
-                <View className="w-8 h-8 rounded-full bg-indigo-500 items-center justify-center mr-2">
-                  <Text className="text-xs font-bold text-white">
-                    {player.name.charAt(0).toUpperCase()}
-                  </Text>
+            
+            {/* Team 1 Players */}
+            <View className="space-y-2">
+              {teamComposition.team1Players.map((player, index) => (
+                <TeamPlayerRow
+                  key={player.id}
+                  player={player}
+                  team={1}
+                  showRating={isPastMatch}
+                />
+              ))}
+              
+              {/* Empty Slots */}
+              {Array(2 - teamComposition.team1Players.length).fill(0).map((_, i) => (
+                <View key={`team1-empty-${i}`} className="flex-row items-center mb-2 p-2 w-32 rounded-lg border-2 border-dashed border-primary/30 bg-primary/5">
+                  <MatchPlayerAvatar
+                    player={null}
+                    team={1}
+                    size="md"
+                    isPlaceholder={true}
+                  />
+                  <View className="flex-1 ml-3">
+                    <Text className="text-sm text-muted-foreground">Open Position</Text>
+                    <Text className="text-xs text-muted-foreground/70">
+                      {isPastMatch ? 'Required for past matches' : 'Available slot'}
+                    </Text>
+                  </View>
+                  <View className="px-2 py-1 rounded-full bg-primary/10">
+                    <Text className="text-xs font-medium text-primary/70">Team 1</Text>
+                  </View>
                 </View>
-                <Text className="text-sm" numberOfLines={1}>{player.name}</Text>
+              ))}
+            </View>
+          </View>
+          
+          {/* VS Divider - Enhanced */}
+          <View className="items-center justify-center px-4">
+            <View className="w-12 h-12 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 items-center justify-center shadow-md">
+              <Text className="text-lg font-black text-slate-600 dark:text-slate-300">VS</Text>
+            </View>
+          </View>
+          
+          {/* Team 2 - Enhanced */}
+          <View className="flex-1 ml-3">
+            <View className="flex-row items-center mb-4">
+              <View className="w-8 h-8 rounded-xl bg-indigo-500 items-center justify-center mr-3 shadow-sm">
+                <Text className="text-sm font-bold text-white">T2</Text>
               </View>
-            ))}
-            {Array(2 - teamComposition.team2Players.length).fill(0).map((_, i) => (
-              <View key={`team2-empty-${i}`} className="flex-row items-center mb-1 opacity-40">
-                <View className="w-8 h-8 rounded-full border-2 border-dashed border-indigo-500/40 items-center justify-center mr-2">
-                  <Text className="text-xs text-indigo-500/60">?</Text>
+              <View>
+                <Text className="font-bold text-indigo-600">Team 2</Text>
+                <Text className="text-xs text-muted-foreground">
+                  {teamComposition.team2Players.length}/2 players
+                </Text>
+              </View>
+            </View>
+            
+            {/* Team 2 Players */}
+            <View className="space-y-2">
+              {teamComposition.team2Players.map((player, index) => (
+                <TeamPlayerRow
+                  key={player.id}
+                  player={player}
+                  team={2}
+                  showRating={isPastMatch}
+                />
+              ))}
+              
+              {/* Empty Slots */}
+              {Array(2 - teamComposition.team2Players.length).fill(0).map((_, i) => (
+                <View key={`team2-empty-${i}`} className="flex-row items-center mb-2 p-2 w-32  rounded-lg border-2 border-dashed border-indigo-500/30 bg-indigo-500/5">
+                  <MatchPlayerAvatar
+                    player={null}
+                    team={2}
+                    size="md"
+                    isPlaceholder={true}
+                  />
+                  <View className="flex-1 ml-3">
+                    <Text className="text-sm text-muted-foreground">Open Position</Text>
+                    <Text className="text-xs text-muted-foreground/70">
+                      {isPastMatch ? 'Required for past matches' : 'Available slot'}
+                    </Text>
+                  </View>
+                  <View className="px-2 py-1 rounded-full bg-indigo-500/10">
+                    <Text className="text-xs font-medium text-indigo-600/70">Team 2</Text>
+                  </View>
                 </View>
-                <Text className="text-sm text-muted-foreground">Open</Text>
-              </View>
-            ))}
+              ))}
+            </View>
           </View>
         </View>
       </View>
       
-      {/* Player Management Buttons */}
+      {/* Enhanced Player Management */}
       <View className="flex-row gap-3">
         <Button
           variant="outline"
-          className="flex-1"
+          className="flex-1 py-3"
           onPress={() => setShowPlayerModal(true)}
+          style={{
+            shadowColor: "#1a7ebd",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 2,
+          }}
         >
-          <Ionicons name="people-outline" size={16} color="#1a7ebd" />
-          <Text className="ml-2">
-            {selectedPlayers.length === 0 ? 'Add Players' : 'Manage Players'}
-          </Text>
+          <View className="flex-row items-center">
+            <Ionicons name="people-outline" size={18} color="#1a7ebd" />
+            <Text className="ml-2 font-medium">
+              {selectedPlayers.length === 0 ? 'Select Players' : 'Manage Team'}
+            </Text>
+          </View>
         </Button>
         
         {selectedPlayers.length > 0 && (
           <Button
             variant="ghost"
+            className="px-4"
             onPress={() => {
               setSelectedFriends([]);
               setSelectedPlayers([]);
             }}
           >
-            <Ionicons name="trash-outline" size={16} color="#ef4444" />
+            <Ionicons name="trash-outline" size={18} color="#ef4444" />
           </Button>
         )}
       </View>
       
-      {/* Status Indicators */}
-      {!isPastMatch && (
-        <View className="mt-3 p-3 bg-background/40 rounded-lg">
-          <View className="flex-row items-center">
-            <Ionicons 
-              name={teamComposition.isComplete ? "checkmark-circle" : "information-circle"} 
-              size={16} 
-              color={teamComposition.isComplete ? "#22c55e" : "#f59e0b"} 
-            />
-            <Text className={`ml-2 text-sm ${
-              teamComposition.isComplete ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'
+      {/* Enhanced Status Indicators */}
+      <View className="mt-4 p-4 rounded-xl bg-white/60 dark:bg-white/5 border border-white/50">
+        <View className="flex-row items-center">
+          <View className={`w-3 h-3 rounded-full mr-3 ${
+            teamComposition.isComplete ? 'bg-green-500' : 
+            teamComposition.totalPlayers >= 2 ? 'bg-yellow-500' : 'bg-red-500'
+          }`} />
+          <View className="flex-1">
+            <Text className={`text-sm font-medium ${
+              teamComposition.isComplete ? 'text-green-600 dark:text-green-400' : 
+              teamComposition.totalPlayers >= 2 ? 'text-yellow-600 dark:text-yellow-400' : 
+              'text-red-600 dark:text-red-400'
             }`}>
               {teamComposition.isComplete 
-                ? 'Match is ready to start' 
-                : `${teamComposition.availableSlots} slot${teamComposition.availableSlots > 1 ? 's' : ''} available`}
+                ? 'Match is ready!' 
+                : teamComposition.totalPlayers >= 2
+                  ? `${teamComposition.availableSlots} slot${teamComposition.availableSlots > 1 ? 's' : ''} remaining`
+                  : 'Need more players'}
+            </Text>
+            <Text className="text-xs text-muted-foreground">
+              {teamComposition.isComplete 
+                ? 'All positions filled and ready to start' 
+                : isPastMatch
+                  ? 'Past matches require exactly 4 players'
+                  : 'You can create the match and fill remaining slots later'}
             </Text>
           </View>
+          {teamComposition.isComplete && (
+            <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+          )}
         </View>
-      )}
+      </View>
     </View>
   );
 
@@ -1006,7 +1478,7 @@ export default function CreateMatchScreen() {
             disabled={submitState.disabled}
           >
             {loading ? (
-              <ActivityIndicator size="small" color="#fff" />
+       <></>
             ) : (
               <Text className="text-primary-foreground font-medium">
                 {submitState.text}
