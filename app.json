@@ -32,7 +32,9 @@
       },
       "bundleIdentifier": "com.qwertyapp.padel-scoring-app",
       "infoPlist": {
-        "CFBundleAllowMixedLocalizations": true
+        "CFBundleAllowMixedLocalizations": true,
+          "NSCameraUsageDescription": "This app needs access to camera to take profile pictures",
+  "NSPhotoLibraryUsageDescription": "This app needs access to photo library to select profile pictures"
       },
       "entitlements": {
         "com.apple.developer.applesignin": [
@@ -55,7 +57,12 @@
           "image": "./assets/splash-dark.png"
         }
       },
-      "package": "com.qwertyapp.padel_scoring_app"
+      "package": "com.qwertyapp.padel_scoring_app",
+      "permissions": [
+  "CAMERA",
+  "READ_EXTERNAL_STORAGE",
+  "WRITE_EXTERNAL_STORAGE"
+]
     },
     "experiments": {
       "typedRoutes": true
