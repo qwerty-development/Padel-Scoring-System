@@ -163,8 +163,8 @@ const [showRequestsModal, setShowRequestsModal] = useState(false);
         .select(
           `
           *,
-          from_user:profiles!from_user_id(id, full_name, email),
-          to_user:profiles!to_user_id(id, full_name, email)
+          from_user:profiles!from_user_id(id, full_name, email, avatar_url),
+          to_user:profiles!to_user_id(id, full_name, email, avatar_url)
         `
         )
         .eq("to_user_id", session?.user?.id)
@@ -187,8 +187,8 @@ const [showRequestsModal, setShowRequestsModal] = useState(false);
         .select(
           `
           *,
-          from_user:profiles!from_user_id(id, full_name, email),
-          to_user:profiles!to_user_id(id, full_name, email)
+          from_user:profiles!from_user_id(id, full_name, email, avatar_url),
+          to_user:profiles!to_user_id(id, full_name, email, avatar_url)
         `
         )
         .eq("from_user_id", session?.user?.id)
@@ -294,7 +294,7 @@ const [showRequestsModal, setShowRequestsModal] = useState(false);
           .from("friend_requests")
           .update({ status: "accepted" })
           .eq("id", requestId)
-          .select("*, from_user:profiles!from_user_id(id, full_name, email)")
+          .select("*, from_user:profiles!from_user_id(id, full_name, email, avatar_url)")
           .single();
 
         if (error) throw error;
