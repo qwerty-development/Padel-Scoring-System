@@ -11,6 +11,7 @@ import {
   Vibration,
   Animated,
   Dimensions,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, router } from "expo-router";
@@ -97,7 +98,7 @@ const validateSetScore = (team1: number, team2: number): boolean => {
   return true;
 };
 
-// ENHANCED: Comprehensive interface definitions with better type safety
+// ENHANCED: Comprehensive interface definitions with better type safety AND AVATAR SUPPORT
 interface PlayerDetail {
   id: string;
   full_name: string | null;
@@ -105,7 +106,7 @@ interface PlayerDetail {
   glicko_rating: string | null;
   glicko_rd: string | null;
   glicko_vol: string | null;
-  avatar_url: string | null;
+  avatar_url: string | null; // CRITICAL: Avatar support
 }
 
 interface MatchDetail {
@@ -171,6 +172,156 @@ interface ScoreEntryState {
   errors: string[];
   warnings: string[];
   suggestedWinner: number | null;
+}
+
+// ENHANCEMENT: Player Avatar Component with Advanced Features
+interface PlayerAvatarProps {
+  player: PlayerDetail | null;
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+  isCurrentUser?: boolean;
+  isCreator?: boolean;
+  teamColor?: 'primary' | 'secondary' | 'success' | 'warning' | 'yellow';
+  showBorder?: boolean;
+  showStatus?: boolean;
+  statusType?: 'creator' | 'you' | 'winner' | 'empty';
+}
+
+function PlayerAvatar({ 
+  player, 
+  size = 'md', 
+  isCurrentUser = false,
+  isCreator = false,
+  teamColor = 'primary',
+  showBorder = true,
+  showStatus = false,
+  statusType = 'empty'
+}: PlayerAvatarProps) {
+  const [imageLoadError, setImageLoadError] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
+
+  const sizeConfig = {
+    xs: { container: 'w-6 h-6', text: 'text-xs', style: { width: 24, height: 24, borderRadius: 12 } },
+    sm: { container: 'w-8 h-8', text: 'text-sm', style: { width: 32, height: 32, borderRadius: 16 } },
+    md: { container: 'w-12 h-12', text: 'text-lg', style: { width: 48, height: 48, borderRadius: 24 } },
+    lg: { container: 'w-16 h-16', text: 'text-xl', style: { width: 64, height: 64, borderRadius: 32 } },
+    xl: { container: 'w-20 h-20', text: 'text-2xl', style: { width: 80, height: 80, borderRadius: 40 } }
+  };
+
+  const colorConfig = {
+    primary: 'bg-primary',
+    secondary: 'bg-indigo-500',
+    success: 'bg-green-500',
+    warning: 'bg-amber-500',
+    yellow: 'bg-yellow-500'
+  };
+
+  const config = sizeConfig[size];
+  const bgColor = player ? colorConfig[teamColor] : 'bg-gray-300 dark:bg-gray-700';
+  
+  // Enhanced border for current user
+  const borderClass = showBorder 
+    ? isCurrentUser 
+      ? 'border-2 border-yellow-400 shadow-lg' 
+      : 'border-2 border-white dark:border-gray-700 shadow-md'
+    : '';
+
+  // Get the fallback initial
+  const getInitial = () => {
+    if (!player) return '?';
+    if (player.full_name?.trim()) {
+      return player.full_name.charAt(0).toUpperCase();
+    }
+    if (player.email) {
+      return player.email.charAt(0).toUpperCase();
+    }
+    return '?';
+  };
+
+  const shouldShowImage = player?.avatar_url && !imageLoadError;
+
+  return (
+    <View className="items-center">
+      {/* Avatar Container */}
+      <View className={`${config.container} rounded-full ${bgColor} items-center justify-center ${borderClass} overflow-hidden relative`}>
+        {shouldShowImage ? (
+          <>
+            <Image
+              source={{ uri: player.avatar_url }}
+              style={config.style}
+              resizeMode="cover"
+              onLoad={() => setImageLoading(false)}
+              onError={() => {
+                setImageLoadError(true);
+                setImageLoading(false);
+              }}
+              onLoadStart={() => setImageLoading(true)}
+            />
+            {/* Loading state overlay */}
+            {imageLoading && (
+              <View 
+                className={`absolute inset-0 ${bgColor} items-center justify-center`}
+                style={{
+                  backgroundColor: teamColor === 'primary' ? 'rgba(26, 126, 189, 0.8)' :
+                                   teamColor === 'secondary' ? 'rgba(99, 102, 241, 0.8)' :
+                                   teamColor === 'success' ? 'rgba(34, 197, 94, 0.8)' :
+                                   teamColor === 'warning' ? 'rgba(245, 158, 11, 0.8)' :
+                                   teamColor === 'yellow' ? 'rgba(234, 179, 8, 0.8)' :
+                                   'rgba(156, 163, 175, 0.8)'
+                }}
+              >
+                <Text className={`${config.text} font-bold text-white`}>
+                  {getInitial()}
+                </Text>
+              </View>
+            )}
+          </>
+        ) : (
+          <Text className={`${config.text} font-bold text-white`}>
+            {getInitial()}
+          </Text>
+        )}
+
+        {/* Status indicators */}
+        {isCurrentUser && (
+          <View className="absolute -bottom-1 -right-1 bg-yellow-500 rounded-full w-4 h-4 items-center justify-center border border-white">
+            <Ionicons name="person" size={8} color="white" />
+          </View>
+        )}
+        
+        {isCreator && !isCurrentUser && (
+          <View className="absolute -bottom-1 -right-1 bg-purple-500 rounded-full w-4 h-4 items-center justify-center border border-white">
+            <Ionicons name="star" size={8} color="white" />
+          </View>
+        )}
+      </View>
+
+      {/* Status badges */}
+      {showStatus && statusType && (
+        <View className="mt-1">
+          {statusType === 'creator' && (
+            <View className="bg-purple-100 dark:bg-purple-900/30 px-2 py-0.5 rounded-full">
+              <Text className="text-xs font-bold text-purple-700 dark:text-purple-300">Creator</Text>
+            </View>
+          )}
+          {statusType === 'you' && (
+            <View className="bg-yellow-100 dark:bg-yellow-900/30 px-2 py-0.5 rounded-full">
+              <Text className="text-xs font-bold text-yellow-700 dark:text-yellow-300">You</Text>
+            </View>
+          )}
+          {statusType === 'winner' && (
+            <View className="bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
+              <Text className="text-xs font-bold text-green-700 dark:text-green-300">Winner</Text>
+            </View>
+          )}
+          {statusType === 'empty' && !player && (
+            <View className="bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
+              <Text className="text-xs font-medium text-gray-600 dark:text-gray-400">Open</Text>
+            </View>
+          )}
+        </View>
+      )}
+    </View>
+  );
 }
 
 export default function EnhancedMatchDetailsWithVisibility() {
@@ -548,7 +699,7 @@ export default function EnhancedMatchDetailsWithVisibility() {
     }
   }, [set1Score, set2Score, isSet1Valid, isSet2Valid, editingScores]);
 
-  // ENHANCED: Advanced data fetching with retry mechanism
+  // ENHANCED: Advanced data fetching with retry mechanism AND AVATAR SUPPORT
   const fetchMatchDetails = async (id: string, retryCount = 0) => {
     try {
       if (!refreshing) {
@@ -1585,7 +1736,7 @@ const performScoreSave = async () => {
           </View>
         )}
 
-        {/* Enhanced Teams Section with Better Visualization */}
+        {/* ENHANCED Teams Section with Avatar Visualization */}
         <View className="bg-card rounded-xl p-4 mb-6 border border-border/30">
           <View className="flex-row justify-between items-center mb-4">
             <H3>Teams</H3>
@@ -1605,7 +1756,7 @@ const performScoreSave = async () => {
             </View>
           </View>
 
-          {/* Enhanced Court Visualization */}
+          {/* ENHANCED Court Visualization WITH AVATARS */}
           <View className="aspect-[3/4] w-full bg-gradient-to-b from-green-100 to-green-200 dark:from-green-900/40 dark:to-green-800/40 rounded-xl border-2 border-green-400 dark:border-green-700 overflow-hidden">
             {/* Team 1 Side */}
             <View className="h-[48%] border-b-2 border-dashed border-white dark:border-gray-400 relative">
@@ -1631,55 +1782,48 @@ const performScoreSave = async () => {
                 )}
               </View>
 
-              {/* Team 1 Players with Enhanced Display */}
+              {/* Team 1 Players with AVATAR SUPPORT */}
               <View className="flex-1 flex-row">
                 <View className="flex-1 items-center justify-center">
-                  <View className="items-center">
-                    <View className={`w-16 h-16 rounded-full items-center justify-center mb-1 border-2 border-white dark:border-gray-700 shadow-lg ${
-                      isUserPlayer(match.player1?.id) ? 'bg-yellow-500' : 'bg-primary'
-                    }`}>
-                      <Text className="text-2xl font-bold text-white">
-                        {match.player1?.full_name?.charAt(0)?.toUpperCase() ||
-                          match.player1?.email?.charAt(0)?.toUpperCase() ||
-                          "?"}
+                  <PlayerAvatar
+                    player={match.player1}
+                    size="lg"
+                    isCurrentUser={isUserPlayer(match.player1?.id)}
+                    isCreator={matchState.isCreator}
+                    teamColor="primary"
+                    showBorder={true}
+                  />
+                  <View className="bg-white dark:bg-gray-800 rounded-lg p-2 px-3 min-w-[90px] items-center shadow-sm mt-2">
+                    <Text className="text-xs font-medium text-center" numberOfLines={1}>
+                      {match.player1?.full_name ||
+                        match.player1?.email?.split("@")[0] ||
+                        "Player 1"}
+                    </Text>
+                    {isUserPlayer(match.player1?.id) && (
+                      <Text className="text-xs text-primary font-bold">
+                        You {matchState.isCreator && "(Creator)"}
                       </Text>
-                    </View>
-                    <View className="bg-white dark:bg-gray-800 rounded-lg p-2 px-3 min-w-[90px] items-center shadow-sm">
-                      <Text className="text-xs font-medium text-center" numberOfLines={1}>
-                        {match.player1?.full_name ||
-                          match.player1?.email?.split("@")[0] ||
-                          "Player 1"}
-                      </Text>
-                      {isUserPlayer(match.player1?.id) && (
-                        <Text className="text-xs text-primary font-bold">
-                          You {matchState.isCreator && "(Creator)"}
-                        </Text>
-                      )}
-                    </View>
+                    )}
                   </View>
                 </View>
 
                 <View className="flex-1 items-center justify-center">
-                  <View className="items-center">
-                    <View className={`w-16 h-16 rounded-full items-center justify-center mb-1 border-2 border-white dark:border-gray-700 shadow-lg ${
-                      isUserPlayer(match.player2?.id) ? 'bg-yellow-500' : match.player2 ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-700'
-                    }`}>
-                      <Text className="text-2xl font-bold text-white">
-                        {match.player2?.full_name?.charAt(0)?.toUpperCase() ||
-                          match.player2?.email?.charAt(0)?.toUpperCase() ||
-                          "?"}
-                      </Text>
-                    </View>
-                    <View className="bg-white dark:bg-gray-800 rounded-lg p-2 px-3 min-w-[90px] items-center shadow-sm">
-                      <Text className="text-xs font-medium text-center" numberOfLines={1}>
-                        {match.player2?.full_name ||
-                          match.player2?.email?.split("@")[0] ||
-                          "Open Slot"}
-                      </Text>
-                      {isUserPlayer(match.player2?.id) && (
-                        <Text className="text-xs text-primary font-bold">You</Text>
-                      )}
-                    </View>
+                  <PlayerAvatar
+                    player={match.player2}
+                    size="lg"
+                    isCurrentUser={isUserPlayer(match.player2?.id)}
+                    teamColor="primary"
+                    showBorder={true}
+                  />
+                  <View className="bg-white dark:bg-gray-800 rounded-lg p-2 px-3 min-w-[90px] items-center shadow-sm mt-2">
+                    <Text className="text-xs font-medium text-center" numberOfLines={1}>
+                      {match.player2?.full_name ||
+                        match.player2?.email?.split("@")[0] ||
+                        "Open Slot"}
+                    </Text>
+                    {isUserPlayer(match.player2?.id) && (
+                      <Text className="text-xs text-primary font-bold">You</Text>
+                    )}
                   </View>
                 </View>
               </View>
@@ -1695,51 +1839,43 @@ const performScoreSave = async () => {
             <View className="h-[48%] relative">
               <View className="flex-1 flex-row">
                 <View className="flex-1 items-center justify-center">
-                  <View className="items-center">
-                    <View className="bg-white dark:bg-gray-800 rounded-lg p-2 px-3 min-w-[90px] items-center mb-1 shadow-sm">
-                      <Text className="text-xs font-medium text-center" numberOfLines={1}>
-                        {match.player3?.full_name ||
-                          match.player3?.email?.split("@")[0] ||
-                          "Open Slot"}
-                      </Text>
-                      {isUserPlayer(match.player3?.id) && (
-                        <Text className="text-xs text-indigo-600 font-bold">You</Text>
-                      )}
-                    </View>
-                    <View className={`w-16 h-16 rounded-full items-center justify-center mt-1 border-2 border-white dark:border-gray-700 shadow-lg ${
-                      isUserPlayer(match.player3?.id) ? 'bg-yellow-500' : match.player3 ? 'bg-indigo-500' : 'bg-gray-300 dark:bg-gray-700'
-                    }`}>
-                      <Text className="text-2xl font-bold text-white">
-                        {match.player3?.full_name?.charAt(0)?.toUpperCase() ||
-                          match.player3?.email?.charAt(0)?.toUpperCase() ||
-                          "?"}
-                      </Text>
-                    </View>
+                  <View className="bg-white dark:bg-gray-800 rounded-lg p-2 px-3 min-w-[90px] items-center mb-2 shadow-sm">
+                    <Text className="text-xs font-medium text-center" numberOfLines={1}>
+                      {match.player3?.full_name ||
+                        match.player3?.email?.split("@")[0] ||
+                        "Open Slot"}
+                    </Text>
+                    {isUserPlayer(match.player3?.id) && (
+                      <Text className="text-xs text-indigo-600 font-bold">You</Text>
+                    )}
                   </View>
+                  <PlayerAvatar
+                    player={match.player3}
+                    size="lg"
+                    isCurrentUser={isUserPlayer(match.player3?.id)}
+                    teamColor="secondary"
+                    showBorder={true}
+                  />
                 </View>
 
                 <View className="flex-1 items-center justify-center">
-                  <View className="items-center">
-                    <View className="bg-white dark:bg-gray-800 rounded-lg p-2 px-3 min-w-[90px] items-center mb-1 shadow-sm">
-                      <Text className="text-xs font-medium text-center" numberOfLines={1}>
-                        {match.player4?.full_name ||
-                          match.player4?.email?.split("@")[0] ||
-                          "Open Slot"}
-                      </Text>
-                      {isUserPlayer(match.player4?.id) && (
-                        <Text className="text-xs text-indigo-600 font-bold">You</Text>
-                      )}
-                    </View>
-                    <View className={`w-16 h-16 rounded-full items-center justify-center mt-1 border-2 border-white dark:border-gray-700 shadow-lg ${
-                      isUserPlayer(match.player4?.id) ? 'bg-yellow-500' : match.player4 ? 'bg-indigo-500/80' : 'bg-gray-300 dark:bg-gray-700'
-                    }`}>
-                      <Text className="text-2xl font-bold text-white">
-                        {match.player4?.full_name?.charAt(0)?.toUpperCase() ||
-                          match.player4?.email?.charAt(0)?.toUpperCase() ||
-                          "?"}
-                      </Text>
-                    </View>
+                  <View className="bg-white dark:bg-gray-800 rounded-lg p-2 px-3 min-w-[90px] items-center mb-2 shadow-sm">
+                    <Text className="text-xs font-medium text-center" numberOfLines={1}>
+                      {match.player4?.full_name ||
+                        match.player4?.email?.split("@")[0] ||
+                        "Open Slot"}
+                    </Text>
+                    {isUserPlayer(match.player4?.id) && (
+                      <Text className="text-xs text-indigo-600 font-bold">You</Text>
+                    )}
                   </View>
+                  <PlayerAvatar
+                    player={match.player4}
+                    size="lg"
+                    isCurrentUser={isUserPlayer(match.player4?.id)}
+                    teamColor="secondary"
+                    showBorder={true}
+                  />
                 </View>
               </View>
 
@@ -2040,7 +2176,7 @@ const performScoreSave = async () => {
           )}
         </View>
 
-        {/* Enhanced User Performance Summary */}
+        {/* Enhanced User Performance Summary WITH AVATARS */}
         {matchState.userParticipating && matchState.hasScores && (
           <View className="bg-card rounded-xl p-6 mb-6 border border-border/30">
             <View className="flex-row items-center mb-4">
@@ -2125,6 +2261,185 @@ const performScoreSave = async () => {
             )}
           </View>
         )}
+
+        {/* ENHANCED Player Details Section WITH AVATARS */}
+        <View className="bg-card rounded-xl p-5 mb-6 border border-border/30">
+          <View className="flex-row items-center mb-4">
+            <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mr-3">
+              <Ionicons name="people-outline" size={20} color="#1a7ebd" />
+            </View>
+            <H3>Player Details</H3>
+          </View>
+
+          {/* Team 1 Players */}
+          <View className="mb-6">
+            <Text className="font-medium mb-3 text-primary">Team 1</Text>
+            <View className="space-y-3">
+              {/* Player 1 */}
+              <View className="flex-row items-center p-3 bg-primary/5 rounded-lg">
+                <PlayerAvatar
+                  player={match.player1}
+                  size="md"
+                  isCurrentUser={isUserPlayer(match.player1?.id)}
+                  isCreator={matchState.isCreator}
+                  teamColor="primary"
+                />
+                <View className="flex-1 ml-3">
+                  <View className="flex-row items-center">
+                    <Text className="font-medium">
+                      {match.player1?.full_name || match.player1?.email?.split('@')[0] || 'Unknown'}
+                    </Text>
+                    {matchState.isCreator && isUserPlayer(match.player1?.id) && (
+                      <View className="ml-2 bg-purple-100 dark:bg-purple-900/30 px-2 py-0.5 rounded-full">
+                        <Text className="text-xs font-bold text-purple-700 dark:text-purple-300">Creator</Text>
+                      </View>
+                    )}
+                    {!matchState.isCreator && isUserPlayer(match.player1?.id) && (
+                      <View className="ml-2 bg-yellow-100 dark:bg-yellow-900/30 px-2 py-0.5 rounded-full">
+                        <Text className="text-xs font-bold text-yellow-700 dark:text-yellow-300">You</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text className="text-xs text-muted-foreground">{match.player1?.email}</Text>
+                  {match.player1?.glicko_rating && (
+                    <View className="flex-row items-center mt-1">
+                      <Ionicons name="stats-chart-outline" size={12} color="#888" style={{ marginRight: 4 }} />
+                      <Text className="text-xs text-muted-foreground">
+                        Rating: {Math.round(parseFloat(match.player1.glicko_rating))}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* Player 2 */}
+              <View className="flex-row items-center p-3 bg-primary/5 rounded-lg">
+                <PlayerAvatar
+                  player={match.player2}
+                  size="md"
+                  isCurrentUser={isUserPlayer(match.player2?.id)}
+                  teamColor="primary"
+                />
+                <View className="flex-1 ml-3">
+                  {match.player2 ? (
+                    <>
+                      <View className="flex-row items-center">
+                        <Text className="font-medium">
+                          {match.player2.full_name || match.player2.email?.split('@')[0] || 'Unknown'}
+                        </Text>
+                        {isUserPlayer(match.player2?.id) && (
+                          <View className="ml-2 bg-yellow-100 dark:bg-yellow-900/30 px-2 py-0.5 rounded-full">
+                            <Text className="text-xs font-bold text-yellow-700 dark:text-yellow-300">You</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text className="text-xs text-muted-foreground">{match.player2.email}</Text>
+                      {match.player2.glicko_rating && (
+                        <View className="flex-row items-center mt-1">
+                          <Ionicons name="stats-chart-outline" size={12} color="#888" style={{ marginRight: 4 }} />
+                          <Text className="text-xs text-muted-foreground">
+                            Rating: {Math.round(parseFloat(match.player2.glicko_rating))}
+                          </Text>
+                        </View>
+                      )}
+                    </>
+                  ) : (
+                    <View>
+                      <Text className="font-medium text-muted-foreground">Open Slot</Text>
+                      <Text className="text-xs text-muted-foreground">Waiting for player to join</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* Team 2 Players */}
+          <View>
+            <Text className="font-medium mb-3 text-indigo-600">Team 2</Text>
+            <View className="space-y-3">
+              {/* Player 3 */}
+              <View className="flex-row items-center p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
+                <PlayerAvatar
+                  player={match.player3}
+                  size="md"
+                  isCurrentUser={isUserPlayer(match.player3?.id)}
+                  teamColor="secondary"
+                />
+                <View className="flex-1 ml-3">
+                  {match.player3 ? (
+                    <>
+                      <View className="flex-row items-center">
+                        <Text className="font-medium">
+                          {match.player3.full_name || match.player3.email?.split('@')[0] || 'Unknown'}
+                        </Text>
+                        {isUserPlayer(match.player3?.id) && (
+                          <View className="ml-2 bg-yellow-100 dark:bg-yellow-900/30 px-2 py-0.5 rounded-full">
+                            <Text className="text-xs font-bold text-yellow-700 dark:text-yellow-300">You</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text className="text-xs text-muted-foreground">{match.player3.email}</Text>
+                      {match.player3.glicko_rating && (
+                        <View className="flex-row items-center mt-1">
+                          <Ionicons name="stats-chart-outline" size={12} color="#888" style={{ marginRight: 4 }} />
+                          <Text className="text-xs text-muted-foreground">
+                            Rating: {Math.round(parseFloat(match.player3.glicko_rating))}
+                          </Text>
+                        </View>
+                      )}
+                    </>
+                  ) : (
+                    <View>
+                      <Text className="font-medium text-muted-foreground">Open Slot</Text>
+                      <Text className="text-xs text-muted-foreground">Waiting for player to join</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* Player 4 */}
+              <View className="flex-row items-center p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
+                <PlayerAvatar
+                  player={match.player4}
+                  size="md"
+                  isCurrentUser={isUserPlayer(match.player4?.id)}
+                  teamColor="secondary"
+                />
+                <View className="flex-1 ml-3">
+                  {match.player4 ? (
+                    <>
+                      <View className="flex-row items-center">
+                        <Text className="font-medium">
+                          {match.player4.full_name || match.player4.email?.split('@')[0] || 'Unknown'}
+                        </Text>
+                        {isUserPlayer(match.player4?.id) && (
+                          <View className="ml-2 bg-yellow-100 dark:bg-yellow-900/30 px-2 py-0.5 rounded-full">
+                            <Text className="text-xs font-bold text-yellow-700 dark:text-yellow-300">You</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text className="text-xs text-muted-foreground">{match.player4.email}</Text>
+                      {match.player4.glicko_rating && (
+                        <View className="flex-row items-center mt-1">
+                          <Ionicons name="stats-chart-outline" size={12} color="#888" style={{ marginRight: 4 }} />
+                          <Text className="text-xs text-muted-foreground">
+                            Rating: {Math.round(parseFloat(match.player4.glicko_rating))}
+                          </Text>
+                        </View>
+                      )}
+                    </>
+                  ) : (
+                    <View>
+                      <Text className="font-medium text-muted-foreground">Open Slot</Text>
+                      <Text className="text-xs text-muted-foreground">Waiting for player to join</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
 
         {/* Enhanced Match Description */}
         {match.description && (

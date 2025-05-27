@@ -7,7 +7,8 @@ import {
   TouchableOpacity, 
   Alert,
   TextInput,
-  Modal
+  Modal,
+  Image
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons'; 
 import { useRouter } from 'expo-router';
@@ -90,7 +91,123 @@ interface FilterState {
   sortOrder: 'asc' | 'desc';
 }
 
-// **TECHNICAL SPECIFICATION 5: Production Utility Functions**
+// **TECHNICAL SPECIFICATION 5: Avatar Component Interface and Implementation**
+interface UserAvatarProps {
+  user: PlayerProfile;
+  size?: 'xs' | 'sm' | 'md' | 'lg';
+  teamIndex?: number;
+  showTeamBadge?: boolean;
+  style?: any;
+}
+
+const UserAvatar: React.FC<UserAvatarProps> = ({ 
+  user, 
+  size = 'md', 
+  teamIndex, 
+  showTeamBadge = false,
+  style 
+}) => {
+  const [imageLoadError, setImageLoadError] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
+
+  const sizeClasses = {
+    xs: 'w-6 h-6',
+    sm: 'w-8 h-8',
+    md: 'w-12 h-12',
+    lg: 'w-16 h-16'
+  }[size];
+
+  const sizeStyle = {
+    xs: { width: 24, height: 24, borderRadius: 12 },
+    sm: { width: 32, height: 32, borderRadius: 16 },
+    md: { width: 48, height: 48, borderRadius: 24 },
+    lg: { width: 64, height: 64, borderRadius: 32 }
+  }[size];
+
+  const textSize = {
+    xs: 'text-xs',
+    sm: 'text-sm',
+    md: 'text-lg',
+    lg: 'text-xl'
+  }[size];
+
+  // **AVATAR BACKGROUND COLOR CALCULATION**
+  const getBgColor = () => {
+    if (teamIndex === 0 || teamIndex === 1) return 'bg-primary'; // Team 1 - Blue
+    if (teamIndex === 2 || teamIndex === 3) return 'bg-indigo-500'; // Team 2 - Purple/Indigo
+    return 'bg-gray-500'; // Default/neutral
+  };
+
+  // **FALLBACK TEXT GENERATION**
+  const getInitial = () => {
+    if (user.full_name?.trim()) {
+      return user.full_name.charAt(0).toUpperCase();
+    }
+    if (user.email) {
+      return user.email.charAt(0).toUpperCase();
+    }
+    return '?';
+  };
+
+  const shouldShowImage = user.avatar_url && !imageLoadError;
+
+  // **TEAM BADGE RENDERING**
+  const renderTeamBadge = () => {
+    if (!showTeamBadge || teamIndex === undefined) return null;
+    
+    const teamNumber = teamIndex <= 1 ? 1 : 2;
+    const badgeColor = teamNumber === 1 ? 'bg-primary' : 'bg-indigo-500';
+    
+    return (
+      <View className={`absolute -top-1 -right-1 ${badgeColor} rounded-full w-4 h-4 items-center justify-center border border-white`}>
+        <Text className="text-white text-[8px] font-bold">
+          {teamNumber}
+        </Text>
+      </View>
+    );
+  };
+
+  if (shouldShowImage) {
+    return (
+      <View className={`${sizeClasses} rounded-full ${getBgColor()} items-center justify-center overflow-hidden relative`} style={style}>
+        <Image
+          source={{ uri: user.avatar_url }}
+          style={sizeStyle}
+          resizeMode="cover"
+          onLoad={() => setImageLoading(false)}
+          onError={() => {
+            setImageLoadError(true);
+            setImageLoading(false);
+          }}
+          onLoadStart={() => setImageLoading(true)}
+        />
+        {/* **LOADING STATE OVERLAY** */}
+        {imageLoading && (
+          <View 
+            className={`absolute inset-0 ${getBgColor()} items-center justify-center`}
+          >
+            <Text className={`${textSize} font-bold text-white`}>
+              {getInitial()}
+            </Text>
+          </View>
+        )}
+        {renderTeamBadge()}
+      </View>
+    );
+  }
+
+  // **FALLBACK TO TEXT INITIAL**
+  return (
+    <View className={`${sizeClasses} rounded-full ${getBgColor()} items-center justify-center relative`} style={style}>
+      <Text className={`${textSize} font-bold text-white`}>
+        {getInitial()}
+      </Text>
+      {renderTeamBadge()}
+    </View>
+  );
+};
+
+// **TECHNICAL SPECIFICATION 6: Production Utility Functions**
 const getSkillLevelFromRating = (rating: number): string => {
   if (rating < 1300) return 'Beginner';
   if (rating < 1500) return 'Intermediate'; 
@@ -118,7 +235,7 @@ const formatTimeUntilMatch = (milliseconds: number): string => {
   return 'Soon';
 };
 
-// **TECHNICAL SPECIFICATION 6: Team Selection Modal Component**
+// **TECHNICAL SPECIFICATION 7: Enhanced Team Selection Modal Component**
 const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({
   visible,
   match,
@@ -162,18 +279,17 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({
           </View>
         </View>
 
-        {/* Current Players */}
+        {/* **CURRENT PLAYERS WITH AVATARS** */}
         <View className="mb-4">
           {players?.map((player, index) => (
-            <View key={player.id} className="flex-row items-center mb-2">
-              <View className={`w-8 h-8 rounded-full items-center justify-center mr-2 ${
-                teamNumber === 1 ? 'bg-primary' : 'bg-indigo-500'
-              }`}>
-                <Text className="text-xs font-bold text-white">
-                  {player.full_name?.charAt(0)?.toUpperCase() || 
-                   player.email?.charAt(0)?.toUpperCase() || '?'}
-                </Text>
-              </View>
+            <View key={player.id} className="flex-row items-center mb-3">
+              <UserAvatar 
+                user={player} 
+                size="md" 
+                teamIndex={teamNumber === 1 ? index : index + 2}
+                showTeamBadge={false}
+                style={{ marginRight: 12 }}
+              />
               <View className="flex-1">
                 <Text className="text-sm font-medium">
                   {player.full_name || player.email?.split('@')[0]}
@@ -185,13 +301,13 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({
             </View>
           ))}
 
-          {/* Empty Slots */}
+          {/* **EMPTY SLOTS WITH PLACEHOLDER AVATARS** */}
           {Array.from({ length: availableSlots || 0 }).map((_, index) => (
-            <View key={`empty-${index}`} className="flex-row items-center mb-2 opacity-50">
-              <View className={`w-8 h-8 rounded-full border-2 border-dashed items-center justify-center mr-2 ${
+            <View key={`empty-${index}`} className="flex-row items-center mb-3 opacity-50">
+              <View className={`w-12 h-12 rounded-full border-2 border-dashed items-center justify-center mr-3 ${
                 teamNumber === 1 ? 'border-primary/40' : 'border-indigo-500/40'
               }`}>
-                <Text className={`text-xs ${teamNumber === 1 ? 'text-primary/60' : 'text-indigo-500/60'}`}>
+                <Text className={`text-lg ${teamNumber === 1 ? 'text-primary/60' : 'text-indigo-500/60'}`}>
                   ?
                 </Text>
               </View>
@@ -200,7 +316,7 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({
           ))}
         </View>
 
-        {/* Join Button */}
+        {/* **JOIN BUTTON** */}
         <Button
           variant={canJoin ? "default" : "outline"}
           className="w-full"
@@ -230,16 +346,22 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({
       onRequestClose={onClose}
     >
       <View className="flex-1 bg-black/50 justify-center p-4">
-        <View className="bg-background rounded-xl">
-          {/* Header */}
+        <View className="bg-background rounded-xl" style={{
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.25,
+          shadowRadius: 8,
+          elevation: 8,
+        }}>
+          {/* **MODAL HEADER** */}
           <View className="flex-row justify-between items-center p-4 border-b border-border">
             <H3>Choose Your Team</H3>
-            <TouchableOpacity onPress={onClose} disabled={loading}>
+            <TouchableOpacity onPress={onClose} disabled={loading} className="p-2">
               <Ionicons name="close" size={24} color={colorScheme === 'dark' ? '#ddd' : '#333'} />
             </TouchableOpacity>
           </View>
 
-          {/* Match Info */}
+          {/* **MATCH INFORMATION** */}
           <View className="p-4 bg-muted/20">
             <Text className="text-sm text-muted-foreground mb-1">Match Details</Text>
             <Text className="font-medium">
@@ -259,7 +381,7 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({
             )}
           </View>
 
-          {/* Team Selection */}
+          {/* **TEAM SELECTION WITH AVATARS** */}
           <View className="p-4">
             <Text className="text-sm text-muted-foreground mb-4 text-center">
               Select which team you'd like to join
@@ -270,7 +392,7 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({
               {renderTeamSection(2)}
             </View>
 
-            {/* Additional Info */}
+            {/* **ADDITIONAL INFORMATION** */}
             {(!match.canJoinTeam1 && !match.canJoinTeam2) && (
               <View className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
                 <Text className="text-sm text-red-600 dark:text-red-400 text-center">
@@ -285,7 +407,7 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({
   );
 };
 
-// **TECHNICAL SPECIFICATION 7: Main Component Implementation**
+// **TECHNICAL SPECIFICATION 8: Main Component Implementation**
 export default function ProductionBrowsePublicMatches() {
   const router = useRouter();
   const { colorScheme } = useColorScheme();
@@ -309,7 +431,7 @@ export default function ProductionBrowsePublicMatches() {
     sortOrder: 'asc'
   });
 
-  // **TECHNICAL SPECIFICATION 8: Enhanced Match Processing with Team Logic**
+  // **TECHNICAL SPECIFICATION 9: Enhanced Match Processing with Team Logic**
   const processMatchData = useCallback((matches: any[]): PublicMatch[] => {
     const now = new Date();
     const userId = session?.user?.id;
@@ -372,7 +494,7 @@ export default function ProductionBrowsePublicMatches() {
     });
   }, [session?.user?.id]);
 
-  // **TECHNICAL SPECIFICATION 9: Production Filtering Logic**
+  // **TECHNICAL SPECIFICATION 10: Production Filtering Logic**
   const filteredMatches = useMemo(() => {
     let filtered = [...publicMatches];
 
@@ -459,7 +581,7 @@ export default function ProductionBrowsePublicMatches() {
     return filtered;
   }, [publicMatches, filters]);
 
-  // **TECHNICAL SPECIFICATION 10: Production Data Fetching**
+  // **TECHNICAL SPECIFICATION 11: Production Data Fetching**
   const fetchPublicMatches = useCallback(async () => {
     try {
       if (!refreshing) setLoading(true);
@@ -499,7 +621,7 @@ export default function ProductionBrowsePublicMatches() {
     }
   }, [processMatchData, refreshing]);
 
-  // **TECHNICAL SPECIFICATION 11: Enhanced Join Logic with Team Selection**
+  // **TECHNICAL SPECIFICATION 12: Enhanced Join Logic with Team Selection**
   const handleMatchPress = useCallback((match: PublicMatch) => {
     if (match.isUserInMatch) {
       // User is already in match - navigate to details
@@ -615,11 +737,11 @@ export default function ProductionBrowsePublicMatches() {
     fetchPublicMatches();
   }, [fetchPublicMatches]);
 
-  // **TECHNICAL SPECIFICATION 12: Production UI Components**
+  // **TECHNICAL SPECIFICATION 13: Production UI Components**
   
   const renderFilterControls = () => (
     <View className="bg-background border-b border-border p-4">
-      {/* Search Bar */}
+      {/* **SEARCH BAR** */}
       <View className="flex-row items-center bg-muted/30 rounded-lg px-3 py-2 mb-4">
         <Ionicons name="search" size={20} color="#888" />
         <TextInput
@@ -636,7 +758,7 @@ export default function ProductionBrowsePublicMatches() {
         )}
       </View>
 
-      {/* Quick Filters */}
+      {/* **QUICK FILTERS** */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
         <View className="flex-row gap-2">
           <TouchableOpacity
@@ -676,7 +798,7 @@ export default function ProductionBrowsePublicMatches() {
         </View>
       </ScrollView>
 
-      {/* Sort Controls */}
+      {/* **SORT CONTROLS** */}
       <View className="flex-row justify-between items-center">
         <Text className="text-sm text-muted-foreground">Sort by:</Text>
         <View className="flex-row gap-2">
@@ -753,11 +875,18 @@ export default function ProductionBrowsePublicMatches() {
     return (
       <TouchableOpacity
         key={match.id}
-        className="mb-4 rounded-xl bg-card border border-border/30 overflow-hidden shadow-sm"
+        className="mb-4 rounded-xl bg-card border border-border/30 overflow-hidden"
+        style={{
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          elevation: 3,
+        }}
         onPress={() => handleMatchPress(match)}
         disabled={joining === match.id}
       >
-        {/* Header */}
+        {/* **HEADER** */}
         <View className="bg-primary/5 dark:bg-primary/10 px-4 py-3">
           <View className="flex-row justify-between items-center">
             <View>
@@ -783,9 +912,9 @@ export default function ProductionBrowsePublicMatches() {
           </View>
         </View>
 
-        {/* Content */}
+        {/* **CONTENT** */}
         <View className="p-4">
-          {/* Location */}
+          {/* **LOCATION** */}
           {(match.region || match.court) && (
             <View className="flex-row items-center mb-3">
               <Ionicons name="location-outline" size={16} color="#888" style={{ marginRight: 6 }} />
@@ -796,7 +925,7 @@ export default function ProductionBrowsePublicMatches() {
             </View>
           )}
 
-          {/* Skill Level */}
+          {/* **SKILL LEVEL** */}
           <View className="flex-row items-center justify-between mb-3">
             <View className="flex-row items-center">
               <View 
@@ -816,9 +945,9 @@ export default function ProductionBrowsePublicMatches() {
             </View>
           </View>
 
-          {/* Team Composition */}
+          {/* **TEAM COMPOSITION WITH AVATARS** */}
           <View className="flex-row justify-between mb-4">
-            {/* Team 1 */}
+            {/* **TEAM 1** */}
             <View className="flex-1 mr-2">
               <View className="flex-row items-center mb-2">
                 <View className="w-6 h-6 rounded-full bg-primary items-center justify-center mr-2">
@@ -835,22 +964,22 @@ export default function ProductionBrowsePublicMatches() {
               </View>
               
               {match.team1Players?.map((player, index) => (
-                <View key={player.id} className="flex-row items-center mb-1">
-                  <View className="w-6 h-6 rounded-full bg-primary items-center justify-center mr-2">
-                    <Text className="text-xs font-bold text-white">
-                      {player.full_name?.charAt(0)?.toUpperCase() || 
-                       player.email?.charAt(0)?.toUpperCase() || '?'}
-                    </Text>
-                  </View>
-                  <Text className="text-xs" numberOfLines={1}>
+                <View key={player.id} className="flex-row items-center mb-2">
+                  <UserAvatar 
+                    user={player} 
+                    size="sm" 
+                    teamIndex={index}
+                    style={{ marginRight: 8 }}
+                  />
+                  <Text className="text-xs flex-1" numberOfLines={1}>
                     {player.full_name || player.email?.split('@')[0]}
                   </Text>
                 </View>
               ))}
               
               {Array.from({ length: match.team1Slots || 0 }).map((_, index) => (
-                <View key={`team1-empty-${index}`} className="flex-row items-center mb-1 opacity-50">
-                  <View className="w-6 h-6 rounded-full border border-dashed border-primary/40 items-center justify-center mr-2">
+                <View key={`team1-empty-${index}`} className="flex-row items-center mb-2 opacity-50">
+                  <View className="w-8 h-8 rounded-full border border-dashed border-primary/40 items-center justify-center mr-2">
                     <Text className="text-xs text-primary/60">?</Text>
                   </View>
                   <Text className="text-xs text-muted-foreground">Open</Text>
@@ -858,12 +987,12 @@ export default function ProductionBrowsePublicMatches() {
               ))}
             </View>
 
-            {/* VS Divider */}
+            {/* **VS DIVIDER** */}
             <View className="items-center justify-center px-2">
               <Text className="text-sm font-bold text-muted-foreground">VS</Text>
             </View>
 
-            {/* Team 2 */}
+            {/* **TEAM 2** */}
             <View className="flex-1 ml-2">
               <View className="flex-row items-center mb-2">
                 <View className="w-6 h-6 rounded-full bg-indigo-500 items-center justify-center mr-2">
@@ -880,22 +1009,22 @@ export default function ProductionBrowsePublicMatches() {
               </View>
               
               {match.team2Players?.map((player, index) => (
-                <View key={player.id} className="flex-row items-center mb-1">
-                  <View className="w-6 h-6 rounded-full bg-indigo-500 items-center justify-center mr-2">
-                    <Text className="text-xs font-bold text-white">
-                      {player.full_name?.charAt(0)?.toUpperCase() || 
-                       player.email?.charAt(0)?.toUpperCase() || '?'}
-                    </Text>
-                  </View>
-                  <Text className="text-xs" numberOfLines={1}>
+                <View key={player.id} className="flex-row items-center mb-2">
+                  <UserAvatar 
+                    user={player} 
+                    size="sm" 
+                    teamIndex={index + 2}
+                    style={{ marginRight: 8 }}
+                  />
+                  <Text className="text-xs flex-1" numberOfLines={1}>
                     {player.full_name || player.email?.split('@')[0]}
                   </Text>
                 </View>
               ))}
               
               {Array.from({ length: match.team2Slots || 0 }).map((_, index) => (
-                <View key={`team2-empty-${index}`} className="flex-row items-center mb-1 opacity-50">
-                  <View className="w-6 h-6 rounded-full border border-dashed border-indigo-500/40 items-center justify-center mr-2">
+                <View key={`team2-empty-${index}`} className="flex-row items-center mb-2 opacity-50">
+                  <View className="w-8 h-8 rounded-full border border-dashed border-indigo-500/40 items-center justify-center mr-2">
                     <Text className="text-xs text-indigo-500/60">?</Text>
                   </View>
                   <Text className="text-xs text-muted-foreground">Open</Text>
@@ -904,14 +1033,14 @@ export default function ProductionBrowsePublicMatches() {
             </View>
           </View>
 
-          {/* Description */}
+          {/* **DESCRIPTION** */}
           {match.description && (
             <View className="mb-3 p-2 bg-muted/20 rounded">
               <Text className="text-sm italic">{match.description}</Text>
             </View>
           )}
 
-          {/* Action Button */}
+          {/* **ACTION BUTTON** */}
           <Button
             size="sm"
             variant={getActionButtonVariant()}
@@ -949,28 +1078,13 @@ export default function ProductionBrowsePublicMatches() {
   // **MAIN RENDER**
   return (
     <SafeAreaView className="flex-1 bg-background">
-      {/* Header */}
-      <View className="px-6 pt-6 pb-4 border-b border-border/30">
-        <View className="flex-row justify-between items-center mb-2">
-          <View>
-            <H1>Public Matches</H1>
-            <Text className="text-muted-foreground">
-              {filteredMatches.length} available match{filteredMatches.length !== 1 ? 'es' : ''}
-            </Text>
-          </View>
-          <TouchableOpacity
-            className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center"
-            onPress={onRefresh}
-          >
-            <Ionicons name="refresh" size={20} color="#1a7ebd" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      {/* **HEADER** */}
+  
 
-      {/* Filters */}
+      {/* **FILTERS** */}
       {renderFilterControls()}
 
-      {/* Content */}
+      {/* **CONTENT** */}
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
@@ -987,7 +1101,13 @@ export default function ProductionBrowsePublicMatches() {
         {filteredMatches.length > 0 ? (
           filteredMatches.map(renderMatchCard)
         ) : (
-          <View className="bg-card rounded-xl p-8 items-center">
+          <View className="bg-card rounded-xl p-8 items-center" style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
+          }}>
             <Ionicons name="search-outline" size={48} color="#888" />
             <Text className="text-lg font-medium mt-4 mb-2">No matches found</Text>
             <Text className="text-muted-foreground text-center mb-6">
@@ -1007,7 +1127,7 @@ export default function ProductionBrowsePublicMatches() {
         )}
       </ScrollView>
 
-      {/* Team Selection Modal */}
+      {/* **TEAM SELECTION MODAL** */}
       <TeamSelectionModal
         visible={showTeamModal}
         match={teamSelectionMatch}
@@ -1016,7 +1136,7 @@ export default function ProductionBrowsePublicMatches() {
         loading={joining !== null}
       />
 
-      {/* Floating Action Button */}
+      {/* **FLOATING ACTION BUTTON** */}
       <TouchableOpacity
         onPress={() => router.push('/(protected)/(screens)/create-match')}
         className="absolute bottom-6 right-6 w-14 h-14 rounded-full bg-primary items-center justify-center shadow-lg"

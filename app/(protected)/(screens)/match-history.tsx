@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput } from 'react-native';
+import { View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 
@@ -9,7 +9,7 @@ import { useAuth } from '@/context/supabase-provider';
 import { supabase } from '@/config/supabase';
 import { SafeAreaView } from '@/components/safe-area-view';
 
-// TECHNICAL SPECIFICATION 1: Enhanced match status enumeration
+// **TECHNICAL SPECIFICATION 1: Enhanced match status enumeration**
 export enum MatchStatus {
   PENDING = 1,
   NEEDS_CONFIRMATION = 2,
@@ -19,7 +19,7 @@ export enum MatchStatus {
   RECRUITING = 6,   // Enhanced for public matches
 }
 
-// TECHNICAL SPECIFICATION 2: Comprehensive match data interface
+// **TECHNICAL SPECIFICATION 2: Comprehensive match data interface with avatar support**
 interface EnhancedMatchData {
   id: string;
   player1_id: string;
@@ -42,10 +42,10 @@ interface EnhancedMatchData {
   court: string | null;
   is_public: boolean;
   description: string | null;
-  player1: { id: string; full_name: string | null; email: string } | null;
-  player2: { id: string; full_name: string | null; email: string } | null;
-  player3: { id: string; full_name: string | null; email: string } | null;
-  player4: { id: string; full_name: string | null; email: string } | null;
+  player1: { id: string; full_name: string | null; email: string; glicko_rating: string | null; avatar_url: string | null; } | null;
+  player2: { id: string; full_name: string | null; email: string; glicko_rating: string | null; avatar_url: string | null; } | null;
+  player3: { id: string; full_name: string | null; email: string; glicko_rating: string | null; avatar_url: string | null; } | null;
+  player4: { id: string; full_name: string | null; email: string; glicko_rating: string | null; avatar_url: string | null; } | null;
   // ENHANCEMENT: Computed properties for improved performance
   isTeam1?: boolean;
   needsScores?: boolean;
@@ -63,12 +63,16 @@ interface EnhancedMatchData {
   matchDuration?: number;
   timeUntilMatch?: number;
   daysAgo?: number;
+  userIsPlayer1?: boolean;
+  userIsPlayer2?: boolean;
+  userIsPlayer3?: boolean;
+  userIsPlayer4?: boolean;
 }
 
-// TECHNICAL SPECIFICATION 3: ENHANCED filter type definition with visibility options
+// **TECHNICAL SPECIFICATION 3: Enhanced filter type definition with visibility options**
 type FilterType = 'all' | 'upcoming' | 'completed' | 'attention' | 'recent' | 'public' | 'private';
 
-// TECHNICAL SPECIFICATION 4: Visibility statistics interface
+// **TECHNICAL SPECIFICATION 4: Visibility statistics interface**
 interface VisibilityStats {
   totalPublic: number;
   totalPrivate: number;
@@ -78,12 +82,226 @@ interface VisibilityStats {
   privateUpcoming: number;
 }
 
-export default function EnhancedMatchHistoryWithVisibility() {
+// **TECHNICAL SPECIFICATION 5: UserAvatar Component Interface and Implementation**
+interface UserAvatarProps {
+  user: {
+    id: string;
+    full_name: string | null;
+    email: string;
+    glicko_rating?: string | null;
+    avatar_url: string | null;
+  };
+  size?: 'xs' | 'sm' | 'md' | 'lg';
+  teamIndex?: number;
+  isCurrentUser?: boolean;
+  isPublicMatch?: boolean;
+  showTeamBadge?: boolean;
+  style?: any;
+}
+
+const UserAvatar: React.FC<UserAvatarProps> = ({ 
+  user, 
+  size = 'md', 
+  teamIndex, 
+  isCurrentUser = false,
+  isPublicMatch = false,
+  showTeamBadge = false,
+  style 
+}) => {
+  const [imageLoadError, setImageLoadError] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
+
+  const sizeClasses = {
+    xs: 'w-6 h-6',
+    sm: 'w-8 h-8',
+    md: 'w-10 h-10',
+    lg: 'w-12 h-12'
+  }[size];
+
+  const sizeStyle = {
+    xs: { width: 24, height: 24, borderRadius: 12 },
+    sm: { width: 32, height: 32, borderRadius: 16 },
+    md: { width: 40, height: 40, borderRadius: 20 },
+    lg: { width: 48, height: 48, borderRadius: 24 }
+  }[size];
+
+  const textSize = {
+    xs: 'text-xs',
+    sm: 'text-sm',
+    md: 'text-sm',
+    lg: 'text-lg'
+  }[size];
+
+  // **AVATAR BACKGROUND COLOR CALCULATION WITH VISIBILITY CONTEXT**
+  const getBgColor = () => {
+    if (isCurrentUser) {
+      return isPublicMatch ? 'bg-blue-600' : 'bg-primary';
+    }
+    
+    // Team-based colors with visibility context
+    if (teamIndex === 0 || teamIndex === 1) {
+      return isPublicMatch ? 'bg-blue-500' : 'bg-primary'; // Team 1
+    }
+    if (teamIndex === 2 || teamIndex === 3) {
+      return isPublicMatch ? 'bg-purple-500' : 'bg-indigo-500'; // Team 2
+    }
+    
+    return 'bg-gray-500'; // Default/neutral
+  };
+
+  // **ENHANCED FALLBACK TEXT GENERATION**
+  const getInitial = () => {
+    if (isCurrentUser) return 'Y';
+    
+    if (user.full_name?.trim()) {
+      return user.full_name.charAt(0).toUpperCase();
+    }
+    if (user.email) {
+      return user.email.charAt(0).toUpperCase();
+    }
+    return '?';
+  };
+
+  const shouldShowImage = user.avatar_url && !imageLoadError && !isCurrentUser;
+
+  // **TEAM BADGE RENDERING WITH VISIBILITY CONTEXT**
+  const renderTeamBadge = () => {
+    if (!showTeamBadge || teamIndex === undefined) return null;
+    
+    const teamNumber = teamIndex <= 1 ? 1 : 2;
+    const badgeColor = teamNumber === 1 
+      ? (isPublicMatch ? 'bg-blue-600' : 'bg-primary')
+      : (isPublicMatch ? 'bg-purple-600' : 'bg-indigo-500');
+    
+    return (
+      <View className={`absolute -top-1 -right-1 ${badgeColor} rounded-full w-4 h-4 items-center justify-center border border-white`}>
+        <Text className="text-white text-[8px] font-bold">
+          {teamNumber}
+        </Text>
+      </View>
+    );
+  };
+
+  // **CURRENT USER INDICATOR**
+  const renderCurrentUserIndicator = () => {
+    if (!isCurrentUser) return null;
+    
+    return (
+      <View className="absolute -top-1 -left-1 bg-green-500 rounded-full w-4 h-4 items-center justify-center border border-white">
+        <Ionicons name="checkmark" size={10} color="white" />
+      </View>
+    );
+  };
+
+  if (shouldShowImage) {
+    return (
+      <View className={`${sizeClasses} rounded-full ${getBgColor()} items-center justify-center overflow-hidden relative`} style={style}>
+        <Image
+          source={{ uri: user.avatar_url }}
+          style={sizeStyle}
+          resizeMode="cover"
+          onLoad={() => setImageLoading(false)}
+          onError={() => {
+            setImageLoadError(true);
+            setImageLoading(false);
+          }}
+          onLoadStart={() => setImageLoading(true)}
+        />
+        {/* **LOADING STATE OVERLAY** */}
+        {imageLoading && (
+          <View 
+            className={`absolute inset-0 ${getBgColor()} items-center justify-center`}
+          >
+            <Text className={`${textSize} font-bold text-white`}>
+              {getInitial()}
+            </Text>
+          </View>
+        )}
+        {renderTeamBadge()}
+        {renderCurrentUserIndicator()}
+      </View>
+    );
+  }
+
+  // **FALLBACK TO TEXT INITIAL WITH ENHANCED STYLING**
+  return (
+    <View className={`${sizeClasses} rounded-full ${getBgColor()} items-center justify-center relative`} style={style}>
+      <Text className={`${textSize} font-bold text-white`}>
+        {getInitial()}
+      </Text>
+      {renderTeamBadge()}
+      {renderCurrentUserIndicator()}
+    </View>
+  );
+};
+
+// **TECHNICAL SPECIFICATION 6: Enhanced Empty Slot Avatar Component**
+interface EmptySlotAvatarProps {
+  size?: 'xs' | 'sm' | 'md' | 'lg';
+  teamIndex?: number;
+  isPublicMatch?: boolean;
+  style?: any;
+}
+
+const EmptySlotAvatar: React.FC<EmptySlotAvatarProps> = ({ 
+  size = 'md', 
+  teamIndex, 
+  isPublicMatch = false,
+  style 
+}) => {
+  const sizeClasses = {
+    xs: 'w-6 h-6',
+    sm: 'w-8 h-8',
+    md: 'w-10 h-10',
+    lg: 'w-12 h-12'
+  }[size];
+
+  const textSize = {
+    xs: 'text-xs',
+    sm: 'text-sm',
+    md: 'text-sm',
+    lg: 'text-lg'
+  }[size];
+
+  // **TEAM-BASED BORDER COLORS WITH VISIBILITY CONTEXT**
+  const getBorderColor = () => {
+    if (teamIndex === 0 || teamIndex === 1) {
+      return isPublicMatch ? 'border-blue-400' : 'border-primary'; // Team 1
+    }
+    if (teamIndex === 2 || teamIndex === 3) {
+      return isPublicMatch ? 'border-purple-400' : 'border-indigo-400'; // Team 2
+    }
+    return 'border-gray-400'; // Default
+  };
+
+  const getTextColor = () => {
+    if (teamIndex === 0 || teamIndex === 1) {
+      return isPublicMatch ? 'text-blue-400' : 'text-primary'; // Team 1
+    }
+    if (teamIndex === 2 || teamIndex === 3) {
+      return isPublicMatch ? 'text-purple-400' : 'text-indigo-400'; // Team 2
+    }
+    return 'text-gray-400'; // Default
+  };
+
+  return (
+    <View 
+      className={`${sizeClasses} rounded-full border-2 border-dashed ${getBorderColor()} items-center justify-center bg-gray-50 dark:bg-gray-800/50`} 
+      style={style}
+    >
+      <Text className={`${textSize} font-bold ${getTextColor()}`}>
+        ?
+      </Text>
+    </View>
+  );
+};
+
+export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
   const { friendId } = useLocalSearchParams();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
-  // TECHNICAL SPECIFICATION 5: ENHANCED state management with visibility-aware data structures
+  // **TECHNICAL SPECIFICATION 7: Enhanced state management with visibility-aware data structures**
   const [allMatches, setAllMatches] = useState<EnhancedMatchData[]>([]);
   const [filteredMatches, setFilteredMatches] = useState<{
     all: EnhancedMatchData[];
@@ -117,7 +335,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
   });
   const { session } = useAuth();
 
-  // TECHNICAL SPECIFICATION 6: Component lifecycle management
+  // **TECHNICAL SPECIFICATION 8: Component lifecycle management**
   useEffect(() => {
     if (session?.user?.id) {
       fetchMatches();
@@ -128,12 +346,12 @@ export default function EnhancedMatchHistoryWithVisibility() {
     applyFilters();
   }, [filter, allMatches, searchQuery, sortBy, sortOrder]);
 
-  // TECHNICAL SPECIFICATION 7: Calculate visibility statistics
+  // **TECHNICAL SPECIFICATION 9: Calculate visibility statistics**
   useEffect(() => {
     calculateVisibilityStats();
   }, [allMatches]);
 
-  // TECHNICAL SPECIFICATION 8: Visibility statistics calculation
+  // **TECHNICAL SPECIFICATION 10: Visibility statistics calculation**
   const calculateVisibilityStats = () => {
     const stats: VisibilityStats = {
       totalPublic: 0,
@@ -159,7 +377,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
     setVisibilityStats(stats);
   };
 
-  // TECHNICAL SPECIFICATION 9: ENHANCED filter application with visibility-based logic
+  // **TECHNICAL SPECIFICATION 11: Enhanced filter application with visibility-based logic**
   const applyFilters = () => {
     console.log('🔍 Match History: Applying filters with visibility support', {
       totalMatches: allMatches.length,
@@ -172,7 +390,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
     const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     
-    // ENHANCED: Visibility-aware base filtering
+    // **ENHANCED: Visibility-aware base filtering**
     const baseFiltered = {
       all: allMatches,
       
@@ -212,12 +430,12 @@ export default function EnhancedMatchHistoryWithVisibility() {
         return isRecent;
       }),
 
-      // ENHANCEMENT: NEW visibility-based filters
+      // **ENHANCEMENT: NEW visibility-based filters**
       public: allMatches.filter(match => match.is_public === true),
       private: allMatches.filter(match => match.is_public === false)
     };
 
-    // TECHNICAL SPECIFICATION 10: Enhanced search filtering with visibility context
+    // **TECHNICAL SPECIFICATION 12: Enhanced search filtering with visibility context**
     let searchFiltered = baseFiltered;
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -236,7 +454,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
             match.player2?.email,
             match.player3?.email,
             match.player4?.email,
-            visibilityText // ENHANCEMENT: Include visibility in search
+            visibilityText // **ENHANCEMENT: Include visibility in search**
           ].filter(Boolean).join(' ').toLowerCase();
           
           return searchableText.includes(query);
@@ -244,7 +462,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
       });
     }
 
-    // TECHNICAL SPECIFICATION 11: ENHANCED sorting algorithms with visibility support
+    // **TECHNICAL SPECIFICATION 13: Enhanced sorting algorithms with visibility support**
     Object.keys(searchFiltered).forEach(key => {
       searchFiltered[key as keyof typeof searchFiltered].sort((a, b) => {
         let comparison = 0;
@@ -273,7 +491,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
             }
             break;
 
-          // ENHANCEMENT: NEW visibility-based sorting
+          // **ENHANCEMENT: NEW visibility-based sorting**
           case 'visibility':
             if (a.is_public !== b.is_public) {
               comparison = a.is_public ? 1 : -1; // Public matches first when ascending
@@ -303,7 +521,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
     setFilteredMatches(searchFiltered);
   };
 
-  // TECHNICAL SPECIFICATION 12: Enhanced data fetching with comprehensive processing
+  // **TECHNICAL SPECIFICATION 14: Enhanced data fetching with comprehensive processing and avatar support**
   const fetchMatches = async (shouldRefresh = false) => {
     try {
       if (shouldRefresh) {
@@ -312,13 +530,13 @@ export default function EnhancedMatchHistoryWithVisibility() {
         setLoading(true);
       }
       
-      console.log('🚀 Match History: Fetching matches with visibility data', {
+      console.log('🚀 Match History: Fetching matches with visibility data and avatars', {
         userId: session?.user?.id,
         friendId,
         shouldRefresh
       });
       
-      // Enhanced query with comprehensive player data
+      // **ENHANCED query with comprehensive player data including avatars**
       let query = supabase
         .from('matches')
         .select(`
@@ -355,14 +573,18 @@ export default function EnhancedMatchHistoryWithVisibility() {
         throw error;
       }
 
-      console.log('📊 Match History: Raw data received with visibility info:', {
+      console.log('📊 Match History: Raw data received with visibility info and avatars:', {
         count: data?.length || 0,
         sampleMatch: data?.[0],
         publicMatches: data?.filter(m => m.is_public).length || 0,
-        privateMatches: data?.filter(m => !m.is_public).length || 0
+        privateMatches: data?.filter(m => !m.is_public).length || 0,
+        playersWithAvatars: data?.filter(m => 
+          m.player1?.avatar_url || m.player2?.avatar_url || 
+          m.player3?.avatar_url || m.player4?.avatar_url
+        ).length || 0
       });
 
-      // TECHNICAL SPECIFICATION 13: Comprehensive match data processing with visibility context
+      // **TECHNICAL SPECIFICATION 15: Comprehensive match data processing with visibility context and avatar support**
       const now = new Date();
       const processedData: EnhancedMatchData[] = (data || []).map(match => {
         const userId = session?.user?.id;
@@ -488,14 +710,14 @@ export default function EnhancedMatchHistoryWithVisibility() {
           matchDuration,
           timeUntilMatch,
           daysAgo,
-          // User position flags for UI rendering
+          // **ENHANCEMENT: User position flags for avatar rendering**
           userIsPlayer1: match.player1_id === userId,
           userIsPlayer2: match.player2_id === userId,
           userIsPlayer3: match.player3_id === userId,
           userIsPlayer4: match.player4_id === userId
         };
 
-        console.log(`🔄 Match History: Processed match ${match.id} with visibility ${match.is_public ? 'PUBLIC' : 'PRIVATE'}`, {
+        console.log(`🔄 Match History: Processed match ${match.id} with visibility ${match.is_public ? 'PUBLIC' : 'PRIVATE'} and avatar data`, {
           isTeam1,
           hasScores,
           userWon,
@@ -504,7 +726,13 @@ export default function EnhancedMatchHistoryWithVisibility() {
           needsScores,
           isFuture,
           isCompleted,
-          is_public: match.is_public
+          is_public: match.is_public,
+          avatarsPresent: {
+            player1: !!match.player1?.avatar_url,
+            player2: !!match.player2?.avatar_url,
+            player3: !!match.player3?.avatar_url,
+            player4: !!match.player4?.avatar_url
+          }
         });
 
         return enhancedMatch;
@@ -520,7 +748,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
     }
   };
 
-  // TECHNICAL SPECIFICATION 14: Enhanced user interaction handlers
+  // **TECHNICAL SPECIFICATION 16: Enhanced user interaction handlers**
   const onRefresh = () => {
     fetchMatches(true);
   };
@@ -543,7 +771,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
     }
   };
 
-  // TECHNICAL SPECIFICATION 15: Visibility badge component for consistent UI
+  // **TECHNICAL SPECIFICATION 17: Enhanced visibility badge component for consistent UI**
   const renderVisibilityBadge = (isPublic: boolean, size: 'small' | 'medium' = 'small') => {
     const iconSize = size === 'medium' ? 16 : 12;
     const textClass = size === 'medium' ? 'text-sm' : 'text-xs';
@@ -572,7 +800,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
     );
   };
 
-  // TECHNICAL SPECIFICATION 16: ENHANCED filter buttons with visibility indicators
+  // **TECHNICAL SPECIFICATION 18: Enhanced filter buttons with visibility indicators**
   const renderFilterButtons = () => (
     <View className="bg-background border-b border-border">
       <ScrollView 
@@ -585,7 +813,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
           const count = filteredMatches[filterType]?.length || 0;
           const isActive = filter === filterType;
           
-          // ENHANCEMENT: Special styling for visibility filters
+          // **ENHANCEMENT: Special styling for visibility filters**
           const isVisibilityFilter = filterType === 'public' || filterType === 'private';
           const baseClasses = isActive 
             ? (isVisibilityFilter 
@@ -600,7 +828,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
               onPress={() => handleFilterChange(filterType)}
             >
               <View className="flex-row items-center">
-                {/* ENHANCEMENT: Add icons for visibility filters */}
+                {/* **ENHANCEMENT: Add icons for visibility filters** */}
                 {isVisibilityFilter && (
                   <Ionicons 
                     name={filterType === 'public' ? 'globe-outline' : 'lock-closed-outline'} 
@@ -640,7 +868,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
     </View>
   );
 
-  // TECHNICAL SPECIFICATION 17: ENHANCED search and sort controls with visibility options
+  // **TECHNICAL SPECIFICATION 19: Enhanced search and sort controls with visibility options**
   const renderSearchAndSort = () => (
     <View className="p-4 bg-background border-b border-border">
       {/* Search Bar with visibility hint */}
@@ -674,7 +902,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
                   : 'bg-muted/30'
               }`}
             >
-              {/* ENHANCEMENT: Add icon for visibility sort */}
+              {/* **ENHANCEMENT: Add icon for visibility sort** */}
               {sortType === 'visibility' && (
                 <Ionicons 
                   name="eye-outline" 
@@ -703,7 +931,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
     </View>
   );
 
-  // TECHNICAL SPECIFICATION 18: ENHANCED match card rendering with comprehensive visibility information
+  // **TECHNICAL SPECIFICATION 20: Enhanced match card rendering with comprehensive visibility information and avatars**
   const renderMatchCard = (match: EnhancedMatchData) => {
     const matchDate = new Date(match.start_time);
     const now = new Date();
@@ -728,7 +956,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
       minute: '2-digit'
     });
 
-    // Enhanced status styling with visibility context
+    // **Enhanced status styling with visibility context**
     const getMatchStyle = () => {
       if (match.isFuture) {
         return {
@@ -789,7 +1017,14 @@ export default function EnhancedMatchHistoryWithVisibility() {
     return (
       <TouchableOpacity
         key={match.id}
-        className={`mb-4 rounded-xl border border-border/30 overflow-hidden shadow-sm`}
+        className={`mb-4 rounded-xl border border-border/30 overflow-hidden`}
+        style={{
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          elevation: 3,
+        }}
         onPress={() => {
           router.push({
             pathname: '/(protected)/(screens)/match-details',
@@ -800,7 +1035,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
           });
         }}
       >
-        {/* ENHANCED header with status, metadata, and visibility indicator */}
+        {/* **ENHANCED header with status, metadata, and visibility indicator** */}
         <View className={`px-4 py-3 ${style.bgColor}`}>
           <View className="flex-row items-center justify-between">
             <View className="flex-row items-center flex-1">
@@ -812,7 +1047,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
                   <Text className="font-medium mr-2" style={{ color: style.iconColor }}>
                     {style.status}
                   </Text>
-                  {/* ENHANCEMENT: Visibility badge in header */}
+                  {/* **ENHANCEMENT: Visibility badge in header** */}
                   {renderVisibilityBadge(match.is_public)}
                 </View>
                 <Text className="text-xs opacity-75">
@@ -836,7 +1071,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
                   {Math.round(match.matchDuration / (1000 * 60))}min
                 </Text>
               )}
-              {/* ENHANCEMENT: Show open slots for public matches */}
+              {/* **ENHANCEMENT: Show open slots for public matches** */}
               {match.is_public && match.isFuture && (
                 <Text className="text-xs opacity-75 mt-1">
                   {getOpenSlotsText(match)}
@@ -846,9 +1081,9 @@ export default function EnhancedMatchHistoryWithVisibility() {
           </View>
         </View>
         
-        {/* Enhanced match content with visibility-aware information */}
+        {/* **Enhanced match content with visibility-aware information and avatars** */}
         <View className="p-5 bg-card dark:bg-card/90">
-          {/* ENHANCEMENT: Visibility-specific information banner */}
+          {/* **ENHANCEMENT: Visibility-specific information banner** */}
           {match.is_public && (
             <View className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-l-4 border-blue-500">
               <View className="flex-row items-center">
@@ -862,21 +1097,31 @@ export default function EnhancedMatchHistoryWithVisibility() {
             </View>
           )}
 
-          {/* Team composition with enhanced player display */}
+          {/* **ENHANCED Team composition with avatars** */}
           <View className="flex-row justify-between items-start mb-4">
-            {/* Team 1 - Your team */}
+            {/* **Team 1 - Your team with avatars** */}
             <View className="flex-1">
               <Text className="text-xs text-muted-foreground mb-2 font-medium">Your Team</Text>
               
-              {/* Player 1 */}
+              {/* **Player 1 with avatar** */}
               <View className="flex-row items-center mb-2">
-                <View className="w-10 h-10 rounded-full bg-primary items-center justify-center mr-3">
-                  <Text className="text-sm font-bold text-white">
-                    {match.userIsPlayer1 ? 'Y' : 
-                     match.player1?.full_name?.charAt(0)?.toUpperCase() || 
-                     match.player1?.email?.charAt(0)?.toUpperCase() || '?'}
-                  </Text>
-                </View>
+                {match.player1 ? (
+                  <UserAvatar 
+                    user={match.player1}
+                    size="md"
+                    teamIndex={0}
+                    isCurrentUser={match.userIsPlayer1}
+                    isPublicMatch={match.is_public}
+                    style={{ marginRight: 12 }}
+                  />
+                ) : (
+                  <EmptySlotAvatar 
+                    size="md"
+                    teamIndex={0}
+                    isPublicMatch={match.is_public}
+                    style={{ marginRight: 12 }}
+                  />
+                )}
                 <View className="flex-1">
                   <Text className={`text-sm ${match.userIsPlayer1 ? 'font-bold text-primary' : 'font-medium'}`}>
                     {match.userIsPlayer1 ? 'You' : 
@@ -891,45 +1136,46 @@ export default function EnhancedMatchHistoryWithVisibility() {
                 </View>
               </View>
               
-              {/* Player 2 */}
-              {match.player2 ? (
-                <View className="flex-row items-center">
-                  <View className="w-10 h-10 rounded-full bg-primary/80 items-center justify-center mr-3">
-                    <Text className="text-sm font-bold text-white">
-                      {match.userIsPlayer2 ? 'Y' : 
-                       match.player2?.full_name?.charAt(0)?.toUpperCase() || 
-                       match.player2?.email?.charAt(0)?.toUpperCase() || '?'}
-                    </Text>
-                  </View>
-                  <View className="flex-1">
-                    <Text className={`text-sm ${match.userIsPlayer2 ? 'font-bold text-primary' : 'font-medium'}`}>
-                      {match.userIsPlayer2 ? 'You' : 
-                       match.player2?.full_name || 
-                       match.player2?.email?.split('@')[0] || 'Player 2'}
-                    </Text>
+              {/* **Player 2 with avatar** */}
+              <View className="flex-row items-center">
+                {match.player2 ? (
+                  <UserAvatar 
+                    user={match.player2}
+                    size="md"
+                    teamIndex={1}
+                    isCurrentUser={match.userIsPlayer2}
+                    isPublicMatch={match.is_public}
+                    style={{ marginRight: 12 }}
+                  />
+                ) : (
+                  <EmptySlotAvatar 
+                    size="md"
+                    teamIndex={1}
+                    isPublicMatch={match.is_public}
+                    style={{ marginRight: 12 }}
+                  />
+                )}
+                <View className="flex-1">
+                  <Text className={`text-sm ${match.userIsPlayer2 ? 'font-bold text-primary' : 'font-medium'}`}>
+                    {match.userIsPlayer2 ? 'You' : 
+                     match.player2?.full_name || 
+                     match.player2?.email?.split('@')[0] || 
+                     (match.is_public ? 'Open for Anyone' : 'Awaiting Invite')}
+                  </Text>
+                  {match.player2 ? (
                     <Text className="text-xs text-muted-foreground">
                       Rating: {match.player2.glicko_rating || '-'}
                     </Text>
-                  </View>
-                </View>
-              ) : (
-                <View className="flex-row items-center opacity-50">
-                  <View className="w-10 h-10 rounded-full bg-gray-300 dark:bg-gray-700 items-center justify-center mr-3">
-                    <Text className="text-sm font-bold text-white">?</Text>
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-sm text-muted-foreground">
-                      {match.is_public ? 'Open for Anyone' : 'Awaiting Invite'}
-                    </Text>
+                  ) : (
                     <Text className="text-xs text-muted-foreground">
                       {match.is_public ? 'Public slot' : 'Private invitation'}
                     </Text>
-                  </View>
+                  )}
                 </View>
-              )}
+              </View>
             </View>
             
-            {/* Score section with enhanced display */}
+            {/* **Score section with enhanced display** */}
             <View className="items-center px-4">
               {match.setScores ? (
                 <View className="items-center">
@@ -965,94 +1211,92 @@ export default function EnhancedMatchHistoryWithVisibility() {
               )}
             </View>
             
-            {/* Team 2 - Opponents */}
+            {/* **Team 2 - Opponents with avatars** */}
             <View className="flex-1">
               <Text className="text-xs text-muted-foreground mb-2 font-medium text-right">Opponents</Text>
               
-              {/* Player 3 */}
-              {match.player3 ? (
-                <View className="flex-row items-center justify-end mb-2">
-                  <View className="flex-1 items-end mr-3">
-                    <Text className={`text-sm ${match.userIsPlayer3 ? 'font-bold text-indigo-600' : 'font-medium'} text-right`}>
-                      {match.userIsPlayer3 ? 'You' : 
-                       match.player3?.full_name || 
-                       match.player3?.email?.split('@')[0] || 'Player 3'}
-                    </Text>
+              {/* **Player 3 with avatar** */}
+              <View className="flex-row items-center justify-end mb-2">
+                <View className="flex-1 items-end mr-3">
+                  <Text className={`text-sm ${match.userIsPlayer3 ? 'font-bold text-indigo-600' : 'font-medium'} text-right`}>
+                    {match.userIsPlayer3 ? 'You' : 
+                     match.player3?.full_name || 
+                     match.player3?.email?.split('@')[0] || 
+                     (match.is_public ? 'Open for Anyone' : 'Awaiting Invite')}
+                  </Text>
+                  {match.player3 ? (
                     <Text className="text-xs text-muted-foreground">
                       Rating: {match.player3.glicko_rating || '-'}
                     </Text>
-                  </View>
-                  <View className="w-10 h-10 rounded-full bg-indigo-500 items-center justify-center">
-                    <Text className="text-sm font-bold text-white">
-                      {match.userIsPlayer3 ? 'Y' : 
-                       match.player3?.full_name?.charAt(0)?.toUpperCase() || 
-                       match.player3?.email?.charAt(0)?.toUpperCase() || '?'}
-                    </Text>
-                  </View>
-                </View>
-              ) : (
-                <View className="flex-row items-center justify-end mb-2 opacity-50">
-                  <View className="flex-1 items-end mr-3">
-                    <Text className="text-sm text-muted-foreground text-right">
-                      {match.is_public ? 'Open for Anyone' : 'Awaiting Invite'}
-                    </Text>
+                  ) : (
                     <Text className="text-xs text-muted-foreground">
                       {match.is_public ? 'Public slot' : 'Private invitation'}
                     </Text>
-                  </View>
-                  <View className="w-10 h-10 rounded-full bg-gray-300 dark:bg-gray-700 items-center justify-center">
-                    <Text className="text-sm font-bold text-white">?</Text>
-                  </View>
+                  )}
                 </View>
-              )}
+                {match.player3 ? (
+                  <UserAvatar 
+                    user={match.player3}
+                    size="md"
+                    teamIndex={2}
+                    isCurrentUser={match.userIsPlayer3}
+                    isPublicMatch={match.is_public}
+                  />
+                ) : (
+                  <EmptySlotAvatar 
+                    size="md"
+                    teamIndex={2}
+                    isPublicMatch={match.is_public}
+                  />
+                )}
+              </View>
               
-              {/* Player 4 */}
-              {match.player4 ? (
-                <View className="flex-row items-center justify-end">
-                  <View className="flex-1 items-end mr-3">
-                    <Text className={`text-sm ${match.userIsPlayer4 ? 'font-bold text-indigo-600' : 'font-medium'} text-right`}>
-                      {match.userIsPlayer4 ? 'You' : 
-                       match.player4?.full_name || 
-                       match.player4?.email?.split('@')[0] || 'Player 4'}
-                    </Text>
+              {/* **Player 4 with avatar** */}
+              <View className="flex-row items-center justify-end">
+                <View className="flex-1 items-end mr-3">
+                  <Text className={`text-sm ${match.userIsPlayer4 ? 'font-bold text-indigo-600' : 'font-medium'} text-right`}>
+                    {match.userIsPlayer4 ? 'You' : 
+                     match.player4?.full_name || 
+                     match.player4?.email?.split('@')[0] || 
+                     (match.is_public ? 'Open for Anyone' : 'Awaiting Invite')}
+                  </Text>
+                  {match.player4 ? (
                     <Text className="text-xs text-muted-foreground">
                       Rating: {match.player4.glicko_rating || '-'}
                     </Text>
-                  </View>
-                  <View className="w-10 h-10 rounded-full bg-indigo-500/80 items-center justify-center">
-                    <Text className="text-sm font-bold text-white">
-                      {match.userIsPlayer4 ? 'Y' : 
-                       match.player4?.full_name?.charAt(0)?.toUpperCase() || 
-                       match.player4?.email?.charAt(0)?.toUpperCase() || '?'}
-                    </Text>
-                  </View>
-                </View>
-              ) : (
-                <View className="flex-row items-center justify-end opacity-50">
-                  <View className="flex-1 items-end mr-3">
-                    <Text className="text-sm text-muted-foreground text-right">
-                      {match.is_public ? 'Open for Anyone' : 'Awaiting Invite'}
-                    </Text>
+                  ) : (
                     <Text className="text-xs text-muted-foreground">
                       {match.is_public ? 'Public slot' : 'Private invitation'}
                     </Text>
-                  </View>
-                  <View className="w-10 h-10 rounded-full bg-gray-300 dark:bg-gray-700 items-center justify-center">
-                    <Text className="text-sm font-bold text-white">?</Text>
-                  </View>
+                  )}
                 </View>
-              )}
+                {match.player4 ? (
+                  <UserAvatar 
+                    user={match.player4}
+                    size="md"
+                    teamIndex={3}
+                    isCurrentUser={match.userIsPlayer4}
+                    isPublicMatch={match.is_public}
+                  />
+                ) : (
+                  <EmptySlotAvatar 
+                    size="md"
+                    teamIndex={3}
+                    isPublicMatch={match.is_public}
+                  />
+                )}
+              </View>
             </View>
           </View>
           
-          {/* Enhanced match description */}
+          {/* **Enhanced match description** */}
           {match.description && (
             <View className="mb-3 p-3 bg-muted/20 rounded-lg">
               <Text className="text-sm italic">{match.description}</Text>
             </View>
           )}
           
-          {/* Enhanced result display for completed matches */}
+          {/* **Enhanced result display for completed matches** */}
           {match.isCompleted && (
             <View className={`p-3 rounded-lg flex-row items-center justify-center mt-3 ${
               match.userWon 
@@ -1093,14 +1337,14 @@ export default function EnhancedMatchHistoryWithVisibility() {
                   ({match.setScores})
                 </Text>
               )}
-              {/* ENHANCEMENT: Show visibility context in results */}
+              {/* **ENHANCEMENT: Show visibility context in results** */}
               <View className="ml-2">
                 {renderVisibilityBadge(match.is_public, 'small')}
               </View>
             </View>
           )}
           
-          {/* ENHANCED action indicators for non-completed matches with visibility context */}
+          {/* **ENHANCED action indicators for non-completed matches with visibility context** */}
           {!match.isCompleted && (
             <View className="flex-row justify-between items-center mt-3 pt-3 border-t border-border/30">
               <View className="flex-row items-center">
@@ -1144,7 +1388,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
             </View>
           )}
           
-          {/* Enhanced quick stats for completed matches with visibility info */}
+          {/* **Enhanced quick stats for completed matches with visibility info** */}
           {match.isCompleted && match.matchDuration > 0 && (
             <View className="flex-row justify-around mt-3 pt-3 border-t border-border/30">
               <View className="items-center">
@@ -1180,7 +1424,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
     );
   };
 
-  // Helper function for open slots display
+  // **Helper function for open slots display**
   const getOpenSlotsText = (match: EnhancedMatchData) => {
     const openSlots = 4 - [match.player1_id, match.player2_id, match.player3_id, match.player4_id].filter(Boolean).length;
     
@@ -1189,7 +1433,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
     return `${openSlots} open slots`;
   };
 
-  // TECHNICAL SPECIFICATION 19: ENHANCED empty state with visibility-aware contextual messaging
+  // **TECHNICAL SPECIFICATION 21: Enhanced empty state with visibility-aware contextual messaging**
   const renderEmptyMatches = () => {
     const getEmptyMessage = () => {
       switch (filter) {
@@ -1225,7 +1469,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
             message: "Play some matches this week to see them here",
             icon: "time-outline"
           };
-        // ENHANCEMENT: NEW visibility-specific empty states
+        // **ENHANCEMENT: NEW visibility-specific empty states**
         case 'public':
           return {
             title: "No public matches found",
@@ -1250,7 +1494,13 @@ export default function EnhancedMatchHistoryWithVisibility() {
     const emptyState = getEmptyMessage();
 
     return (
-      <View className="bg-card rounded-xl p-8 items-center border border-border/30 m-6">
+      <View className="bg-card rounded-xl p-8 items-center border border-border/30 m-6" style={{
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+      }}>
         <View className={`w-16 h-16 rounded-full items-center justify-center mb-4 ${
           filter === 'public' ? 'bg-blue-100 dark:bg-blue-900/30' :
           filter === 'private' ? 'bg-gray-100 dark:bg-gray-800/30' :
@@ -1271,7 +1521,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
           {emptyState.message}
         </Text>
         
-        {/* ENHANCEMENT: Visibility-specific action buttons */}
+        {/* **ENHANCEMENT: Visibility-specific action buttons** */}
         {(filter === 'all' || filter === 'upcoming' || filter === 'public' || filter === 'private') && (
           <View className="w-full space-y-3">
             <Button
@@ -1287,7 +1537,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
               </Text>
             </Button>
             
-            {/* Show alternative option for visibility filters */}
+            {/* **Show alternative option for visibility filters** */}
             {filter === 'public' && (
               <Button
                 variant="outline"
@@ -1325,7 +1575,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
     );
   };
 
-  // Loading state with enhanced UI
+  // **Loading state with enhanced UI**
   if (loading && !refreshing) {
     return (
       <SafeAreaView className="flex-1 bg-background">
@@ -1361,13 +1611,13 @@ export default function EnhancedMatchHistoryWithVisibility() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      {/* Enhanced filter buttons with visibility options */}
+      {/* **Enhanced filter buttons with visibility options** */}
       {renderFilterButtons()}
       
-      {/* Search and sort controls with visibility features */}
+      {/* **Search and sort controls with visibility features** */}
       {renderSearchAndSort()}
       
-      {/* Enhanced content area */}
+      {/* **Enhanced content area** */}
       <ScrollView 
         className="flex-1"
         contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12 }}
@@ -1381,12 +1631,18 @@ export default function EnhancedMatchHistoryWithVisibility() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* ENHANCED summary statistics with visibility breakdown */}
+        {/* **ENHANCED summary statistics with visibility breakdown** */}
         {currentMatches.length > 0 && filter === 'all' && (
-          <View className="bg-card rounded-xl p-4 mb-4 border border-border/30">
+          <View className="bg-card rounded-xl p-4 mb-4 border border-border/30" style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
+          }}>
             <Text className="text-lg font-semibold mb-3">Match Summary</Text>
             
-            {/* Primary stats row */}
+            {/* **Primary stats row** */}
             <View className="flex-row justify-around mb-4">
               <View className="items-center">
                 <Text className="text-2xl font-bold text-primary">
@@ -1414,7 +1670,7 @@ export default function EnhancedMatchHistoryWithVisibility() {
               </View>
             </View>
 
-            {/* ENHANCEMENT: Visibility breakdown */}
+            {/* **ENHANCEMENT: Visibility breakdown** */}
             <View className="border-t border-border/30 pt-4">
               <Text className="text-sm font-medium mb-3 text-center">Visibility Breakdown</Text>
               <View className="flex-row justify-around">
@@ -1454,13 +1710,19 @@ export default function EnhancedMatchHistoryWithVisibility() {
           </View>
         )}
 
-        {/* ENHANCED visibility-specific summary for filter-specific views */}
+        {/* **ENHANCED visibility-specific summary for filter-specific views** */}
         {currentMatches.length > 0 && (filter === 'public' || filter === 'private') && (
           <View className={`rounded-xl p-4 mb-4 border ${
             filter === 'public' 
               ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
               : 'bg-gray-50 dark:bg-gray-800/20 border-gray-200 dark:border-gray-700'
-          }`}>
+          }`} style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
+          }}>
             <View className="flex-row items-center mb-3">
               <Ionicons 
                 name={filter === 'public' ? 'globe' : 'lock-closed'} 
@@ -1509,13 +1771,13 @@ export default function EnhancedMatchHistoryWithVisibility() {
           </View>
         )}
 
-        {/* Match list with enhanced visibility features */}
+        {/* **Match list with enhanced visibility features and avatars** */}
         {currentMatches.length > 0 
           ? currentMatches.map(renderMatchCard)
           : renderEmptyMatches()
         }
         
-        {/* Bottom padding */}
+        {/* **Bottom padding** */}
         <View className="h-8" />
       </ScrollView>
     </SafeAreaView>
