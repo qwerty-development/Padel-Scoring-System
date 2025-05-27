@@ -143,7 +143,7 @@ const [showRequestsModal, setShowRequestsModal] = useState(false);
       const { data, error } = await supabase
         .from("profiles")
         .select(
-          "id, email, full_name, age, preferred_hand, court_playing_side, glicko_rating"
+          "id, email, full_name, age, preferred_hand, court_playing_side, glicko_rating, avatar_url"
         )
         .in("id", profile.friends_list);
 

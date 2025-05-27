@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
@@ -11,20 +11,95 @@ interface FriendCardProps {
   friend: Friend;
   expanded: boolean;
   onToggleExpand: (id: string) => void;
+  activity?: {
+    lastMatch: string | null;
+    scheduledMatch: string | null;
+    matchCount: number;
+  };
+  onCreateMatch?: () => void;
+  onViewHistory?: () => void;
 }
 
-export function FriendCard({ friend, expanded, onToggleExpand }: FriendCardProps) {
+export function FriendCard({ 
+  friend, 
+  expanded, 
+  onToggleExpand,
+  activity,
+  onCreateMatch,
+  onViewHistory 
+}: FriendCardProps) {
+  const [imageLoadError, setImageLoadError] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
+
+  // Get the fallback initial
+  const getInitial = () => {
+    if (friend.full_name?.trim()) {
+      return friend.full_name.charAt(0).toUpperCase();
+    }
+    if (friend.email) {
+      return friend.email.charAt(0).toUpperCase();
+    }
+    return '?';
+  };
+
+  // Check if we should show the avatar image
+  const shouldShowImage = friend.avatar_url && !imageLoadError;
+
+  const renderAvatar = () => {
+    if (shouldShowImage) {
+      return (
+        <View className="w-12 h-12 rounded-full mr-4 overflow-hidden bg-primary items-center justify-center">
+          <Image
+            source={{ uri: friend.avatar_url }}
+            className="w-full h-full"
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 24,
+            }}
+            resizeMode="cover"
+            onLoad={() => setImageLoading(false)}
+            onError={() => {
+              setImageLoadError(true);
+              setImageLoading(false);
+            }}
+            onLoadStart={() => setImageLoading(true)}
+          />
+          {/* Loading state overlay */}
+          {imageLoading && (
+            <View 
+              className="absolute inset-0 bg-primary items-center justify-center"
+              style={{
+                backgroundColor: 'rgba(26, 126, 189, 0.8)',
+              }}
+            >
+              <Text className="text-lg font-bold text-primary-foreground">
+                {getInitial()}
+              </Text>
+            </View>
+          )}
+        </View>
+      );
+    }
+
+    // Fallback to text initial
+    return (
+      <View className="w-12 h-12 rounded-full bg-primary items-center justify-center mr-4">
+        <Text className="text-lg font-bold text-primary-foreground">
+          {getInitial()}
+        </Text>
+      </View>
+    );
+  };
+
   return (
     <TouchableOpacity
       className="bg-card rounded-lg mb-3 p-4"
       onPress={() => onToggleExpand(friend.id)}
     >
       <View className="flex-row items-center">
-        <View className="w-12 h-12 rounded-full bg-primary items-center justify-center mr-4">
-          <Text className="text-lg font-bold text-primary-foreground">
-            {friend.full_name?.charAt(0)?.toUpperCase() || friend.email.charAt(0).toUpperCase() || '?'}
-          </Text>
-        </View>
+        {renderAvatar()}
+        
         <View className="flex-1">
           <Text className="font-medium">{friend.full_name || friend.email}</Text>
           <View className="flex-row items-center gap-3">
@@ -41,7 +116,25 @@ export function FriendCard({ friend, expanded, onToggleExpand }: FriendCardProps
               </View>
             )}
           </View>
+          
+          {/* Activity indicators */}
+          {activity && (
+            <View className="flex-row items-center gap-2 mt-1">
+              {activity.scheduledMatch && (
+                <View className="flex-row items-center">
+                  <Ionicons name="calendar-outline" size={12} color="#10b981" />
+                  <Text className="text-xs text-green-600 ml-1">Scheduled match</Text>
+                </View>
+              )}
+              {activity.matchCount > 0 && (
+                <Text className="text-xs text-muted-foreground">
+                  {activity.matchCount} match{activity.matchCount !== 1 ? 'es' : ''} played
+                </Text>
+              )}
+            </View>
+          )}
         </View>
+        
         <TouchableOpacity
           onPress={(e) => {
             e.stopPropagation(); // Prevent triggering the card expansion
@@ -54,6 +147,7 @@ export function FriendCard({ friend, expanded, onToggleExpand }: FriendCardProps
         >
           <Ionicons name="person" size={20} color="#1a7ebd" />
         </TouchableOpacity>
+        
         <Ionicons 
           name={expanded ? "chevron-up" : "chevron-down"} 
           size={20} 
@@ -76,7 +170,9 @@ export function FriendCard({ friend, expanded, onToggleExpand }: FriendCardProps
               </View>
             </View>
           </View>
-          <View className="mt-4 flex-row">
+          
+          {/* Action buttons */}
+          <View className="mt-4 flex-row gap-3">
             <Button
               className="flex-1"
               variant="default"
@@ -87,9 +183,31 @@ export function FriendCard({ friend, expanded, onToggleExpand }: FriendCardProps
                 });
               }}
             >
-              <Text>View Full Profile</Text>
+              <Text>View Profile</Text>
             </Button>
+            
+            {onCreateMatch && (
+              <Button
+                className="flex-1"
+                variant="outline"
+                onPress={onCreateMatch}
+              >
+                <Ionicons name="add-circle-outline" size={16} style={{ marginRight: 4 }} />
+                <Text>New Match</Text>
+              </Button>
+            )}
           </View>
+          
+          {onViewHistory && activity && activity.matchCount > 0 && (
+            <Button
+              className="mt-2"
+              variant="ghost"
+              onPress={onViewHistory}
+            >
+              <Ionicons name="time-outline" size={16} style={{ marginRight: 4 }} />
+              <Text>View Match History</Text>
+            </Button>
+          )}
         </View>
       )}
     </TouchableOpacity>
