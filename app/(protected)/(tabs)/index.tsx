@@ -6,7 +6,8 @@ import {
   RefreshControl, 
   TouchableOpacity, 
   Dimensions,
-  Alert 
+  Alert,
+  Image 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -70,6 +71,7 @@ interface FriendActivity {
   full_name: string | null;
   email: string;
   glicko_rating: string | null;
+  avatar_url: string | null;
   recentMatch?: any;
   ratingChange?: number;
 }
@@ -85,6 +87,292 @@ interface UserStats {
   recentPerformance: 'improving' | 'declining' | 'stable';
   ratingChange7Days: number;
   ratingChange30Days: number;
+}
+
+/**
+ * Advanced Universal Avatar Component for Dashboard Integration
+ * Implements sophisticated image loading with comprehensive fallback mechanisms
+ * Optimized for multiple avatar sizes and context-aware styling
+ */
+interface DashboardAvatarProps {
+  user: {
+    id?: string;
+    full_name: string | null;
+    email: string;
+    avatar_url: string | null;
+  } | null;
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+  showBorder?: boolean;
+  borderColor?: string;
+  showShadow?: boolean;
+}
+
+function DashboardAvatar({ 
+  user, 
+  size = 'md', 
+  showBorder = false, 
+  borderColor = '#1a7ebd',
+  showShadow = false 
+}: DashboardAvatarProps) {
+  // State management for complex image loading lifecycle
+  const [imageLoadError, setImageLoadError] = useState<boolean>(false);
+  const [imageLoading, setImageLoading] = useState<boolean>(true);
+
+  // Comprehensive size configuration matrix for dashboard contexts
+  const avatarSizeConfiguration = {
+    xs: {
+      containerClass: 'w-6 h-6',
+      imageStyle: { width: 24, height: 24, borderRadius: 12 },
+      textClass: 'text-xs',
+      borderWidth: 1
+    },
+    sm: {
+      containerClass: 'w-8 h-8',
+      imageStyle: { width: 32, height: 32, borderRadius: 16 },
+      textClass: 'text-sm',
+      borderWidth: 2
+    },
+    md: {
+      containerClass: 'w-12 h-12',
+      imageStyle: { width: 48, height: 48, borderRadius: 24 },
+      textClass: 'text-lg',
+      borderWidth: 2
+    },
+    lg: {
+      containerClass: 'w-16 h-16',
+      imageStyle: { width: 64, height: 64, borderRadius: 32 },
+      textClass: 'text-xl',
+      borderWidth: 3
+    },
+    xl: {
+      containerClass: 'w-20 h-20',
+      imageStyle: { width: 80, height: 80, borderRadius: 40 },
+      textClass: 'text-2xl',
+      borderWidth: 4
+    }
+  };
+
+  const sizeConfig = avatarSizeConfiguration[size];
+
+  /**
+   * Advanced Fallback Character Extraction Algorithm
+   * Implements comprehensive null-safety validation and character extraction
+   * Priority: full_name -> email -> default fallback
+   */
+  const extractUserInitial = (): string => {
+    if (!user) return '?';
+    
+    // Primary extraction path: full_name with comprehensive validation
+    if (user.full_name?.trim()) {
+      const sanitizedFullName = user.full_name.trim();
+      if (sanitizedFullName.length > 0) {
+        return sanitizedFullName.charAt(0).toUpperCase();
+      }
+    }
+    
+    // Secondary extraction path: email with validation
+    if (user.email?.trim()) {
+      const sanitizedEmail = user.email.trim();
+      if (sanitizedEmail.length > 0) {
+        return sanitizedEmail.charAt(0).toUpperCase();
+      }
+    }
+    
+    // Tertiary fallback: default character
+    return '?';
+  };
+
+  /**
+   * Avatar Image Availability Validation Logic
+   * Implements comprehensive URL validation and error state verification
+   */
+  const shouldDisplayAvatarImage = (): boolean => {
+    if (!user?.avatar_url) return false;
+    
+    const trimmedUrl = user.avatar_url.trim();
+    return Boolean(
+      trimmedUrl &&                    // URL exists and not empty
+      trimmedUrl.length > 0 &&         // URL has content
+      !imageLoadError                  // No previous loading failures
+    );
+  };
+
+  /**
+   * Dynamic Container Styling with Context-Aware Enhancements
+   */
+  const getContainerStyle = () => {
+    let baseStyle = {
+      shadowColor: showShadow ? "#000" : "transparent",
+      shadowOffset: showShadow ? { width: 0, height: 2 } : { width: 0, height: 0 },
+      shadowOpacity: showShadow ? 0.1 : 0,
+      shadowRadius: showShadow ? 4 : 0,
+      elevation: showShadow ? 3 : 0,
+    };
+
+    if (showBorder) {
+      baseStyle = {
+        ...baseStyle,
+        borderWidth: sizeConfig.borderWidth,
+        borderColor: borderColor,
+      };
+    }
+
+    return baseStyle;
+  };
+
+  /**
+   * Image Loading Success Event Handler
+   * Manages state transition from loading to successfully loaded
+   */
+  const handleImageLoadSuccess = (): void => {
+    setImageLoading(false);
+  };
+
+  /**
+   * Image Loading Failure Event Handler
+   * Implements comprehensive error logging with contextual information
+   */
+  const handleImageLoadFailure = (): void => {
+    console.warn(`Dashboard avatar load failure:`, {
+      userId: user?.id,
+      userName: user?.full_name || user?.email,
+      avatarUrl: user?.avatar_url,
+      timestamp: new Date().toISOString(),
+      component: 'DashboardAvatar',
+      context: 'EnhancedHomeDashboard'
+    });
+    
+    setImageLoadError(true);
+    setImageLoading(false);
+  };
+
+  /**
+   * Image Loading Initiation Event Handler
+   * Manages state transition from initial to loading state
+   */
+  const handleImageLoadStart = (): void => {
+    setImageLoading(true);
+  };
+
+  // Avatar Image Rendering Branch with Enhanced Visual Effects
+  if (shouldDisplayAvatarImage()) {
+    return (
+      <View 
+        className={`${sizeConfig.containerClass} rounded-full bg-primary items-center justify-center overflow-hidden`}
+        style={getContainerStyle()}
+      >
+        <Image
+          source={{ uri: user!.avatar_url! }}
+          style={sizeConfig.imageStyle}
+          resizeMode="cover"
+          onLoad={handleImageLoadSuccess}
+          onError={handleImageLoadFailure}
+          onLoadStart={handleImageLoadStart}
+        />
+        
+        {/* Advanced Loading State Overlay with Synchronized Styling */}
+        {imageLoading && (
+          <View 
+            className="absolute inset-0 bg-primary items-center justify-center"
+            style={{
+              backgroundColor: 'rgba(26, 126, 189, 0.85)',
+            }}
+          >
+            <Text className={`${sizeConfig.textClass} font-bold text-primary-foreground`}>
+              {extractUserInitial()}
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  // Enhanced Text Initial Fallback with Premium Visual Effects
+  return (
+    <View 
+      className={`${sizeConfig.containerClass} rounded-full bg-primary items-center justify-center`}
+      style={getContainerStyle()}
+    >
+      <Text className={`${sizeConfig.textClass} font-bold text-primary-foreground`}>
+        {extractUserInitial()}
+      </Text>
+    </View>
+  );
+}
+
+/**
+ * Enhanced User Header Avatar Component
+ * Specialized for main dashboard header display with premium styling
+ */
+interface UserHeaderAvatarProps {
+  profile: any;
+}
+
+function UserHeaderAvatar({ profile }: UserHeaderAvatarProps) {
+  return (
+    <DashboardAvatar
+      user={profile}
+      size="xl"
+      showBorder={true}
+      borderColor="#ffffff"
+      showShadow={true}
+    />
+  );
+}
+
+/**
+ * Multi-Player Avatar Stack Component for Match Cards
+ * Displays overlapping avatars for team representation
+ */
+interface PlayerAvatarStackProps {
+  players: Array<{
+    id?: string;
+    full_name: string | null;
+    email: string;
+    avatar_url: string | null;
+  } | null>;
+  maxDisplay?: number;
+  size?: 'xs' | 'sm' | 'md';
+}
+
+function PlayerAvatarStack({ players, maxDisplay = 3, size = 'sm' }: PlayerAvatarStackProps) {
+  const validPlayers = players.filter(Boolean);
+  const displayPlayers = validPlayers.slice(0, maxDisplay);
+  const overflowCount = validPlayers.length - maxDisplay;
+
+  const getOffsetStyle = (index: number) => ({
+    marginLeft: index > 0 ? -8 : 0,
+    zIndex: displayPlayers.length - index,
+  });
+
+  return (
+    <View className="flex-row items-center">
+      {displayPlayers.map((player, index) => (
+        <View key={`${player?.id || index}`} style={getOffsetStyle(index)}>
+          <DashboardAvatar
+            user={player}
+            size={size}
+            showBorder={true}
+            borderColor="#ffffff"
+            showShadow={false}
+          />
+        </View>
+      ))}
+      {overflowCount > 0 && (
+        <View 
+          className={`${size === 'xs' ? 'w-6 h-6' : size === 'sm' ? 'w-8 h-8' : 'w-12 h-12'} rounded-full bg-gray-300 items-center justify-center ml-1`}
+          style={{
+            borderWidth: 2,
+            borderColor: '#ffffff',
+          }}
+        >
+          <Text className={`${size === 'xs' ? 'text-xs' : size === 'sm' ? 'text-xs' : 'text-sm'} font-bold text-gray-600`}>
+            +{overflowCount}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
 }
 
 export default function EnhancedHome() {
@@ -558,14 +846,11 @@ export default function EnhancedHome() {
   const renderUserHeader = () => (
     <View className="mb-6 p-4 pt-0 bg-gradient-to-r from-primary/10 to-primary/5 rounded-xl">
       <View className="flex-row items-center mb-4">
-       
         <View className="flex-1">
           <Text className="text-4xl font-bold">
             👋 {profile?.full_name?.split(' ')[0] || 'Player'}
           </Text>
-          
         </View>
-     
       </View>
       
       {/* Quick Stats Row */}
@@ -626,7 +911,7 @@ export default function EnhancedHome() {
     );
   };
 
-  // Component: Enhanced Match Card with Rich Information INCLUDING VISIBILITY INDICATOR
+  // Component: Enhanced Match Card with Rich Information INCLUDING VISIBILITY INDICATOR AND AVATARS
   const renderMatchCard = (match: EnhancedMatchData, type: 'upcoming' | 'attention' | 'recent') => {
     const startTime = new Date(match.start_time);
     const formattedDate = startTime.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -663,7 +948,15 @@ export default function EnhancedHome() {
       <TouchableOpacity 
         key={match.id}
         className={`mb-3 p-4 rounded-xl ${getBgColor()} border border-border/30`}
+        style={{
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.05,
+          shadowRadius: 2,
+          elevation: 2,
+        }}
         onPress={() => handleMatchAction(match)}
+        activeOpacity={0.7}
       >
         {/* ENHANCED Header with Status, Time, AND VISIBILITY INDICATOR */}
         <View className="flex-row justify-between items-center mb-3">
@@ -687,7 +980,7 @@ export default function EnhancedHome() {
         
         {/* Location Info with Enhanced Layout */}
         {(match.region || match.court) && (
-          <View className="flex-row items-center mb-2">
+          <View className="flex-row items-center mb-3">
             <Ionicons name="location-outline" size={14} color="#888" style={{ marginRight: 4 }} />
             <Text className="text-sm text-muted-foreground">
               {match.region}{match.court ? `, Court ${match.court}` : ''}
@@ -695,35 +988,69 @@ export default function EnhancedHome() {
           </View>
         )}
         
-        {/* ENHANCED Team Composition with Public Match Context */}
+        {/* ENHANCED Team Composition with Avatar Integration */}
         <View className="mb-3">
-          <Text className="font-medium mb-1">
-            You {teammate ? `& ${teammate.full_name || teammate.email.split('@')[0]}` : ''}
-          </Text>
-          <View className="flex-row items-center justify-between">
-            <Text className="text-sm text-muted-foreground">
-              vs. {opponents.filter(Boolean).map(p => 
-                p?.full_name || p?.email?.split('@')[0] || 'TBD'
-              ).join(' & ')}
-            </Text>
-            {/* ADDITIONAL Public Match Indicator for Future Matches */}
-            {match.is_public && type === 'upcoming' && (
-              <View className="flex-row items-center">
-                <Ionicons name="people-outline" size={12} color="#2563eb" style={{ marginRight: 2 }} />
-                <Text className="text-xs text-blue-600 dark:text-blue-400">
-                  Others can join
+          <View className="flex-row items-center justify-between mb-2">
+            {/* Your Team Section with Avatar */}
+            <View className="flex-row items-center flex-1">
+              <View className="mr-2">
+                <PlayerAvatarStack 
+                  players={[
+                    profile, // Current user
+                    teammate  // Teammate
+                  ]} 
+                  maxDisplay={2}
+                  size="sm"
+                />
+              </View>
+              <View>
+                <Text className="font-medium text-sm">Your Team</Text>
+                <Text className="text-xs text-muted-foreground">
+                  You {teammate ? `& ${teammate.full_name || teammate.email.split('@')[0]}` : ''}
                 </Text>
               </View>
-            )}
+            </View>
+            
+            {/* VS Indicator */}
+            <View className="mx-3">
+              <Text className="text-muted-foreground font-medium">vs</Text>
+            </View>
+            
+            {/* Opponent Team Section with Avatar */}
+            <View className="flex-row items-center flex-1 justify-end">
+              <View className="mr-2">
+                <Text className="text-right font-medium text-sm">Opponents</Text>
+                <Text className="text-xs text-muted-foreground text-right">
+                  {opponents.filter(Boolean).map(p => 
+                    p?.full_name || p?.email?.split('@')[0] || 'TBD'
+                  ).join(' & ')}
+                </Text>
+              </View>
+              <PlayerAvatarStack 
+                players={opponents} 
+                maxDisplay={2}
+                size="sm"
+              />
+            </View>
           </View>
+          
+          {/* ADDITIONAL Public Match Indicator for Future Matches */}
+          {match.is_public && type === 'upcoming' && (
+            <View className="flex-row items-center justify-center mt-2 p-2 bg-blue-100/50 dark:bg-blue-900/20 rounded-lg">
+              <Ionicons name="people-outline" size={14} color="#2563eb" style={{ marginRight: 4 }} />
+              <Text className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                Public match - Others can join
+              </Text>
+            </View>
+          )}
         </View>
         
         {/* Score Display with Enhanced Visibility Context */}
         {match.setScores ? (
-          <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center justify-between mt-2">
             <View className="flex-row items-center">
               <Text className="text-sm font-medium mr-2">Score:</Text>
-              <Text className="text-sm">{match.setScores}</Text>
+              <Text className="text-sm font-mono">{match.setScores}</Text>
             </View>
             {type === 'recent' && (
               <View className={`px-2 py-1 rounded-full ${
@@ -741,9 +1068,10 @@ export default function EnhancedHome() {
           <Button 
             size="sm" 
             variant="default" 
-            className="mt-2"
+            className="mt-2 w-full"
             onPress={() => handleMatchAction(match)}
           >
+            <Ionicons name="create-outline" size={14} style={{ marginRight: 6 }} />
             <Text className="text-xs text-primary-foreground">
               {match.needsScores ? 'Enter Scores' : 'View Details'}
             </Text>
@@ -753,7 +1081,7 @@ export default function EnhancedHome() {
     );
   };
 
-  // Component: Friends Activity Section
+  // Component: Enhanced Friends Activity Section with Avatar Integration
   const renderFriendsActivity = () => {
     if (!friendsActivity.length) return null;
 
@@ -775,16 +1103,28 @@ export default function EnhancedHome() {
             <TouchableOpacity
               key={friend.id}
               className="bg-card rounded-xl p-4 mr-3 w-32 border border-border/30"
+              style={{
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.05,
+                shadowRadius: 2,
+                elevation: 2,
+              }}
               onPress={() => router.push({
                 pathname: '/(protected)/(screens)/friend-profile',
                 params: { friendId: friend.id }
               })}
+              activeOpacity={0.7}
             >
-              <View className="w-12 h-12 rounded-full bg-primary items-center justify-center mb-2 self-center">
-                <Text className="text-lg font-bold text-primary-foreground">
-                  {friend.full_name?.charAt(0)?.toUpperCase() || friend.email.charAt(0).toUpperCase()}
-                </Text>
+              {/* Enhanced Friend Avatar */}
+              <View className="items-center mb-2">
+                <DashboardAvatar
+                  user={friend}
+                  size="lg"
+                  showShadow={true}
+                />
               </View>
+              
               <Text className="text-sm font-medium text-center" numberOfLines={1}>
                 {friend.full_name || friend.email.split('@')[0]}
               </Text>
@@ -825,7 +1165,7 @@ export default function EnhancedHome() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Enhanced User Header */}
+        {/* Enhanced User Header with Avatar Integration */}
         {renderUserHeader()}
         
         {/* Priority: Matches Needing Attention */}
@@ -846,7 +1186,7 @@ export default function EnhancedHome() {
           </View>
         )}
         
-        {/* Upcoming Matches */}
+        {/* Upcoming Matches with Enhanced Avatar Display */}
         {categorizedMatches.upcoming.length > 0 && (
           <View className="mb-6">
             <View className="flex-row justify-between items-center mb-3">
@@ -868,7 +1208,7 @@ export default function EnhancedHome() {
           </View>
         )}
         
-        {/* Recent Matches */}
+        {/* Recent Matches with Enhanced Avatar Display */}
         {categorizedMatches.recent.length > 0 && (
           <View className="mb-6">
             <View className="flex-row justify-between items-center mb-3">
@@ -888,15 +1228,25 @@ export default function EnhancedHome() {
           </View>
         )}
         
-        {/* Enhanced Empty State with Onboarding */}
+        {/* Enhanced Empty State with Avatar-Aware Onboarding */}
         {allMatches.length === 0 && (
-          <View className="bg-card rounded-xl p-8 items-center border border-border/30">
+          <View 
+            className="bg-card rounded-xl p-8 items-center border border-border/30"
+            style={{
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+              elevation: 3,
+            }}
+          >
             <View className="w-20 h-20 rounded-full bg-primary/10 items-center justify-center mb-4">
               <Ionicons name="tennisball-outline" size={40} color="#1a7ebd" />
             </View>
             <Text className="text-xl font-bold mb-2">Welcome to Padel Scoring!</Text>
-            <Text className="text-muted-foreground text-center mb-6">
-              Start your padel journey by creating your first match or connecting with friends
+            <Text className="text-muted-foreground text-center mb-6 leading-5">
+              Start your padel journey by creating your first match or connecting with friends.
+              Your avatar and match history will appear here as you play.
             </Text>
             
             <View className="w-full gap-3">
@@ -904,6 +1254,13 @@ export default function EnhancedHome() {
                 variant="default"
                 onPress={handleCreateMatch}
                 className="w-full"
+                style={{
+                  shadowColor: "#1a7ebd",
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.2,
+                  shadowRadius: 4,
+                  elevation: 4,
+                }}
               >
                 <Ionicons name="add" size={18} style={{ marginRight: 8 }} />
                 <Text>Create Your First Match</Text>
@@ -921,21 +1278,22 @@ export default function EnhancedHome() {
           </View>
         )}
         
-        {/* Friends Activity */}
+        {/* Enhanced Friends Activity with Avatar Integration */}
         {renderFriendsActivity()}
       </ScrollView>
       
-      {/* Floating Action Button for Quick Match Creation */}
+      {/* Enhanced Floating Action Button for Quick Match Creation */}
       <TouchableOpacity
         onPress={handleCreateMatch}
         className="absolute bottom-6 right-6 w-14 h-14 rounded-full bg-primary items-center justify-center shadow-lg"
         style={{
-          shadowColor: "#000",
+          shadowColor: "#1a7ebd",
           shadowOffset: { width: 0, height: 4 },
           shadowOpacity: 0.3,
           shadowRadius: 8,
           elevation: 8,
         }}
+        activeOpacity={0.8}
       >
         <Ionicons name="add" size={28} color="white" />
       </TouchableOpacity>

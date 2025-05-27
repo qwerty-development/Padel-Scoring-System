@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity } from "react-native";
+import { View, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity, Image } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, router } from 'expo-router';
 
@@ -66,6 +66,194 @@ interface MatchHistory {
     losses: number;
     winRate: number;
   };
+}
+
+/**
+ * Advanced Avatar Component for Friend Profile Display
+ * Implements comprehensive image loading with sophisticated fallback mechanisms
+ * Optimized for large profile avatar display requirements (96x96px)
+ */
+interface ProfileAvatarProps {
+  profile: FriendProfile | null;
+  size?: 'md' | 'lg' | 'xl';
+}
+
+function ProfileAvatar({ profile, size = 'xl' }: ProfileAvatarProps) {
+  // State management for complex image loading lifecycle
+  const [imageLoadError, setImageLoadError] = useState<boolean>(false);
+  const [imageLoading, setImageLoading] = useState<boolean>(true);
+
+  // Configuration matrix for profile avatar sizing
+  const avatarSizeConfiguration = {
+    md: {
+      containerClass: 'w-16 h-16',
+      imageStyle: { width: 64, height: 64, borderRadius: 32 },
+      textClass: 'text-2xl',
+      borderWidth: 3
+    },
+    lg: {
+      containerClass: 'w-20 h-20',
+      imageStyle: { width: 80, height: 80, borderRadius: 40 },
+      textClass: 'text-3xl',
+      borderWidth: 4
+    },
+    xl: {
+      containerClass: 'w-24 h-24',
+      imageStyle: { width: 96, height: 96, borderRadius: 48 },
+      textClass: 'text-4xl',
+      borderWidth: 4
+    }
+  };
+
+  const sizeConfig = avatarSizeConfiguration[size];
+
+  /**
+   * Advanced Fallback Character Extraction Algorithm
+   * Implements comprehensive null-safety validation and character extraction
+   * Priority: full_name -> email -> default fallback
+   */
+  const extractProfileInitial = (): string => {
+    if (!profile) return '?';
+    
+    // Primary extraction path: full_name with comprehensive validation
+    if (profile.full_name?.trim()) {
+      const sanitizedFullName = profile.full_name.trim();
+      if (sanitizedFullName.length > 0) {
+        return sanitizedFullName.charAt(0).toUpperCase();
+      }
+    }
+    
+    // Secondary extraction path: email with validation
+    if (profile.email?.trim()) {
+      const sanitizedEmail = profile.email.trim();
+      if (sanitizedEmail.length > 0) {
+        return sanitizedEmail.charAt(0).toUpperCase();
+      }
+    }
+    
+    // Tertiary fallback: default character
+    return '?';
+  };
+
+  /**
+   * Avatar Image Availability Validation Logic
+   * Implements comprehensive URL validation and error state verification
+   */
+  const shouldDisplayProfileImage = (): boolean => {
+    if (!profile?.avatar_url) return false;
+    
+    const trimmedUrl = profile.avatar_url.trim();
+    return Boolean(
+      trimmedUrl &&                    // URL exists and not empty
+      trimmedUrl.length > 0 &&         // URL has content
+      !imageLoadError                  // No previous loading failures
+    );
+  };
+
+  /**
+   * Image Loading Success Event Handler
+   * Manages state transition from loading to successfully loaded
+   */
+  const handleImageLoadSuccess = (): void => {
+    setImageLoading(false);
+  };
+
+  /**
+   * Image Loading Failure Event Handler
+   * Implements comprehensive error logging with contextual information
+   */
+  const handleImageLoadFailure = (): void => {
+    console.warn(`Friend profile avatar load failure:`, {
+      profileId: profile?.id,
+      profileName: profile?.full_name || profile?.email,
+      avatarUrl: profile?.avatar_url,
+      timestamp: new Date().toISOString(),
+      component: 'ProfileAvatar',
+      context: 'FriendProfileScreen'
+    });
+    
+    setImageLoadError(true);
+    setImageLoading(false);
+  };
+
+  /**
+   * Image Loading Initiation Event Handler
+   * Manages state transition from initial to loading state
+   */
+  const handleImageLoadStart = (): void => {
+    setImageLoading(true);
+  };
+
+  // Avatar Image Rendering Branch with Enhanced Visual Effects
+  if (shouldDisplayProfileImage()) {
+    return (
+      <View 
+        className={`${sizeConfig.containerClass} rounded-full bg-primary items-center justify-center mb-4 overflow-hidden`}
+        style={{
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.15,
+          shadowRadius: 8,
+          elevation: 8,
+        }}
+      >
+        <Image
+          source={{ uri: profile!.avatar_url! }}
+          style={sizeConfig.imageStyle}
+          resizeMode="cover"
+          onLoad={handleImageLoadSuccess}
+          onError={handleImageLoadFailure}
+          onLoadStart={handleImageLoadStart}
+        />
+        
+        {/* Advanced Loading State Overlay with Synchronized Styling */}
+        {imageLoading && (
+          <View 
+            className="absolute inset-0 bg-primary items-center justify-center"
+            style={{
+              backgroundColor: 'rgba(26, 126, 189, 0.85)',
+            }}
+          >
+            <Text className={`${sizeConfig.textClass} font-bold text-primary-foreground`}>
+              {extractProfileInitial()}
+            </Text>
+            
+            {/* Subtle loading indicator overlay */}
+            <View 
+              className="absolute bottom-2 right-2 bg-white/20 rounded-full p-1"
+              style={{
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.2,
+                shadowRadius: 2,
+                elevation: 2,
+              }}
+            >
+              <ActivityIndicator size="small" color="#ffffff" />
+            </View>
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  // Enhanced Text Initial Fallback with Premium Visual Effects
+  return (
+    <View 
+      className={`${sizeConfig.containerClass} rounded-full bg-primary items-center justify-center mb-4`}
+      style={{
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+        elevation: 8,
+      }}
+    >
+      <Text className={`${sizeConfig.textClass} font-bold text-primary-foreground`}>
+        {extractProfileInitial()}
+      </Text>
+    </View>
+  );
 }
 
 export default function FriendProfileScreen() {
@@ -216,28 +404,45 @@ export default function FriendProfileScreen() {
     }
   };
 
-  const renderAvatar = () => (
-    <View className="w-24 h-24 rounded-full bg-primary items-center justify-center mb-4">
-      <Text className="text-4xl font-bold text-primary-foreground">
-        {profile?.full_name?.charAt(0)?.toUpperCase() || '?'}
-      </Text>
-    </View>
-  );
-
+  /**
+   * Enhanced Information Card Renderer with Improved Visual Design
+   * Implements consistent styling and improved accessibility
+   */
   const renderInfoCard = (title: string, value: string | null, icon: keyof typeof Ionicons.glyphMap) => (
-    <View className="bg-card rounded-lg p-4 mb-3 flex-row items-center">
+    <View 
+      className="bg-card rounded-lg p-4 mb-3 flex-row items-center border border-border/30"
+      style={{
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 1,
+      }}
+    >
       <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center mr-4">
         <Ionicons name={icon} size={20} color="#1a7ebd" />
       </View>
       <View className="flex-1">
-        <Text className="text-sm text-muted-foreground">{title}</Text>
-        <Text className="font-medium">{value || 'Not set'}</Text>
+        <Text className="text-sm text-muted-foreground font-medium">{title}</Text>
+        <Text className="font-medium text-foreground">{value || 'Not set'}</Text>
       </View>
     </View>
   );
 
+  /**
+   * Enhanced Statistics Card Renderer with Improved Visual Hierarchy
+   */
   const renderStatsCard = () => (
-    <View className="bg-card rounded-lg p-6 mb-6">
+    <View 
+      className="bg-card rounded-lg p-6 mb-6 border border-border/30"
+      style={{
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+      }}
+    >
       <H3 className="mb-4">Player Statistics</H3>
       <View className="flex-row justify-around">
         <View className="items-center">
@@ -262,28 +467,64 @@ export default function FriendProfileScreen() {
     </View>
   );
 
+  /**
+   * Enhanced Match History Card with Comprehensive Statistics Display
+   */
   const renderMatchHistoryCard = () => {
     if (matchesLoading) {
       return (
-        <View className="bg-card rounded-lg p-6 mb-6 items-center">
+        <View 
+          className="bg-card rounded-lg p-6 mb-6 items-center border border-border/30"
+          style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.05,
+            shadowRadius: 2,
+            elevation: 1,
+          }}
+        >
           <ActivityIndicator size="small" color="#1a7ebd" />
+          <Text className="mt-2 text-muted-foreground">Loading match history...</Text>
         </View>
       );
     }
 
     if (matchHistory.allMatches.length === 0) {
       return (
-        <View className="bg-card rounded-lg p-6 mb-6 items-center">
-          <Ionicons name="tennisball-outline" size={36} color="#888" />
-          <Text className="mt-2 text-muted-foreground text-center">
+        <View 
+          className="bg-card rounded-lg p-6 mb-6 items-center border border-border/30"
+          style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.05,
+            shadowRadius: 2,
+            elevation: 1,
+          }}
+        >
+          <View className="bg-muted/30 p-4 rounded-full mb-4">
+            <Ionicons name="tennisball-outline" size={36} color="#888" />
+          </View>
+          <Text className="mt-2 text-muted-foreground text-center font-medium">
             No matches played together yet
+          </Text>
+          <Text className="text-sm text-muted-foreground text-center mt-1">
+            Challenge them to your first match!
           </Text>
         </View>
       );
     }
 
     return (
-      <View className="bg-card rounded-lg p-6 mb-6">
+      <View 
+        className="bg-card rounded-lg p-6 mb-6 border border-border/30"
+        style={{
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          elevation: 3,
+        }}
+      >
         <H3 className="mb-4">Match History</H3>
         
         {/* Head-to-head Stats */}
@@ -337,6 +578,7 @@ export default function FriendProfileScreen() {
               });
             }}
           >
+            <Ionicons name="time-outline" size={16} style={{ marginRight: 6 }} />
             <Text>View All Matches</Text>
           </Button>
         )}
@@ -344,6 +586,9 @@ export default function FriendProfileScreen() {
     );
   };
 
+  /**
+   * Enhanced Match Item Renderer with Improved Visual Indicators
+   */
   const renderMatchItem = (match: MatchData) => {
     const currentUserId = session?.user?.id;
     const isUserInTeam1 = match.player1_id === currentUserId || match.player2_id === currentUserId;
@@ -375,13 +620,21 @@ export default function FriendProfileScreen() {
     return (
       <TouchableOpacity 
         key={match.id}
-        className="bg-card border border-border/40 rounded-lg p-3 mb-2"
+        className="bg-background border border-border/40 rounded-lg p-3 mb-2"
+        style={{
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.05,
+          shadowRadius: 2,
+          elevation: 1,
+        }}
         onPress={() => {
           router.push({
             pathname: '/(protected)/(screens)/match-details',
             params: { matchId: match.id }
           });
         }}
+        activeOpacity={0.7}
       >
         <View className="flex-row justify-between items-center">
           <View className="flex-row items-center">
@@ -392,7 +645,7 @@ export default function FriendProfileScreen() {
                 color={areTeammates ? "#1d4ed8" : "#d97706"} 
               />
             </View>
-            <Text>
+            <Text className="font-medium">
               {areTeammates ? 'Teammates' : 'Opponents'}
             </Text>
           </View>
@@ -409,6 +662,9 @@ export default function FriendProfileScreen() {
     );
   };
 
+  /**
+   * Enhanced Rating Comparison Card with Visual Rating Bar
+   */
   const renderComparisonCard = () => {
     if (!currentUserProfile || !profile || !currentUserProfile.glicko_rating || !profile.glicko_rating) {
       return null;
@@ -419,7 +675,16 @@ export default function FriendProfileScreen() {
     const ratingDiff = userRating - friendRating;
     
     return (
-      <View className="bg-card rounded-lg p-4 mb-6">
+      <View 
+        className="bg-card rounded-lg p-4 mb-6 border border-border/30"
+        style={{
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          elevation: 3,
+        }}
+      >
         <H3 className="mb-4">Rating Comparison</H3>
         
         <View className="flex-row justify-between items-center mb-2">
@@ -459,6 +724,7 @@ export default function FriendProfileScreen() {
     return (
       <View className="flex-1 bg-background items-center justify-center">
         <ActivityIndicator size="large" color="#1a7ebd" />
+        <Text className="mt-4 text-muted-foreground">Loading profile...</Text>
       </View>
     );
   }
@@ -476,7 +742,14 @@ export default function FriendProfileScreen() {
           </Button>
           <H1>Profile Not Found</H1>
         </View>
-        <Text>Could not find the profile you're looking for.</Text>
+        <View className="items-center mt-12">
+          <View className="bg-muted/30 p-6 rounded-full mb-4">
+            <Ionicons name="person-outline" size={48} color="#888" />
+          </View>
+          <Text className="text-muted-foreground text-center">
+            Could not find the profile you're looking for.
+          </Text>
+        </View>
       </SafeAreaView>
     );
   }
@@ -492,8 +765,9 @@ export default function FriendProfileScreen() {
             tintColor="#1a7ebd"
           />
         }
+        showsVerticalScrollIndicator={false}
       >
-        {/* Header with back button */}
+        {/* Enhanced Header with Back Button */}
         <View className="px-6 pt-4 flex-row items-center">
           <Button 
             variant="ghost" 
@@ -505,16 +779,17 @@ export default function FriendProfileScreen() {
           <Text className="text-lg font-medium">Friend Profile</Text>
         </View>
 
-        {/* Profile Header */}
+        {/* Enhanced Profile Header with Avatar Integration */}
         <View className="pt-4 pb-6 px-6 items-center">
-          {renderAvatar()}
+          <ProfileAvatar profile={profile} size="xl" />
           <H1 className="mb-1 text-center">{profile.full_name || 'Anonymous Player'}</H1>
           {profile.nickname && (
             <H2 className="text-muted-foreground text-center">"{profile.nickname}"</H2>
           )}
+          <Text className="text-sm text-muted-foreground mt-2">{profile.email}</Text>
         </View>
 
-        {/* Content */}
+        {/* Enhanced Content Section */}
         <View className="px-6 pb-8">
           {/* Rating comparison */}
           {renderComparisonCard()}
@@ -537,7 +812,7 @@ export default function FriendProfileScreen() {
           {renderInfoCard("Court Position", profile.court_playing_side, "tennisball-outline")}
           {renderInfoCard("Preferred Area", profile.preferred_area, "location-outline")}
 
-          {/* Actions */}
+          {/* Enhanced Actions Section */}
           <View className="mt-8 mb-4">
             <Button
               className="w-full mb-4"
@@ -548,6 +823,13 @@ export default function FriendProfileScreen() {
                   pathname: '/(protected)/(screens)/create-match',
                   params: { friendId: profile.id }
                 });
+              }}
+              style={{
+                shadowColor: "#1a7ebd",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.2,
+                shadowRadius: 4,
+                elevation: 4,
               }}
             >
               <Ionicons name="tennisball-outline" size={20} style={{ marginRight: 8 }} />
