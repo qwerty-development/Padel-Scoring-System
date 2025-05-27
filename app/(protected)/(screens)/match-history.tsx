@@ -65,15 +65,25 @@ interface EnhancedMatchData {
   daysAgo?: number;
 }
 
-// TECHNICAL SPECIFICATION 3: Enhanced filter type definition
-type FilterType = 'all' | 'upcoming' | 'completed' | 'attention' | 'recent';
+// TECHNICAL SPECIFICATION 3: ENHANCED filter type definition with visibility options
+type FilterType = 'all' | 'upcoming' | 'completed' | 'attention' | 'recent' | 'public' | 'private';
 
-export default function EnhancedMatchHistory() {
+// TECHNICAL SPECIFICATION 4: Visibility statistics interface
+interface VisibilityStats {
+  totalPublic: number;
+  totalPrivate: number;
+  publicCompleted: number;
+  privateCompleted: number;
+  publicUpcoming: number;
+  privateUpcoming: number;
+}
+
+export default function EnhancedMatchHistoryWithVisibility() {
   const { friendId } = useLocalSearchParams();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
-  // TECHNICAL SPECIFICATION 4: State management with enhanced data structures
+  // TECHNICAL SPECIFICATION 5: ENHANCED state management with visibility-aware data structures
   const [allMatches, setAllMatches] = useState<EnhancedMatchData[]>([]);
   const [filteredMatches, setFilteredMatches] = useState<{
     all: EnhancedMatchData[];
@@ -81,21 +91,33 @@ export default function EnhancedMatchHistory() {
     completed: EnhancedMatchData[];
     attention: EnhancedMatchData[];
     recent: EnhancedMatchData[];
+    public: EnhancedMatchData[];
+    private: EnhancedMatchData[];
   }>({
     all: [],
     upcoming: [],
     completed: [],
     attention: [],
-    recent: []
+    recent: [],
+    public: [],
+    private: []
   });
   
   const [filter, setFilter] = useState<FilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'date' | 'opponent' | 'result'>('date');
+  const [sortBy, setSortBy] = useState<'date' | 'opponent' | 'result' | 'visibility'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [visibilityStats, setVisibilityStats] = useState<VisibilityStats>({
+    totalPublic: 0,
+    totalPrivate: 0,
+    publicCompleted: 0,
+    privateCompleted: 0,
+    publicUpcoming: 0,
+    privateUpcoming: 0
+  });
   const { session } = useAuth();
 
-  // TECHNICAL SPECIFICATION 5: Component lifecycle management
+  // TECHNICAL SPECIFICATION 6: Component lifecycle management
   useEffect(() => {
     if (session?.user?.id) {
       fetchMatches();
@@ -106,9 +128,40 @@ export default function EnhancedMatchHistory() {
     applyFilters();
   }, [filter, allMatches, searchQuery, sortBy, sortOrder]);
 
-  // TECHNICAL SPECIFICATION 6: Enhanced filter application with time-based logic
+  // TECHNICAL SPECIFICATION 7: Calculate visibility statistics
+  useEffect(() => {
+    calculateVisibilityStats();
+  }, [allMatches]);
+
+  // TECHNICAL SPECIFICATION 8: Visibility statistics calculation
+  const calculateVisibilityStats = () => {
+    const stats: VisibilityStats = {
+      totalPublic: 0,
+      totalPrivate: 0,
+      publicCompleted: 0,
+      privateCompleted: 0,
+      publicUpcoming: 0,
+      privateUpcoming: 0
+    };
+
+    allMatches.forEach(match => {
+      if (match.is_public) {
+        stats.totalPublic++;
+        if (match.isCompleted) stats.publicCompleted++;
+        if (match.isFuture) stats.publicUpcoming++;
+      } else {
+        stats.totalPrivate++;
+        if (match.isCompleted) stats.privateCompleted++;
+        if (match.isFuture) stats.privateUpcoming++;
+      }
+    });
+
+    setVisibilityStats(stats);
+  };
+
+  // TECHNICAL SPECIFICATION 9: ENHANCED filter application with visibility-based logic
   const applyFilters = () => {
-    console.log('🔍 Match History: Applying filters', {
+    console.log('🔍 Match History: Applying filters with visibility support', {
       totalMatches: allMatches.length,
       activeFilter: filter,
       searchQuery,
@@ -119,42 +172,28 @@ export default function EnhancedMatchHistory() {
     const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     
-    // CRITICAL FIX: Time-based classification replacing status dependency
+    // ENHANCED: Visibility-aware base filtering
     const baseFiltered = {
       all: allMatches,
       
-      // FIXED: Future matches based purely on start_time
+      // Future matches based purely on start_time
       upcoming: allMatches.filter(match => {
         const startTime = new Date(match.start_time);
         const isFuture = startTime > now;
-        console.log(`📅 Match ${match.id} upcoming check:`, {
-          startTime: startTime.toISOString(),
-          currentTime: now.toISOString(),
-          isFuture
-        });
         return isFuture;
       }),
       
-      // FIXED: Completed matches based on score existence
+      // Completed matches based on score existence
       completed: allMatches.filter(match => {
         const hasScores = match.team1_score_set1 !== null && match.team2_score_set1 !== null;
         const endTime = match.end_time ? new Date(match.end_time) : null;
         const startTime = new Date(match.start_time);
         const isPastOrEnded = endTime ? endTime < now : startTime < now;
         const isCompleted = hasScores && isPastOrEnded;
-        
-        console.log(`✅ Match ${match.id} completed check:`, {
-          hasScores,
-          isPastOrEnded,
-          isCompleted,
-          endTime: endTime?.toISOString(),
-          startTime: startTime.toISOString()
-        });
-        
         return isCompleted;
       }),
       
-      // FIXED: Attention-needed matches based on time and score analysis
+      // Attention-needed matches based on time and score analysis
       attention: allMatches.filter(match => {
         const startTime = new Date(match.start_time);
         const endTime = match.end_time ? new Date(match.end_time) : null;
@@ -162,40 +201,29 @@ export default function EnhancedMatchHistory() {
         const hasNoScores = !match.team1_score_set1 && !match.team2_score_set1;
         const needsAttention = (isPast && hasNoScores && match.status !== MatchStatus.CANCELLED) || 
                               match.status === MatchStatus.NEEDS_CONFIRMATION;
-        
-        console.log(`⚠️ Match ${match.id} attention check:`, {
-          isPast,
-          hasNoScores,
-          needsAttention,
-          status: match.status
-        });
-        
         return needsAttention;
       }),
       
-      // ENHANCEMENT: Recent matches within last week
+      // Recent matches within last week
       recent: allMatches.filter(match => {
         const hasScores = match.team1_score_set1 !== null && match.team2_score_set1 !== null;
         const matchDate = new Date(match.completed_at || match.end_time || match.start_time);
         const isRecent = matchDate >= weekAgo && hasScores;
-        
-        console.log(`📊 Match ${match.id} recent check:`, {
-          matchDate: matchDate.toISOString(),
-          weekAgo: weekAgo.toISOString(),
-          isRecent,
-          hasScores
-        });
-        
         return isRecent;
-      })
+      }),
+
+      // ENHANCEMENT: NEW visibility-based filters
+      public: allMatches.filter(match => match.is_public === true),
+      private: allMatches.filter(match => match.is_public === false)
     };
 
-    // TECHNICAL SPECIFICATION 7: Advanced search filtering
+    // TECHNICAL SPECIFICATION 10: Enhanced search filtering with visibility context
     let searchFiltered = baseFiltered;
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       Object.keys(searchFiltered).forEach(key => {
         searchFiltered[key as keyof typeof searchFiltered] = searchFiltered[key as keyof typeof searchFiltered].filter(match => {
+          const visibilityText = match.is_public ? 'public open' : 'private invitation';
           const searchableText = [
             match.region,
             match.court,
@@ -207,7 +235,8 @@ export default function EnhancedMatchHistory() {
             match.player1?.email,
             match.player2?.email,
             match.player3?.email,
-            match.player4?.email
+            match.player4?.email,
+            visibilityText // ENHANCEMENT: Include visibility in search
           ].filter(Boolean).join(' ').toLowerCase();
           
           return searchableText.includes(query);
@@ -215,7 +244,7 @@ export default function EnhancedMatchHistory() {
       });
     }
 
-    // TECHNICAL SPECIFICATION 8: Enhanced sorting algorithms
+    // TECHNICAL SPECIFICATION 11: ENHANCED sorting algorithms with visibility support
     Object.keys(searchFiltered).forEach(key => {
       searchFiltered[key as keyof typeof searchFiltered].sort((a, b) => {
         let comparison = 0;
@@ -243,24 +272,38 @@ export default function EnhancedMatchHistory() {
               comparison = marginB - marginA;
             }
             break;
+
+          // ENHANCEMENT: NEW visibility-based sorting
+          case 'visibility':
+            if (a.is_public !== b.is_public) {
+              comparison = a.is_public ? 1 : -1; // Public matches first when ascending
+            } else {
+              // Secondary sort by date if visibility is same
+              const dateA = new Date(a.start_time);
+              const dateB = new Date(b.start_time);
+              comparison = dateB.getTime() - dateA.getTime();
+            }
+            break;
         }
         
         return sortOrder === 'desc' ? -comparison : comparison;
       });
     });
 
-    console.log('📊 Match History: Filter results', {
+    console.log('📊 Match History: Filter results with visibility', {
       all: searchFiltered.all.length,
       upcoming: searchFiltered.upcoming.length,
       completed: searchFiltered.completed.length,
       attention: searchFiltered.attention.length,
-      recent: searchFiltered.recent.length
+      recent: searchFiltered.recent.length,
+      public: searchFiltered.public.length,
+      private: searchFiltered.private.length
     });
 
     setFilteredMatches(searchFiltered);
   };
 
-  // TECHNICAL SPECIFICATION 9: Enhanced data fetching with comprehensive processing
+  // TECHNICAL SPECIFICATION 12: Enhanced data fetching with comprehensive processing
   const fetchMatches = async (shouldRefresh = false) => {
     try {
       if (shouldRefresh) {
@@ -269,13 +312,13 @@ export default function EnhancedMatchHistory() {
         setLoading(true);
       }
       
-      console.log('🚀 Match History: Fetching matches', {
+      console.log('🚀 Match History: Fetching matches with visibility data', {
         userId: session?.user?.id,
         friendId,
         shouldRefresh
       });
       
-      // REQUIREMENT: Enhanced query with comprehensive player data
+      // Enhanced query with comprehensive player data
       let query = supabase
         .from('matches')
         .select(`
@@ -286,7 +329,7 @@ export default function EnhancedMatchHistory() {
           player4:profiles!player4_id(id, full_name, email, glicko_rating, avatar_url)
         `);
       
-      // TECHNICAL SPECIFICATION 10: Friend-specific or user-specific filtering
+      // Friend-specific or user-specific filtering
       if (friendId) {
         query = query.or(
           `and(player1_id.eq.${session?.user?.id},or(player2_id.eq.${friendId},player3_id.eq.${friendId},player4_id.eq.${friendId})),` +
@@ -312,29 +355,31 @@ export default function EnhancedMatchHistory() {
         throw error;
       }
 
-      console.log('📊 Match History: Raw data received:', {
+      console.log('📊 Match History: Raw data received with visibility info:', {
         count: data?.length || 0,
-        sampleMatch: data?.[0]
+        sampleMatch: data?.[0],
+        publicMatches: data?.filter(m => m.is_public).length || 0,
+        privateMatches: data?.filter(m => !m.is_public).length || 0
       });
 
-      // TECHNICAL SPECIFICATION 11: Comprehensive match data processing
+      // TECHNICAL SPECIFICATION 13: Comprehensive match data processing with visibility context
       const now = new Date();
       const processedData: EnhancedMatchData[] = (data || []).map(match => {
         const userId = session?.user?.id;
         const startTime = new Date(match.start_time);
         const endTime = match.end_time ? new Date(match.end_time) : null;
         
-        // FIXED: Enhanced team determination
+        // Enhanced team determination
         const isTeam1 = match.player1_id === userId || match.player2_id === userId;
         
-        // FIXED: Time-based classifications
+        // Time-based classifications
         const isFuture = startTime > now;
         const isPast = endTime ? endTime < now : startTime < now;
         const hasScores = match.team1_score_set1 !== null && match.team2_score_set1 !== null;
         const isCompleted = hasScores && isPast;
         const needsScores = isPast && !hasScores && match.status !== MatchStatus.CANCELLED;
         
-        // TECHNICAL SPECIFICATION 12: Enhanced teammate and opponent identification
+        // Enhanced teammate and opponent identification
         let teammate = null;
         let opponents: any[] = [];
         
@@ -346,7 +391,7 @@ export default function EnhancedMatchHistory() {
           opponents = [match.player1, match.player2].filter(Boolean);
         }
         
-        // CRITICAL FIX: Comprehensive set-based winner determination
+        // Comprehensive set-based winner determination
         let team1Sets = 0;
         let team2Sets = 0;
         let userWon = false;
@@ -377,7 +422,7 @@ export default function EnhancedMatchHistory() {
             }
           }
           
-          // ENHANCED: Winner determination with fallback logic
+          // Winner determination with fallback logic
           if (match.winner_team) {
             userWon = (isTeam1 && match.winner_team === 1) || (!isTeam1 && match.winner_team === 2);
           } else {
@@ -392,7 +437,7 @@ export default function EnhancedMatchHistory() {
         const teamWon = userWon;
         const isTied = team1Sets === team2Sets && hasScores;
         
-        // TECHNICAL SPECIFICATION 13: Enhanced score formatting
+        // Enhanced score formatting
         let setScores = '';
         if (hasScores) {
           const userSet1 = isTeam1 ? match.team1_score_set1 : match.team2_score_set1;
@@ -412,7 +457,7 @@ export default function EnhancedMatchHistory() {
           }
         }
         
-        // TECHNICAL SPECIFICATION 14: Additional computed properties
+        // Additional computed properties
         const matchDuration = match.start_time && match.end_time 
           ? new Date(match.end_time).getTime() - new Date(match.start_time).getTime()
           : 0;
@@ -450,7 +495,7 @@ export default function EnhancedMatchHistory() {
           userIsPlayer4: match.player4_id === userId
         };
 
-        console.log(`🔄 Match History: Processed match ${match.id}`, {
+        console.log(`🔄 Match History: Processed match ${match.id} with visibility ${match.is_public ? 'PUBLIC' : 'PRIVATE'}`, {
           isTeam1,
           hasScores,
           userWon,
@@ -458,7 +503,8 @@ export default function EnhancedMatchHistory() {
           team2Sets,
           needsScores,
           isFuture,
-          isCompleted
+          isCompleted,
+          is_public: match.is_public
         });
 
         return enhancedMatch;
@@ -474,7 +520,7 @@ export default function EnhancedMatchHistory() {
     }
   };
 
-  // TECHNICAL SPECIFICATION 15: Enhanced user interaction handlers
+  // TECHNICAL SPECIFICATION 14: Enhanced user interaction handlers
   const onRefresh = () => {
     fetchMatches(true);
   };
@@ -488,7 +534,7 @@ export default function EnhancedMatchHistory() {
     setSearchQuery(query);
   };
 
-  const handleSort = (by: 'date' | 'opponent' | 'result') => {
+  const handleSort = (by: 'date' | 'opponent' | 'result' | 'visibility') => {
     if (sortBy === by) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
@@ -497,7 +543,36 @@ export default function EnhancedMatchHistory() {
     }
   };
 
-  // TECHNICAL SPECIFICATION 16: Enhanced filter buttons with indicators
+  // TECHNICAL SPECIFICATION 15: Visibility badge component for consistent UI
+  const renderVisibilityBadge = (isPublic: boolean, size: 'small' | 'medium' = 'small') => {
+    const iconSize = size === 'medium' ? 16 : 12;
+    const textClass = size === 'medium' ? 'text-sm' : 'text-xs';
+    const paddingClass = size === 'medium' ? 'px-3 py-2' : 'px-2 py-1';
+    
+    return (
+      <View className={`flex-row items-center ${paddingClass} rounded-full ${
+        isPublic 
+          ? 'bg-blue-100 dark:bg-blue-900/30' 
+          : 'bg-gray-100 dark:bg-gray-800/50'
+      }`}>
+        <Ionicons 
+          name={isPublic ? 'globe-outline' : 'lock-closed-outline'} 
+          size={iconSize} 
+          color={isPublic ? '#2563eb' : '#6b7280'} 
+          style={{ marginRight: 4 }}
+        />
+        <Text className={`${textClass} font-medium ${
+          isPublic 
+            ? 'text-blue-700 dark:text-blue-300' 
+            : 'text-gray-600 dark:text-gray-400'
+        }`}>
+          {isPublic ? 'Public' : 'Private'}
+        </Text>
+      </View>
+    );
+  };
+
+  // TECHNICAL SPECIFICATION 16: ENHANCED filter buttons with visibility indicators
   const renderFilterButtons = () => (
     <View className="bg-background border-b border-border">
       <ScrollView 
@@ -506,21 +581,34 @@ export default function EnhancedMatchHistory() {
         className="flex-row"
         contentContainerStyle={{ paddingHorizontal: 4 }}
       >
-        {(['all', 'upcoming', 'completed', 'attention', 'recent'] as FilterType[]).map((filterType) => {
+        {(['all', 'upcoming', 'completed', 'attention', 'recent', 'public', 'private'] as FilterType[]).map((filterType) => {
           const count = filteredMatches[filterType]?.length || 0;
           const isActive = filter === filterType;
+          
+          // ENHANCEMENT: Special styling for visibility filters
+          const isVisibilityFilter = filterType === 'public' || filterType === 'private';
+          const baseClasses = isActive 
+            ? (isVisibilityFilter 
+                ? (filterType === 'public' ? 'bg-blue-600' : 'bg-gray-600')
+                : 'bg-primary')
+            : 'bg-muted/30';
           
           return (
             <TouchableOpacity
               key={filterType}
-              className={`px-4 py-3 mx-1 rounded-lg ${
-                isActive 
-                  ? 'bg-primary' 
-                  : 'bg-muted/30'
-              }`}
+              className={`px-4 py-3 mx-1 rounded-lg ${baseClasses}`}
               onPress={() => handleFilterChange(filterType)}
             >
               <View className="flex-row items-center">
+                {/* ENHANCEMENT: Add icons for visibility filters */}
+                {isVisibilityFilter && (
+                  <Ionicons 
+                    name={filterType === 'public' ? 'globe-outline' : 'lock-closed-outline'} 
+                    size={14} 
+                    color={isActive ? '#fff' : (filterType === 'public' ? '#2563eb' : '#6b7280')}
+                    style={{ marginRight: 6 }}
+                  />
+                )}
                 <Text className={`font-medium capitalize ${
                   isActive ? 'text-primary-foreground' : 'text-foreground'
                 }`}>
@@ -530,10 +618,15 @@ export default function EnhancedMatchHistory() {
                   <View className={`ml-2 px-2 py-0.5 rounded-full ${
                     isActive 
                       ? 'bg-primary-foreground/20' 
-                      : 'bg-primary/20'
+                      : (isVisibilityFilter 
+                          ? (filterType === 'public' ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-gray-100 dark:bg-gray-800/40')
+                          : 'bg-primary/20')
                   }`}>
                     <Text className={`text-xs font-bold ${
-                      isActive ? 'text-primary-foreground' : 'text-primary'
+                      isActive ? 'text-primary-foreground' : 
+                      (isVisibilityFilter 
+                        ? (filterType === 'public' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400')
+                        : 'text-primary')
                     }`}>
                       {count}
                     </Text>
@@ -547,15 +640,15 @@ export default function EnhancedMatchHistory() {
     </View>
   );
 
-  // TECHNICAL SPECIFICATION 17: Enhanced search and sort controls
+  // TECHNICAL SPECIFICATION 17: ENHANCED search and sort controls with visibility options
   const renderSearchAndSort = () => (
     <View className="p-4 bg-background border-b border-border">
-      {/* Search Bar */}
+      {/* Search Bar with visibility hint */}
       <View className="flex-row items-center bg-muted/30 rounded-lg px-3 py-2 mb-3">
         <Ionicons name="search" size={20} color="#888" />
         <TextInput
           className="flex-1 ml-2 text-foreground"
-          placeholder="Search matches, opponents, locations..."
+          placeholder="Search matches, opponents, locations, visibility..."
           value={searchQuery}
           onChangeText={handleSearch}
           placeholderTextColor="#888"
@@ -567,18 +660,29 @@ export default function EnhancedMatchHistory() {
         )}
       </View>
       
-      {/* Sort Controls */}
+      {/* Sort Controls with visibility option */}
       <View className="flex-row justify-between items-center">
         <Text className="text-sm text-muted-foreground">Sort by:</Text>
         <View className="flex-row gap-2">
-          {['date', 'opponent', 'result'].map((sortType) => (
+          {['date', 'opponent', 'result', 'visibility'].map((sortType) => (
             <TouchableOpacity
               key={sortType}
               onPress={() => handleSort(sortType as any)}
               className={`px-3 py-1 rounded-full flex-row items-center ${
-                sortBy === sortType ? 'bg-primary' : 'bg-muted/30'
+                sortBy === sortType 
+                  ? (sortType === 'visibility' ? 'bg-blue-600' : 'bg-primary')
+                  : 'bg-muted/30'
               }`}
             >
+              {/* ENHANCEMENT: Add icon for visibility sort */}
+              {sortType === 'visibility' && (
+                <Ionicons 
+                  name="eye-outline" 
+                  size={12} 
+                  color={sortBy === sortType ? '#fff' : '#666'} 
+                  style={{ marginRight: 4 }}
+                />
+              )}
               <Text className={`text-xs capitalize ${
                 sortBy === sortType ? 'text-primary-foreground' : 'text-foreground'
               }`}>
@@ -599,7 +703,7 @@ export default function EnhancedMatchHistory() {
     </View>
   );
 
-  // TECHNICAL SPECIFICATION 18: Enhanced match card rendering with comprehensive information
+  // TECHNICAL SPECIFICATION 18: ENHANCED match card rendering with comprehensive visibility information
   const renderMatchCard = (match: EnhancedMatchData) => {
     const matchDate = new Date(match.start_time);
     const now = new Date();
@@ -624,14 +728,14 @@ export default function EnhancedMatchHistory() {
       minute: '2-digit'
     });
 
-    // TECHNICAL SPECIFICATION 19: Enhanced status styling with comprehensive states
+    // Enhanced status styling with visibility context
     const getMatchStyle = () => {
       if (match.isFuture) {
         return {
-          bgColor: 'bg-blue-50 dark:bg-blue-900/30',
+          bgColor: match.is_public ? 'bg-blue-50 dark:bg-blue-900/30' : 'bg-indigo-50 dark:bg-indigo-900/30',
           iconName: 'calendar-outline',
-          iconColor: '#1d4ed8',
-          status: 'Upcoming'
+          iconColor: match.is_public ? '#1d4ed8' : '#4f46e5',
+          status: match.is_public ? 'Public Match' : 'Private Match'
         };
       } else if (match.needsScores) {
         return {
@@ -696,24 +800,28 @@ export default function EnhancedMatchHistory() {
           });
         }}
       >
-        {/* Enhanced header with status and metadata */}
+        {/* ENHANCED header with status, metadata, and visibility indicator */}
         <View className={`px-4 py-3 ${style.bgColor}`}>
           <View className="flex-row items-center justify-between">
-            <View className="flex-row items-center">
+            <View className="flex-row items-center flex-1">
               <View className="w-8 h-8 rounded-full bg-white/90 items-center justify-center mr-3">
                 <Ionicons name={style.iconName as any} size={18} color={style.iconColor} />
               </View>
-              <View>
-                <Text className="font-medium" style={{ color: style.iconColor }}>
-                  {style.status}
-                </Text>
+              <View className="flex-1">
+                <View className="flex-row items-center">
+                  <Text className="font-medium mr-2" style={{ color: style.iconColor }}>
+                    {style.status}
+                  </Text>
+                  {/* ENHANCEMENT: Visibility badge in header */}
+                  {renderVisibilityBadge(match.is_public)}
+                </View>
                 <Text className="text-xs opacity-75">
                   {formattedDate} • {formattedTime}
                 </Text>
               </View>
             </View>
             
-            {/* Enhanced metadata display */}
+            {/* Enhanced metadata display with visibility context */}
             <View className="items-end">
               {(match.region || match.court) && (
                 <View className="flex-row items-center">
@@ -728,12 +836,32 @@ export default function EnhancedMatchHistory() {
                   {Math.round(match.matchDuration / (1000 * 60))}min
                 </Text>
               )}
+              {/* ENHANCEMENT: Show open slots for public matches */}
+              {match.is_public && match.isFuture && (
+                <Text className="text-xs opacity-75 mt-1">
+                  {getOpenSlotsText(match)}
+                </Text>
+              )}
             </View>
           </View>
         </View>
         
-        {/* Enhanced match content */}
+        {/* Enhanced match content with visibility-aware information */}
         <View className="p-5 bg-card dark:bg-card/90">
+          {/* ENHANCEMENT: Visibility-specific information banner */}
+          {match.is_public && (
+            <View className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-l-4 border-blue-500">
+              <View className="flex-row items-center">
+                <Ionicons name="globe" size={16} color="#2563eb" style={{ marginRight: 8 }} />
+                <Text className="text-sm text-blue-800 dark:text-blue-300 font-medium">
+                  {match.isFuture 
+                    ? 'Open for anyone to discover and join' 
+                    : 'This was a public match visible to all users'}
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* Team composition with enhanced player display */}
           <View className="flex-row justify-between items-start mb-4">
             {/* Team 1 - Your team */}
@@ -789,7 +917,14 @@ export default function EnhancedMatchHistory() {
                   <View className="w-10 h-10 rounded-full bg-gray-300 dark:bg-gray-700 items-center justify-center mr-3">
                     <Text className="text-sm font-bold text-white">?</Text>
                   </View>
-                  <Text className="text-sm text-muted-foreground">Open Slot</Text>
+                  <View className="flex-1">
+                    <Text className="text-sm text-muted-foreground">
+                      {match.is_public ? 'Open for Anyone' : 'Awaiting Invite'}
+                    </Text>
+                    <Text className="text-xs text-muted-foreground">
+                      {match.is_public ? 'Public slot' : 'Private invitation'}
+                    </Text>
+                  </View>
                 </View>
               )}
             </View>
@@ -823,7 +958,9 @@ export default function EnhancedMatchHistory() {
               ) : (
                 <View className="items-center">
                   <Text className="text-2xl font-bold text-muted-foreground">VS</Text>
-                  <Text className="text-xs text-muted-foreground">No scores yet</Text>
+                  <Text className="text-xs text-muted-foreground">
+                    {match.is_public ? 'Public Match' : 'Private Match'}
+                  </Text>
                 </View>
               )}
             </View>
@@ -855,7 +992,14 @@ export default function EnhancedMatchHistory() {
                 </View>
               ) : (
                 <View className="flex-row items-center justify-end mb-2 opacity-50">
-                  <Text className="text-sm text-muted-foreground mr-3">Open Slot</Text>
+                  <View className="flex-1 items-end mr-3">
+                    <Text className="text-sm text-muted-foreground text-right">
+                      {match.is_public ? 'Open for Anyone' : 'Awaiting Invite'}
+                    </Text>
+                    <Text className="text-xs text-muted-foreground">
+                      {match.is_public ? 'Public slot' : 'Private invitation'}
+                    </Text>
+                  </View>
                   <View className="w-10 h-10 rounded-full bg-gray-300 dark:bg-gray-700 items-center justify-center">
                     <Text className="text-sm font-bold text-white">?</Text>
                   </View>
@@ -885,7 +1029,14 @@ export default function EnhancedMatchHistory() {
                 </View>
               ) : (
                 <View className="flex-row items-center justify-end opacity-50">
-                  <Text className="text-sm text-muted-foreground mr-3">Open Slot</Text>
+                  <View className="flex-1 items-end mr-3">
+                    <Text className="text-sm text-muted-foreground text-right">
+                      {match.is_public ? 'Open for Anyone' : 'Awaiting Invite'}
+                    </Text>
+                    <Text className="text-xs text-muted-foreground">
+                      {match.is_public ? 'Public slot' : 'Private invitation'}
+                    </Text>
+                  </View>
                   <View className="w-10 h-10 rounded-full bg-gray-300 dark:bg-gray-700 items-center justify-center">
                     <Text className="text-sm font-bold text-white">?</Text>
                   </View>
@@ -942,18 +1093,31 @@ export default function EnhancedMatchHistory() {
                   ({match.setScores})
                 </Text>
               )}
+              {/* ENHANCEMENT: Show visibility context in results */}
+              <View className="ml-2">
+                {renderVisibilityBadge(match.is_public, 'small')}
+              </View>
             </View>
           )}
           
-          {/* Enhanced action indicators for non-completed matches */}
+          {/* ENHANCED action indicators for non-completed matches with visibility context */}
           {!match.isCompleted && (
             <View className="flex-row justify-between items-center mt-3 pt-3 border-t border-border/30">
               <View className="flex-row items-center">
                 {match.isFuture ? (
                   <>
-                    <Ionicons name="people-outline" size={16} color="#3b82f6" style={{ marginRight: 6 }} />
-                    <Text className="text-sm text-blue-600 dark:text-blue-400">
-                      {getOpenSlotsText(match)}
+                    <Ionicons 
+                      name={match.is_public ? "globe-outline" : "people-outline"} 
+                      size={16} 
+                      color={match.is_public ? "#2563eb" : "#3b82f6"} 
+                      style={{ marginRight: 6 }} 
+                    />
+                    <Text className={`text-sm ${
+                      match.is_public ? 'text-blue-600 dark:text-blue-400' : 'text-blue-600 dark:text-blue-400'
+                    }`}>
+                      {match.is_public 
+                        ? `Public • ${getOpenSlotsText(match)}`
+                        : `Private • ${getOpenSlotsText(match)}`}
                     </Text>
                   </>
                 ) : match.needsScores ? (
@@ -980,7 +1144,7 @@ export default function EnhancedMatchHistory() {
             </View>
           )}
           
-          {/* Enhanced quick stats for completed matches */}
+          {/* Enhanced quick stats for completed matches with visibility info */}
           {match.isCompleted && match.matchDuration > 0 && (
             <View className="flex-row justify-around mt-3 pt-3 border-t border-border/30">
               <View className="items-center">
@@ -1001,16 +1165,14 @@ export default function EnhancedMatchHistory() {
                   {Math.abs((match.team1Sets || 0) - (match.team2Sets || 0))}
                 </Text>
               </View>
-              {match.daysAgo !== undefined && (
-                <View className="items-center">
-                  <Text className="text-xs text-muted-foreground">When</Text>
-                  <Text className="text-sm font-medium">
-                    {match.daysAgo === 0 ? 'Today' : 
-                     match.daysAgo === 1 ? 'Yesterday' : 
-                     `${match.daysAgo}d ago`}
-                  </Text>
-                </View>
-              )}
+              <View className="items-center">
+                <Text className="text-xs text-muted-foreground">Visibility</Text>
+                <Text className={`text-sm font-medium ${
+                  match.is_public ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'
+                }`}>
+                  {match.is_public ? 'Public' : 'Private'}
+                </Text>
+              </View>
             </View>
           )}
         </View>
@@ -1018,7 +1180,7 @@ export default function EnhancedMatchHistory() {
     );
   };
 
-  // TECHNICAL SPECIFICATION 20: Helper functions
+  // Helper function for open slots display
   const getOpenSlotsText = (match: EnhancedMatchData) => {
     const openSlots = 4 - [match.player1_id, match.player2_id, match.player3_id, match.player4_id].filter(Boolean).length;
     
@@ -1027,7 +1189,7 @@ export default function EnhancedMatchHistory() {
     return `${openSlots} open slots`;
   };
 
-  // TECHNICAL SPECIFICATION 21: Enhanced empty state with contextual messaging
+  // TECHNICAL SPECIFICATION 19: ENHANCED empty state with visibility-aware contextual messaging
   const renderEmptyMatches = () => {
     const getEmptyMessage = () => {
       switch (filter) {
@@ -1063,6 +1225,19 @@ export default function EnhancedMatchHistory() {
             message: "Play some matches this week to see them here",
             icon: "time-outline"
           };
+        // ENHANCEMENT: NEW visibility-specific empty states
+        case 'public':
+          return {
+            title: "No public matches found",
+            message: "Create public matches to let anyone discover and join your games",
+            icon: "globe-outline"
+          };
+        case 'private':
+          return {
+            title: "No private matches found",
+            message: "Create private matches for invitation-only games with specific friends",
+            icon: "lock-closed-outline"
+          };
         default:
           return {
             title: "No matches found",
@@ -1076,23 +1251,65 @@ export default function EnhancedMatchHistory() {
 
     return (
       <View className="bg-card rounded-xl p-8 items-center border border-border/30 m-6">
-        <View className="w-16 h-16 rounded-full bg-primary/10 items-center justify-center mb-4">
-          <Ionicons name={emptyState.icon as any} size={32} color="#1a7ebd" />
+        <View className={`w-16 h-16 rounded-full items-center justify-center mb-4 ${
+          filter === 'public' ? 'bg-blue-100 dark:bg-blue-900/30' :
+          filter === 'private' ? 'bg-gray-100 dark:bg-gray-800/30' :
+          'bg-primary/10'
+        }`}>
+          <Ionicons 
+            name={emptyState.icon as any} 
+            size={32} 
+            color={
+              filter === 'public' ? '#2563eb' :
+              filter === 'private' ? '#6b7280' :
+              '#1a7ebd'
+            } 
+          />
         </View>
         <Text className="text-lg font-medium mt-2 mb-2">{emptyState.title}</Text>
         <Text className="text-muted-foreground text-center mb-6">
           {emptyState.message}
         </Text>
         
-        {(filter === 'all' || filter === 'upcoming') && (
-          <Button
-            variant="default"
-            onPress={() => router.push('/(protected)/(screens)/create-match')}
-            className="w-full"
-          >
-            <Ionicons name="add" size={18} style={{ marginRight: 8 }} />
-            <Text>Create Match</Text>
-          </Button>
+        {/* ENHANCEMENT: Visibility-specific action buttons */}
+        {(filter === 'all' || filter === 'upcoming' || filter === 'public' || filter === 'private') && (
+          <View className="w-full space-y-3">
+            <Button
+              variant="default"
+              onPress={() => router.push('/(protected)/(screens)/create-match')}
+              className="w-full"
+            >
+              <Ionicons name="add" size={18} style={{ marginRight: 8 }} />
+              <Text>
+                {filter === 'public' ? 'Create Public Match' :
+                 filter === 'private' ? 'Create Private Match' :
+                 'Create Match'}
+              </Text>
+            </Button>
+            
+            {/* Show alternative option for visibility filters */}
+            {filter === 'public' && (
+              <Button
+                variant="outline"
+                onPress={() => setFilter('private')}
+                className="w-full"
+              >
+                <Ionicons name="lock-closed-outline" size={18} style={{ marginRight: 8 }} />
+                <Text>View Private Matches</Text>
+              </Button>
+            )}
+            
+            {filter === 'private' && (
+              <Button
+                variant="outline"
+                onPress={() => setFilter('public')}
+                className="w-full"
+              >
+                <Ionicons name="globe-outline" size={18} style={{ marginRight: 8 }} />
+                <Text>View Public Matches</Text>
+              </Button>
+            )}
+          </View>
         )}
         
         {searchQuery.length > 0 && (
@@ -1108,7 +1325,7 @@ export default function EnhancedMatchHistory() {
     );
   };
 
-  // TECHNICAL SPECIFICATION 22: Loading state with enhanced UI
+  // Loading state with enhanced UI
   if (loading && !refreshing) {
     return (
       <SafeAreaView className="flex-1 bg-background">
@@ -1120,6 +1337,20 @@ export default function EnhancedMatchHistory() {
               Filtering matches with friend
             </Text>
           )}
+          <View className="mt-4 flex-row gap-4">
+            <View className="items-center">
+              <View className="w-6 h-6 bg-blue-100 dark:bg-blue-900/30 rounded-full items-center justify-center">
+                <Ionicons name="globe" size={12} color="#2563eb" />
+              </View>
+              <Text className="text-xs text-muted-foreground mt-1">Public</Text>
+            </View>
+            <View className="items-center">
+              <View className="w-6 h-6 bg-gray-100 dark:bg-gray-800 rounded-full items-center justify-center">
+                <Ionicons name="lock-closed" size={12} color="#6b7280" />
+              </View>
+              <Text className="text-xs text-muted-foreground mt-1">Private</Text>
+            </View>
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -1130,10 +1361,10 @@ export default function EnhancedMatchHistory() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      {/* Enhanced filter buttons */}
+      {/* Enhanced filter buttons with visibility options */}
       {renderFilterButtons()}
       
-      {/* Search and sort controls */}
+      {/* Search and sort controls with visibility features */}
       {renderSearchAndSort()}
       
       {/* Enhanced content area */}
@@ -1150,11 +1381,13 @@ export default function EnhancedMatchHistory() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Summary statistics */}
+        {/* ENHANCED summary statistics with visibility breakdown */}
         {currentMatches.length > 0 && filter === 'all' && (
           <View className="bg-card rounded-xl p-4 mb-4 border border-border/30">
             <Text className="text-lg font-semibold mb-3">Match Summary</Text>
-            <View className="flex-row justify-around">
+            
+            {/* Primary stats row */}
+            <View className="flex-row justify-around mb-4">
               <View className="items-center">
                 <Text className="text-2xl font-bold text-primary">
                   {allMatches.filter(m => m.isCompleted).length}
@@ -1180,10 +1413,103 @@ export default function EnhancedMatchHistory() {
                 <Text className="text-xs text-muted-foreground">Attention</Text>
               </View>
             </View>
+
+            {/* ENHANCEMENT: Visibility breakdown */}
+            <View className="border-t border-border/30 pt-4">
+              <Text className="text-sm font-medium mb-3 text-center">Visibility Breakdown</Text>
+              <View className="flex-row justify-around">
+                <TouchableOpacity 
+                  onPress={() => setFilter('public')}
+                  className="items-center p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20"
+                >
+                  <View className="flex-row items-center mb-1">
+                    <Ionicons name="globe" size={16} color="#2563eb" />
+                    <Text className="text-lg font-bold text-blue-600 dark:text-blue-400 ml-1">
+                      {visibilityStats.totalPublic}
+                    </Text>
+                  </View>
+                  <Text className="text-xs text-blue-600 dark:text-blue-400 font-medium">Public Matches</Text>
+                  <Text className="text-xs text-muted-foreground">
+                    {visibilityStats.publicCompleted} completed • {visibilityStats.publicUpcoming} upcoming
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  onPress={() => setFilter('private')}
+                  className="items-center p-3 rounded-lg bg-gray-50 dark:bg-gray-800/20"
+                >
+                  <View className="flex-row items-center mb-1">
+                    <Ionicons name="lock-closed" size={16} color="#6b7280" />
+                    <Text className="text-lg font-bold text-gray-600 dark:text-gray-400 ml-1">
+                      {visibilityStats.totalPrivate}
+                    </Text>
+                  </View>
+                  <Text className="text-xs text-gray-600 dark:text-gray-400 font-medium">Private Matches</Text>
+                  <Text className="text-xs text-muted-foreground">
+                    {visibilityStats.privateCompleted} completed • {visibilityStats.privateUpcoming} upcoming
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         )}
 
-        {/* Match list */}
+        {/* ENHANCED visibility-specific summary for filter-specific views */}
+        {currentMatches.length > 0 && (filter === 'public' || filter === 'private') && (
+          <View className={`rounded-xl p-4 mb-4 border ${
+            filter === 'public' 
+              ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+              : 'bg-gray-50 dark:bg-gray-800/20 border-gray-200 dark:border-gray-700'
+          }`}>
+            <View className="flex-row items-center mb-3">
+              <Ionicons 
+                name={filter === 'public' ? 'globe' : 'lock-closed'} 
+                size={20} 
+                color={filter === 'public' ? '#2563eb' : '#6b7280'} 
+              />
+              <Text className={`text-lg font-semibold ml-2 ${
+                filter === 'public' ? 'text-blue-800 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'
+              }`}>
+                {filter === 'public' ? 'Public Matches' : 'Private Matches'}
+              </Text>
+            </View>
+            <Text className={`text-sm mb-3 ${
+              filter === 'public' ? 'text-blue-700 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'
+            }`}>
+              {filter === 'public' 
+                ? 'These matches are visible to all users and open for anyone to discover and join'
+                : 'These matches are invitation-only and visible only to selected players'}
+            </Text>
+            <View className="flex-row justify-around">
+              <View className="items-center">
+                <Text className={`text-xl font-bold ${
+                  filter === 'public' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'
+                }`}>
+                  {filter === 'public' ? visibilityStats.totalPublic : visibilityStats.totalPrivate}
+                </Text>
+                <Text className="text-xs text-muted-foreground">Total</Text>
+              </View>
+              <View className="items-center">
+                <Text className={`text-xl font-bold ${
+                  filter === 'public' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'
+                }`}>
+                  {filter === 'public' ? visibilityStats.publicCompleted : visibilityStats.privateCompleted}
+                </Text>
+                <Text className="text-xs text-muted-foreground">Completed</Text>
+              </View>
+              <View className="items-center">
+                <Text className={`text-xl font-bold ${
+                  filter === 'public' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'
+                }`}>
+                  {filter === 'public' ? visibilityStats.publicUpcoming : visibilityStats.privateUpcoming}
+                </Text>
+                <Text className="text-xs text-muted-foreground">Upcoming</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Match list with enhanced visibility features */}
         {currentMatches.length > 0 
           ? currentMatches.map(renderMatchCard)
           : renderEmptyMatches()
