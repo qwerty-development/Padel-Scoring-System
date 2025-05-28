@@ -2063,6 +2063,62 @@ const performScoreSave = async () => {
                 </View>
               </TouchableOpacity>
 
+              {/* Edit Match Action - NEW FEATURE */}
+            {matchState.isCreator && !isStatusEqual(match.status, MatchStatus.CANCELLED) && (
+              <TouchableOpacity 
+                className="flex-row items-center bg-purple-600 border border-purple-600 rounded-xl p-4" 
+                onPress={() => {
+                  // Calculate edit permissions
+                  const now = new Date();
+                  const startTime = new Date(match.start_time);
+                  const minutesUntilStart = (startTime.getTime() - now.getTime()) / (1000 * 60);
+                  
+                  if (matchState.hoursFromCompletion > 24) {
+                    Alert.alert(
+                      "Cannot Edit",
+                      "This match is locked and cannot be edited after 24 hours.",
+                      [{ text: "OK" }]
+                    );
+                    return;
+                  }
+                  
+                  if (minutesUntilStart <= 0 && minutesUntilStart > -30) {
+                    Alert.alert(
+                      "Limited Editing",
+                      "Match has started or is about to start. Only location details can be edited.",
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        { 
+                          text: "Continue", 
+                          onPress: () => router.push({
+                            pathname: '/(protected)/(screens)/edit-match',
+                            params: { matchId: match.id }
+                          })
+                        }
+                      ]
+                    );
+                    return;
+                  }
+                  
+                  router.push({
+                    pathname: '/(protected)/(screens)/edit-match',
+                    params: { matchId: match.id }
+                  });
+                }}
+              >
+                <View className="w-10 h-10 rounded-full bg-white/20 items-center justify-center mr-3">
+                  <Ionicons name="pencil-outline" size={20} color="#fff" />
+                </View>
+                <View className="flex-1">
+                  <Text className="font-medium text-white">Edit Match Details</Text>
+                  <Text className="text-xs text-white/80">
+                    {matchState.hoursFromCompletion < 2 ? 'Limited editing available' : 'Modify match information'}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#fff" />
+              </TouchableOpacity>
+            )}
+
               {/* ENHANCED Join Match Button WITH VISIBILITY CONTEXT */}
               {matchState.canJoin && (
                 <TouchableOpacity 

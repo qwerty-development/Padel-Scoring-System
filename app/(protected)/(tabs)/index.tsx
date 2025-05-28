@@ -925,6 +925,8 @@ export default function EnhancedHome() {
       ? [match.player3, match.player4]
       : [match.player1, match.player2];
 
+      const isCreator = match.player1_id === session?.user?.id;
+
     const getBgColor = () => {
       if (type === 'upcoming') return 'bg-blue-50 dark:bg-blue-900/30';
       if (type === 'attention') return 'bg-amber-50 dark:bg-amber-900/30';
@@ -958,8 +960,8 @@ export default function EnhancedHome() {
         onPress={() => handleMatchAction(match)}
         activeOpacity={0.7}
       >
-        {/* ENHANCED Header with Status, Time, AND VISIBILITY INDICATOR */}
-        <View className="flex-row justify-between items-center mb-3">
+{/* ENHANCED Header with Status, Time, AND VISIBILITY INDICATOR */}
+<View className="flex-row justify-between items-center mb-3">
           <View className="flex-row items-center flex-1">
             <View className="w-8 h-8 rounded-full bg-white items-center justify-center mr-2">
               <Ionicons name={statusInfo.icon as any} size={16} color={statusInfo.color} />
@@ -971,6 +973,12 @@ export default function EnhancedHome() {
             <View className="ml-2">
               {renderVisibilityBadge(match.is_public)}
             </View>
+            {/* CREATOR BADGE - NEW */}
+            {isCreator && (
+              <View className="ml-2 px-2 py-1 rounded-full bg-purple-100 dark:bg-purple-900/30">
+                <Text className="text-xs font-medium text-purple-700 dark:text-purple-300">Creator</Text>
+              </View>
+            )}
           </View>
           <View className="items-end">
             <Text className="text-sm font-medium">{formattedDate}</Text>
