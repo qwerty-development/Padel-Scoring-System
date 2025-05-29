@@ -2063,52 +2063,8 @@ const performScoreSave = async () => {
                 </View>
               </TouchableOpacity>
 
-              {/* ENHANCED Join Match Button WITH VISIBILITY CONTEXT */}
-              {matchState.canJoin && (
-                <TouchableOpacity 
-                  className="flex-1 flex-row items-center bg-primary border border-primary rounded-xl p-4" 
-                  onPress={joinMatch}
-                  disabled={saving}
-                >
-                  {saving ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <>
-                      <View className="w-10 h-10 rounded-full bg-white/20 items-center justify-center mr-3">
-                        <Ionicons name="add" size={22} color="#fff" />
-                      </View>
-                      <View className="flex-1">
-                        <Text className="font-medium text-white">Join Match</Text>
-                        <Text className="text-xs text-white/80">
-                          {[match.player1_id, match.player2_id, match.player3_id, match.player4_id].filter(Boolean).length}/4 players
-                          {match.is_public && ' • Public'}
-                        </Text>
-                      </View>
-                    </>
-                  )}
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Score Entry Action */}
-            {matchState.canEnterScores && !editingScores && (
-              <TouchableOpacity 
-                className="flex-row items-center bg-green-600 border border-green-600 rounded-xl p-4" 
-                onPress={() => setEditingScores(true)}
-              >
-                <View className="w-10 h-10 rounded-full bg-white/20 items-center justify-center mr-3">
-                  <Ionicons name="create-outline" size={20} color="#fff" />
-                </View>
-                <View className="flex-1">
-                  <Text className="font-medium text-white">Enter Match Scores</Text>
-                  <Text className="text-xs text-white/80">Creator privilege</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#fff" />
-              </TouchableOpacity>
-            )}
-
-                          {/* Edit Match Action - NEW FEATURE */}
-                          {matchState.isCreator && !isStatusEqual(match.status, MatchStatus.CANCELLED) && (
+              {/* Edit Match Action - NEW FEATURE */}
+            {matchState.isCreator && !isStatusEqual(match.status, MatchStatus.CANCELLED) && (
               <TouchableOpacity 
                 className="flex-row items-center bg-purple-600 border border-purple-600 rounded-xl p-4" 
                 onPress={() => {
@@ -2163,6 +2119,49 @@ const performScoreSave = async () => {
               </TouchableOpacity>
             )}
 
+              {/* ENHANCED Join Match Button WITH VISIBILITY CONTEXT */}
+              {matchState.canJoin && (
+                <TouchableOpacity 
+                  className="flex-1 flex-row items-center bg-primary border border-primary rounded-xl p-4" 
+                  onPress={joinMatch}
+                  disabled={saving}
+                >
+                  {saving ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <View className="w-10 h-10 rounded-full bg-white/20 items-center justify-center mr-3">
+                        <Ionicons name="add" size={22} color="#fff" />
+                      </View>
+                      <View className="flex-1">
+                        <Text className="font-medium text-white">Join Match</Text>
+                        <Text className="text-xs text-white/80">
+                          {[match.player1_id, match.player2_id, match.player3_id, match.player4_id].filter(Boolean).length}/4 players
+                          {match.is_public && ' • Public'}
+                        </Text>
+                      </View>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Score Entry Action */}
+            {matchState.canEnterScores && !editingScores && (
+              <TouchableOpacity 
+                className="flex-row items-center bg-green-600 border border-green-600 rounded-xl p-4" 
+                onPress={() => setEditingScores(true)}
+              >
+                <View className="w-10 h-10 rounded-full bg-white/20 items-center justify-center mr-3">
+                  <Ionicons name="create-outline" size={20} color="#fff" />
+                </View>
+                <View className="flex-1">
+                  <Text className="font-medium text-white">Enter Match Scores</Text>
+                  <Text className="text-xs text-white/80">Creator privilege</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#fff" />
+              </TouchableOpacity>
+            )}
 
             {/* Confirmation Action */}
             {ensureInteger(match.status) === MatchStatus.NEEDS_CONFIRMATION && userId && matchState.isCreator && (
