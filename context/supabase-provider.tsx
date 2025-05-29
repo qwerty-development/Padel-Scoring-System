@@ -19,6 +19,9 @@ import Constants from "expo-constants"
 
 SplashScreen.preventAutoHideAsync();
 
+// Configure WebBrowser for OAuth flows
+WebBrowser.maybeCompleteAuthSession();
+
 // Define the UserProfile type
 export interface UserProfile {
 	id: string;
@@ -66,7 +69,11 @@ type AuthState = {
 		error?: Error;
 		needsProfileUpdate?: boolean;
 	}>;
-
+	// Add Google sign in method
+	googleSignIn: () => Promise<{
+		error?: Error;
+		needsProfileUpdate?: boolean;
+	}>;
 };
 
 export const AuthContext = createContext<AuthState>({
@@ -82,7 +89,7 @@ export const AuthContext = createContext<AuthState>({
 	resetPassword: async () => ({}),
 	updatePassword: async () => ({}),
 	appleSignIn: async () => ({}),
-
+	googleSignIn: async () => ({}),
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -167,13 +174,19 @@ export function AuthProvider({ children }: PropsWithChildren) {
 	// Set up redirect URI for OAuth flows
 	const redirectUri = (() => {
 		if (__DEV__) {
-		  // IMPORTANT: This must match EXACTLY one of the URIs in Google Cloud Console
-		  return "https://auth.expo.io/@qwerty-app/padel-scoring-app";
+		  // IMPORTANT: This must match EXACTLY one of the URIs configured in Google Cloud Console
+		  // You'll need to update this to match your app's scheme
+		  return makeRedirectUri({
+			scheme: 'com.qwertyapp.padel-scoring-app', // Update this to match your app.json scheme
+			path: 'auth/callback'
+		  });
 		} else {
 		  // For production builds
 		  return "https://tfyxkhivanmcokxugmhe.supabase.co/auth/v1/callback";
 		}
 	  })();
+
+	console.log('[AUTH] Redirect URI configured:', redirectUri);
 	  
 	// Fetch user profile from the database
 	const fetchProfile = async (userId: string) => {
@@ -195,6 +208,90 @@ export function AuthProvider({ children }: PropsWithChildren) {
 			console.error("Error fetching profile:", error);
 		} finally {
 			setIsLoadingProfile(false);
+		}
+	};
+
+	// Process OAuth user - adapted from your implementation
+	const processOAuthUser = async (session: Session): Promise<UserProfile | null> => {
+		try {
+			console.log('[AUTH] Processing OAuth user:', session.user.id);
+			
+			// Check if user exists in profiles table
+			const { data: existingProfile, error: fetchError } = await supabase
+				.from('profiles')
+				.select('*')
+				.eq('id', session.user.id)
+				.single();
+
+			if (fetchError && fetchError.code === 'PGRST116') {
+				// User doesn't exist, create new profile
+				const userName = session.user.user_metadata.full_name ||
+								session.user.user_metadata.name ||
+								null;
+
+				const newProfile: Partial<UserProfile> = {
+					id: session.user.id,
+					email: session.user.email || '',
+					full_name: userName,
+					age: null,
+					nickname: null,
+					sex: null,
+					preferred_hand: null,
+					preferred_area: null,
+					glicko_rating: 1500, // Default Glicko rating
+					glicko_rd: 350,     // Default rating deviation
+					glicko_vol: 0.06,   // Default volatility
+					friends_list: [],
+					court_playing_side: null,
+					avatar_url: session.user.user_metadata.avatar_url || null,
+					created_at: new Date().toISOString(),
+				};
+
+				console.log('[AUTH] Creating new profile for OAuth user');
+
+				// Use upsert for atomic operation
+				const { data: upsertedProfile, error: upsertError } = await supabase
+					.from('profiles')
+					.upsert([newProfile], {
+						onConflict: 'id',
+						ignoreDuplicates: false
+					})
+					.select()
+					.single();
+
+				if (upsertError) {
+					if (upsertError.code === '23505') {
+						// Handle race condition - profile was created by another process
+						console.log('[AUTH] Profile already exists, retrieving existing record');
+						const { data: existingProfile, error: getError } = await supabase
+							.from('profiles')
+							.select('*')
+							.eq('id', session.user.id)
+							.single();
+
+						if (getError) {
+							console.error('[AUTH] Error retrieving existing profile:', getError);
+							return null;
+						}
+						return existingProfile as UserProfile;
+					} else {
+						console.error('[AUTH] Error upserting profile after OAuth:', upsertError);
+						return null;
+					}
+				}
+
+				return upsertedProfile as UserProfile;
+
+			} else if (fetchError) {
+				console.error('[AUTH] Error fetching user profile:', fetchError);
+				return null;
+			}
+
+			// Profile exists, return it
+			return existingProfile as UserProfile;
+		} catch (error) {
+			console.error('[AUTH] Error processing OAuth user:', error);
+			return null;
 		}
 	};
 
@@ -490,6 +587,110 @@ export function AuthProvider({ children }: PropsWithChildren) {
 		}
 	};
 
+	// Google Sign In implementation - adapted from your working implementation
+	const googleSignIn = async () => {
+		try {
+			console.log('[AUTH] Starting Google sign in');
+
+			const { data, error } = await supabase.auth.signInWithOAuth({
+				provider: 'google',
+				options: {
+					redirectTo: redirectUri,
+					skipBrowserRedirect: true,
+				},
+			});
+
+			if (error) {
+				console.error('[AUTH] Error initiating Google OAuth:', error);
+				return { error };
+			}
+
+			if (data?.url) {
+				console.log('[AUTH] Opening Google auth session');
+
+				const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
+				console.log('[AUTH] WebBrowser result:', result.type);
+
+				if (result.type === 'success') {
+					try {
+						// Extract tokens from URL
+						const url = new URL(result.url);
+						const hashParams = new URLSearchParams(url.hash.substring(1));
+						const accessToken = hashParams.get('access_token');
+						const refreshToken = hashParams.get('refresh_token');
+
+						console.log('[AUTH] Extracted tokens from URL:', { 
+							hasAccessToken: !!accessToken, 
+							hasRefreshToken: !!refreshToken 
+						});
+
+						if (accessToken) {
+							// Set session manually
+							const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+								access_token: accessToken,
+								refresh_token: refreshToken || '',
+							});
+
+							if (sessionError) {
+								console.error('[AUTH] Error setting session:', sessionError);
+								return { error: sessionError };
+							}
+
+							if (sessionData.session) {
+								console.log('[AUTH] Session set successfully');
+								setSession(sessionData.session);
+
+								const userProfile = await processOAuthUser(sessionData.session);
+								if (userProfile) {
+									setProfile(userProfile);
+									
+									console.log('[AUTH] Google sign in successful');
+									return { 
+										needsProfileUpdate: !checkProfileComplete(userProfile)
+									};
+								} else {
+									console.error('[AUTH] Failed to process OAuth user profile');
+									return { error: new Error('Failed to create user profile') };
+								}
+							}
+						}
+					} catch (extractError) {
+						console.error('[AUTH] Error processing Google auth result:', extractError);
+						return { error: extractError as Error };
+					}
+				} else if (result.type === 'cancel') {
+					console.log('[AUTH] User canceled Google sign-in');
+					return {}; // Not an error, just cancellation
+				}
+			}
+
+			// Fallback session check
+			try {
+				console.log('[AUTH] Attempting fallback session check');
+				const { data: currentSession } = await supabase.auth.getSession();
+				if (currentSession?.session?.user) {
+					console.log('[AUTH] Google sign in fallback path successful');
+					setSession(currentSession.session);
+					
+					const userProfile = await processOAuthUser(currentSession.session);
+					if (userProfile) {
+						setProfile(userProfile);
+						return { 
+							needsProfileUpdate: !checkProfileComplete(userProfile)
+						};
+					}
+				}
+			} catch (sessionCheckError) {
+				console.error('[AUTH] Error checking session after Google auth:', sessionCheckError);
+			}
+
+			console.log('[AUTH] Google authentication failed');
+			return { error: new Error('Google authentication failed') };
+		} catch (error) {
+			console.error('[AUTH] Google sign in error:', error);
+			return { error: error as Error };
+		}
+	};
 
 	useEffect(() => {
 		// Check initial session
@@ -573,7 +774,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 				resetPassword,
 				updatePassword,
 				appleSignIn,
-		
+				googleSignIn,
 			}}
 		>
 			{children}

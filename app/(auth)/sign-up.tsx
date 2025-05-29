@@ -15,7 +15,6 @@ import { H1 } from "@/components/ui/typography";
 import { useAuth } from "@/context/supabase-provider";
 import { useColorScheme } from "@/lib/useColorScheme";
 
-
 // Schema for the sign-up form
 const signUpFormSchema = z
   .object({
@@ -54,12 +53,12 @@ const verificationFormSchema = z.object({
 });
 
 export default function SignUp() {
-  const { signUp, verifyOtp, appleSignIn } = useAuth(); 
+  const { signUp, verifyOtp, appleSignIn, googleSignIn } = useAuth(); 
   const [pendingVerification, setPendingVerification] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState("");
   const [generalError, setGeneralError] = useState("");
   const [isAppleLoading, setIsAppleLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false); // Add Google loading state
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [appleAuthAvailable, setAppleAuthAvailable] = useState(false);
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
@@ -121,7 +120,28 @@ export default function SignUp() {
     }
   };
 
-
+  // Handle Google Sign In
+  const handleGoogleSignIn = async () => {
+    setGeneralError("");
+    setIsGoogleLoading(true);
+    
+    try {
+      const { error, needsProfileUpdate } = await googleSignIn();
+      
+      if (error) {
+        if (error.message !== 'User canceled Google sign-in') {
+          setGeneralError(error.message || "Google sign in failed.");
+        }
+      }
+      
+      // Navigation and profile completion is handled by auth provider
+    } catch (err: any) {
+      console.error("Google sign in error:", err);
+      setGeneralError(err.message || "Failed to sign in with Google.");
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
 
   // Handle sign-up form submission
   async function onSignUpSubmit(data: z.infer<typeof signUpFormSchema>) {
@@ -399,7 +419,26 @@ export default function SignUp() {
                 )}
                 
                 {/* Google Sign In Button */}
-                
+                <TouchableOpacity
+                  onPress={handleGoogleSignIn}
+                  disabled={isGoogleLoading}
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 28,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    backgroundColor: isDark ? '#1F2937' : '#F3F4F6',
+                    borderWidth: 1,
+                    borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+                  }}
+                >
+                  {isGoogleLoading ? (
+                    <ActivityIndicator size="small" color={isDark ? '#fff' : '#000'} />
+                  ) : (
+                    <Ionicons name="logo-google" size={24} color={isDark ? '#fff' : '#000'} />
+                  )}
+                </TouchableOpacity>
               </View>
             </View>
 
