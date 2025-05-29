@@ -1,4 +1,13 @@
 import "../global.css";
+import {decode, encode} from 'base-64';
+
+if (!global.btoa) {
+    global.btoa = encode;
+}
+
+if (!global.atob) {
+    global.atob = decode;
+}
 
 import * as Updates from "expo-updates";
 import { useEffect, useRef } from "react";
