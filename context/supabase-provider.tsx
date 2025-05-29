@@ -11,7 +11,7 @@ import { Session } from "@supabase/supabase-js";
 import { supabase } from "@/config/supabase";
 import PadelLoadingScreen from "@/components/PadelLoadingScreen";
 import * as AppleAuthentication from 'expo-apple-authentication';
-import { Platform } from "react-native";
+import { Platform, Alert } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { makeRedirectUri } from "expo-auth-session";
 import * as Linking from "expo-linking";
@@ -171,22 +171,40 @@ export function AuthProvider({ children }: PropsWithChildren) {
 	const [isSigningIn, setIsSigningIn] = useState(false);
 	const router = useRouter();
 	
-	// Set up redirect URI for OAuth flows
-	const redirectUri = (() => {
-		if (__DEV__) {
-		  // IMPORTANT: This must match EXACTLY one of the URIs configured in Google Cloud Console
-		  // You'll need to update this to match your app's scheme
-		  return makeRedirectUri({
-			scheme: 'com.qwertyapp.padel-scoring-app', // Update this to match your app.json scheme
+	// CRITICAL: Generate and debug redirect URI
+	const generateRedirectUri = () => {
+		// Method 1: Using makeRedirectUri with explicit configuration
+		const method1 = makeRedirectUri({
+			scheme: undefined, // Let Expo determine the scheme
 			path: 'auth/callback'
-		  });
-		} else {
-		  // For production builds
-		  return "https://tfyxkhivanmcokxugmhe.supabase.co/auth/v1/callback";
-		}
-	  })();
+		});
 
-	console.log('[AUTH] Redirect URI configured:', redirectUri);
+		// Method 2: Using your app's specific scheme
+		const method2 = makeRedirectUri({
+			scheme: 'com.qwertyapp.padel-scoring-app',
+			path: 'auth/callback'
+		});
+
+		// Method 3: Expo's standard OAuth callback
+		const method3 = 'https://auth.expo.io/@qwerty-app/padel-scoring-app';
+
+		// Method 4: Supabase callback for production
+		const method4 = 'https://tfyxkhivanmcokxugmhe.supabase.co/auth/v1/callback';
+
+		console.log('🔍 REDIRECT URI DEBUG INFORMATION:');
+		console.log('Method 1 (Auto-scheme):', method1);
+		console.log('Method 2 (Custom scheme):', method2);
+		console.log('Method 3 (Expo standard):', method3);
+		console.log('Method 4 (Supabase):', method4);
+
+		// Return the most reliable method for Expo development
+		const selectedUri = __DEV__ ? method3 : method4;
+		console.log('🎯 SELECTED REDIRECT URI:', selectedUri);
+		
+		return selectedUri;
+	};
+
+	const redirectUri = generateRedirectUri();
 	  
 	// Fetch user profile from the database
 	const fetchProfile = async (userId: string) => {
@@ -587,44 +605,84 @@ export function AuthProvider({ children }: PropsWithChildren) {
 		}
 	};
 
-	// Google Sign In implementation - adapted from your working implementation
+	// ENHANCED Google Sign In implementation with comprehensive debugging
 	const googleSignIn = async () => {
 		try {
-			console.log('[AUTH] Starting Google sign in');
+			console.log('🚀 [AUTH] Starting Google sign in');
+			console.log('🎯 [AUTH] Using redirect URI:', redirectUri);
+
+			// CRITICAL: Show redirect URI to user for verification
+			Alert.alert(
+				'Debug: Redirect URI',
+				`Using: ${redirectUri}`,
+				[{ text: 'Continue', onPress: () => {} }]
+			);
 
 			const { data, error } = await supabase.auth.signInWithOAuth({
 				provider: 'google',
 				options: {
 					redirectTo: redirectUri,
 					skipBrowserRedirect: true,
+					queryParams: {
+						access_type: 'offline',
+						prompt: 'consent',
+					}
 				},
 			});
 
 			if (error) {
-				console.error('[AUTH] Error initiating Google OAuth:', error);
+				console.error('❌ [AUTH] Error initiating Google OAuth:', error);
 				return { error };
 			}
 
+			console.log('✅ [AUTH] OAuth initiation successful');
+			console.log('🔗 [AUTH] OAuth URL generated:', data?.url?.substring(0, 100) + '...');
+
 			if (data?.url) {
-				console.log('[AUTH] Opening Google auth session');
+				console.log('🌐 [AUTH] Opening Google auth session');
 
 				const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
-				console.log('[AUTH] WebBrowser result:', result.type);
+				console.log('📱 [AUTH] WebBrowser result type:', result.type);
+				console.log('🔍 [AUTH] WebBrowser result URL:', result.type === 'success' ? result.url?.substring(0, 100) + '...' : 'N/A');
 
 				if (result.type === 'success') {
 					try {
 						// Extract tokens from URL
 						const url = new URL(result.url);
-						const hashParams = new URLSearchParams(url.hash.substring(1));
-						const accessToken = hashParams.get('access_token');
-						const refreshToken = hashParams.get('refresh_token');
+						console.log('🔍 [AUTH] Parsing callback URL');
+						console.log('🔍 [AUTH] URL pathname:', url.pathname);
+						console.log('🔍 [AUTH] URL search:', url.search);
+						console.log('🔍 [AUTH] URL hash:', url.hash);
 
-						console.log('[AUTH] Extracted tokens from URL:', { 
+						// Try both hash and search params
+						let accessToken = null;
+						let refreshToken = null;
+
+						// Method 1: Hash parameters (most common)
+						if (url.hash) {
+							const hashParams = new URLSearchParams(url.hash.substring(1));
+							accessToken = hashParams.get('access_token');
+							refreshToken = hashParams.get('refresh_token');
+							console.log('🔑 [AUTH] Hash method - Access token found:', !!accessToken);
+						}
+
+						// Method 2: Search parameters (fallback)
+						if (!accessToken && url.search) {
+							const searchParams = new URLSearchParams(url.search);
+							accessToken = searchParams.get('access_token');
+							refreshToken = searchParams.get('refresh_token');
+							console.log('🔑 [AUTH] Search method - Access token found:', !!accessToken);
+						}
+
+						console.log('🔑 [AUTH] Final token extraction result:', { 
 							hasAccessToken: !!accessToken, 
-							hasRefreshToken: !!refreshToken 
+							hasRefreshToken: !!refreshToken,
+							tokenLength: accessToken?.length || 0
 						});
 
 						if (accessToken) {
+							console.log('✅ [AUTH] Setting session with extracted tokens');
+
 							// Set session manually
 							const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
 								access_token: accessToken,
@@ -632,44 +690,54 @@ export function AuthProvider({ children }: PropsWithChildren) {
 							});
 
 							if (sessionError) {
-								console.error('[AUTH] Error setting session:', sessionError);
+								console.error('❌ [AUTH] Error setting session:', sessionError);
 								return { error: sessionError };
 							}
 
 							if (sessionData.session) {
-								console.log('[AUTH] Session set successfully');
+								console.log('✅ [AUTH] Session set successfully');
+								console.log('👤 [AUTH] User ID:', sessionData.session.user.id);
+								console.log('📧 [AUTH] User email:', sessionData.session.user.email);
+
 								setSession(sessionData.session);
 
 								const userProfile = await processOAuthUser(sessionData.session);
 								if (userProfile) {
 									setProfile(userProfile);
 									
-									console.log('[AUTH] Google sign in successful');
+									console.log('🎉 [AUTH] Google sign in successful');
 									return { 
 										needsProfileUpdate: !checkProfileComplete(userProfile)
 									};
 								} else {
-									console.error('[AUTH] Failed to process OAuth user profile');
+									console.error('❌ [AUTH] Failed to process OAuth user profile');
 									return { error: new Error('Failed to create user profile') };
 								}
 							}
+						} else {
+							console.error('❌ [AUTH] No access token extracted from callback URL');
+							console.log('🔍 [AUTH] Full callback URL for debugging:', result.url);
+							return { error: new Error('No access token received from Google') };
 						}
 					} catch (extractError) {
-						console.error('[AUTH] Error processing Google auth result:', extractError);
+						console.error('❌ [AUTH] Error processing Google auth result:', extractError);
 						return { error: extractError as Error };
 					}
 				} else if (result.type === 'cancel') {
-					console.log('[AUTH] User canceled Google sign-in');
+					console.log('👤 [AUTH] User canceled Google sign-in');
 					return {}; // Not an error, just cancellation
+				} else {
+					console.error('❌ [AUTH] Unexpected WebBrowser result type:', result.type);
+					return { error: new Error(`Unexpected browser result: ${result.type}`) };
 				}
 			}
 
 			// Fallback session check
 			try {
-				console.log('[AUTH] Attempting fallback session check');
+				console.log('🔄 [AUTH] Attempting fallback session check');
 				const { data: currentSession } = await supabase.auth.getSession();
 				if (currentSession?.session?.user) {
-					console.log('[AUTH] Google sign in fallback path successful');
+					console.log('✅ [AUTH] Google sign in fallback path successful');
 					setSession(currentSession.session);
 					
 					const userProfile = await processOAuthUser(currentSession.session);
@@ -681,13 +749,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
 					}
 				}
 			} catch (sessionCheckError) {
-				console.error('[AUTH] Error checking session after Google auth:', sessionCheckError);
+				console.error('❌ [AUTH] Error checking session after Google auth:', sessionCheckError);
 			}
 
-			console.log('[AUTH] Google authentication failed');
+			console.log('❌ [AUTH] Google authentication failed - no session established');
 			return { error: new Error('Google authentication failed') };
 		} catch (error) {
-			console.error('[AUTH] Google sign in error:', error);
+			console.error('💥 [AUTH] Google sign in critical error:', error);
 			return { error: error as Error };
 		}
 	};
