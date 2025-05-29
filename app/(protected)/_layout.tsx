@@ -39,6 +39,7 @@ export default function ProtectedLayout() {
 		<Stack.Screen name="(screens)/match-history" />
 		<Stack.Screen name="(screens)/match-details" />
 		<Stack.Screen name="(screens)/leaderboard" />
+		<Stack.Screen name="(screens)/edit-match" />
 	  </Stack>
 	);
   }
