@@ -2,8 +2,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, ScrollView, TouchableOpacity, ActivityIndicator, Share, Alert, Platform } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
-import * as FileSystem from 'expo-file-system';
 import { Image } from 'expo-image';
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
@@ -13,117 +11,213 @@ import { useColorScheme } from "@/lib/useColorScheme";
 import { router } from 'expo-router';
 import { supabase } from '@/config/supabase';
 
-// PRODUCTION BULLETPROOF FIX 1: Direct base64 to binary conversion (Verified Method)
-const base64Decode = (base64String: string): Uint8Array => {
+// PRODUCTION RULE 1: Ultra-conservative base64 decoding with comprehensive error boundaries
+const safeBase64Decode = (base64String: string): Uint8Array | null => {
   try {
-    const byteCharacters = atob(base64String);
-    const byteNumbers = new Array(byteCharacters.length);
+    if (!base64String || typeof base64String !== 'string' || base64String.length === 0) {
+      console.error('🚨 PRODUCTION: Invalid base64 input');
+      return null;
+    }
 
+    // Sanitize input
+    const cleanedBase64 = base64String.replace(/[^A-Za-z0-9+/]/g, '');
+    if (cleanedBase64.length === 0) {
+      console.error('🚨 PRODUCTION: Empty base64 after sanitization');
+      return null;
+    }
+
+    // Use native atob with fallback
+    let byteCharacters: string;
+    try {
+      byteCharacters = atob(cleanedBase64);
+    } catch (atobError) {
+      console.error('🚨 PRODUCTION: atob failed, using manual decode');
+      // Manual base64 decode fallback
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+      let result = '';
+      let i = 0;
+      
+      while (i < cleanedBase64.length) {
+        const encoded1 = chars.indexOf(cleanedBase64.charAt(i++));
+        const encoded2 = chars.indexOf(cleanedBase64.charAt(i++));
+        const encoded3 = chars.indexOf(cleanedBase64.charAt(i++));
+        const encoded4 = chars.indexOf(cleanedBase64.charAt(i++));
+        
+        if (encoded1 === -1 || encoded2 === -1) break;
+        
+        const bitmap = (encoded1 << 18) | (encoded2 << 12) | (encoded3 << 6) | encoded4;
+        
+        result += String.fromCharCode((bitmap >> 16) & 255);
+        if (encoded3 !== 64 && encoded3 !== -1) result += String.fromCharCode((bitmap >> 8) & 255);
+        if (encoded4 !== 64 && encoded4 !== -1) result += String.fromCharCode(bitmap & 255);
+      }
+      byteCharacters = result;
+    }
+
+    if (!byteCharacters || byteCharacters.length === 0) {
+      console.error('🚨 PRODUCTION: Failed to decode base64');
+      return null;
+    }
+
+    // Convert to Uint8Array with size limits
+    const maxSize = 10 * 1024 * 1024; // 10MB absolute limit
+    if (byteCharacters.length > maxSize) {
+      console.error('🚨 PRODUCTION: Decoded data too large:', byteCharacters.length);
+      return null;
+    }
+
+    const byteNumbers = new Array(byteCharacters.length);
     for (let i = 0; i < byteCharacters.length; i++) {
       byteNumbers[i] = byteCharacters.charCodeAt(i);
     }
 
     return new Uint8Array(byteNumbers);
   } catch (error) {
-    console.error('🚨 PRODUCTION: Base64 decode error:', error);
-    throw new Error('Failed to decode base64 string');
-  }
-};
-
-// PRODUCTION BULLETPROOF FIX 2: Ultra-safe permission handling
-const getSafePermission = async (permissionFn: () => Promise<any>, timeoutMs: number = 8000): Promise<boolean> => {
-  try {
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Permission timeout')), timeoutMs);
-    });
-    
-    const result = await Promise.race([permissionFn(), timeoutPromise]);
-    return result?.status === 'granted';
-  } catch (error) {
-    console.error('🚨 PRODUCTION: Permission request failed:', error);
-    return false;
-  }
-};
-
-// PRODUCTION BULLETPROOF FIX 3: Memory-conscious image processing with base64 output
-const processImageSafely = async (uri: string): Promise<string | null> => {
-  try {
-    // Verify file exists with minimal timeout
-    const fileInfo = await Promise.race([
-      FileSystem.getInfoAsync(uri),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('File check timeout')), 3000))
-    ]);
-    
-    if (!fileInfo.exists) {
-      console.error('🚨 PRODUCTION: Source file does not exist');
-      return null;
-    }
-    
-    // Limit file size to prevent memory issues
-    if (fileInfo.size && fileInfo.size > 8 * 1024 * 1024) {
-      console.error('🚨 PRODUCTION: File too large:', fileInfo.size);
-      return null;
-    }
-    
-    // Process image and get base64 directly
-    const result = await ImageManipulator.manipulateAsync(
-      uri,
-      [{ resize: { width: 400, height: 400 } }], // Reasonable size for avatars
-      {
-        compress: 0.8,
-        format: ImageManipulator.SaveFormat.JPEG,
-        base64: true, // Get base64 directly for reliable upload
-      }
-    );
-    
-    if (!result.base64 || result.base64.length === 0) {
-      throw new Error('Failed to generate base64 data');
-    }
-    
-    return result.base64;
-    
-  } catch (error) {
-    console.error('🚨 PRODUCTION: Image processing failed:', error);
+    console.error('🚨 PRODUCTION: Base64 decode catastrophic failure:', error);
     return null;
   }
 };
 
-// PRODUCTION BULLETPROOF FIX 4: Simplified, reliable upload method using verified base64 approach
-const uploadAvatarSafely = async (
-  base64Data: string, 
-  userId: string, 
+// PRODUCTION RULE 2: Progressive permission handling with timeout protection
+const requestPermissionSafely = async (
+  permissionType: 'camera' | 'library',
+  timeoutMs: number = 5000
+): Promise<boolean> => {
+  try {
+    const permissionPromise = permissionType === 'camera' 
+      ? ImagePicker.requestCameraPermissionsAsync()
+      : ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Permission timeout')), timeoutMs);
+    });
+
+    const result = await Promise.race([permissionPromise, timeoutPromise]);
+    return result?.status === 'granted';
+  } catch (error) {
+    console.error(`🚨 PRODUCTION: ${permissionType} permission failed:`, error);
+    return false;
+  }
+};
+
+// PRODUCTION RULE 3: Simplified image selection with conservative settings
+const selectImageWithProductionSafety = async (useCamera: boolean): Promise<{
+  success: boolean;
+  base64?: string;
+  error?: string;
+  cancelled?: boolean;
+}> => {
+  try {
+    // Step 1: Request permissions with timeout
+    const hasPermission = await requestPermissionSafely(useCamera ? 'camera' : 'library');
+    if (!hasPermission) {
+      Alert.alert(
+        'Permission Required',
+        `Please enable ${useCamera ? 'camera' : 'photo library'} access in device settings.`
+      );
+      return { success: false, error: 'Permission denied' };
+    }
+
+    // Step 2: Launch picker with ultra-conservative settings
+    const pickerOptions = {
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1] as [number, number],
+      quality: 0.5, // Conservative quality for production stability
+      base64: true,
+      exif: false,
+    };
+
+    const pickerPromise = useCamera
+      ? ImagePicker.launchCameraAsync(pickerOptions)
+      : ImagePicker.launchImageLibraryAsync(pickerOptions);
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Picker timeout')), 20000);
+    });
+
+    const result = await Promise.race([pickerPromise, timeoutPromise]);
+
+    if (result.canceled) {
+      return { success: false, cancelled: true };
+    }
+
+    if (!result.assets || result.assets.length === 0 || !result.assets[0].base64) {
+      return { success: false, error: 'No image data received' };
+    }
+
+    const base64Data = result.assets[0].base64;
+    
+    // Validate base64 data size before returning
+    if (base64Data.length > 15 * 1024 * 1024) { // 15MB base64 limit
+      return { success: false, error: 'Image too large for processing' };
+    }
+
+    return { success: true, base64: base64Data };
+
+  } catch (error) {
+    console.error('🚨 PRODUCTION: Image selection failed:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Image selection failed' 
+    };
+  }
+};
+
+// PRODUCTION RULE 4: Bulletproof upload with extensive error recovery
+const uploadAvatarWithProductionSafety = async (
+  base64Data: string,
+  userId: string,
   previousAvatarUrl?: string | null
 ): Promise<{ success: boolean; publicUrl?: string; error?: string }> => {
   try {
-    // Step 1: Validate inputs
-    if (!base64Data || !userId) {
-      return { success: false, error: 'Invalid parameters' };
+    // Step 1: Input validation with detailed logging
+    if (!base64Data || typeof base64Data !== 'string' || base64Data.length === 0) {
+      console.error('🚨 PRODUCTION: Invalid base64 data provided');
+      return { success: false, error: 'Invalid image data' };
     }
-    
-    // Step 2: Convert base64 to binary using verified method
-    const binaryData = base64Decode(base64Data);
-    
-    if (binaryData.length === 0) {
+
+    if (!userId || typeof userId !== 'string' || userId.length === 0) {
+      console.error('🚨 PRODUCTION: Invalid user ID provided');
+      return { success: false, error: 'Invalid user ID' };
+    }
+
+    // Step 2: Convert base64 to binary with safety checks
+    const binaryData = safeBase64Decode(base64Data);
+    if (!binaryData || binaryData.length === 0) {
+      console.error('🚨 PRODUCTION: Base64 conversion failed');
       return { success: false, error: 'Failed to process image data' };
     }
-    
-    // Step 3: Check data size (converted binary should be reasonable)
-    if (binaryData.length > 5 * 1024 * 1024) { // 5MB limit for safety
-      return { success: false, error: 'Processed image is too large' };
+
+    // Step 3: Size validation
+    const maxUploadSize = 5 * 1024 * 1024; // 5MB binary limit
+    if (binaryData.length > maxUploadSize) {
+      console.error('🚨 PRODUCTION: Binary data too large:', binaryData.length);
+      return { success: false, error: 'Image size exceeds limit' };
     }
-    
-    // Step 4: Generate safe file path
+
+    console.log('🔧 PRODUCTION: Processing upload:', {
+      userId: userId.substring(0, 8) + '...',
+      dataSize: binaryData.length,
+      timestamp: Date.now()
+    });
+
+    // Step 4: Generate unique file path
     const timestamp = Date.now();
-    const randomId = Math.random().toString(36).substring(2, 8);
-    const fileName = `avatar_${userId}_${timestamp}_${randomId}.jpg`;
+    const randomSuffix = Math.random().toString(36).substring(2, 8);
+    const fileName = `avatar_${userId.substring(0, 8)}_${timestamp}_${randomSuffix}.jpg`;
     const filePath = `${userId}/${fileName}`;
-    
-    // Step 5: Upload to Supabase using verified method
-    let uploadSuccess = false;
-    let uploadError: string | null = null;
-    
-    for (let attempt = 1; attempt <= 2; attempt++) {
+
+    // Step 5: Attempt upload with retry mechanism
+    let uploadAttempts = 0;
+    const maxAttempts = 2;
+    let lastError: string | null = null;
+
+    while (uploadAttempts < maxAttempts) {
       try {
+        uploadAttempts++;
+        console.log(`🔧 PRODUCTION: Upload attempt ${uploadAttempts}/${maxAttempts}`);
+
         const { data, error } = await supabase.storage
           .from('avatars')
           .upload(filePath, binaryData, {
@@ -131,39 +225,49 @@ const uploadAvatarSafely = async (
             cacheControl: '3600',
             upsert: true,
           });
-        
+
         if (error) {
-          uploadError = error.message;
-          console.warn(`🚨 PRODUCTION: Upload attempt ${attempt} failed:`, error);
-          if (attempt === 2) throw error;
-          continue;
+          lastError = error.message;
+          console.warn(`🚨 PRODUCTION: Upload attempt ${uploadAttempts} failed:`, error);
+          
+          if (uploadAttempts < maxAttempts) {
+            // Wait before retry
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            continue;
+          } else {
+            throw error;
+          }
         }
-        
-        uploadSuccess = true;
+
+        console.log('✅ PRODUCTION: Upload successful on attempt', uploadAttempts);
         break;
-      } catch (error) {
-        uploadError = error instanceof Error ? error.message : 'Upload failed';
-        if (attempt === 2) break;
+
+      } catch (attemptError) {
+        lastError = attemptError instanceof Error ? attemptError.message : 'Upload failed';
+        console.error(`🚨 PRODUCTION: Upload attempt ${uploadAttempts} error:`, attemptError);
         
-        // Wait before retry
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        if (uploadAttempts >= maxAttempts) {
+          return { success: false, error: lastError || 'Upload failed after retries' };
+        }
       }
     }
-    
-    if (!uploadSuccess) {
-      return { success: false, error: uploadError || 'Upload failed after retries' };
-    }
-    
+
     // Step 6: Get public URL
     const { data: publicUrlData } = supabase.storage
       .from('avatars')
       .getPublicUrl(filePath);
-    
+
     if (!publicUrlData?.publicUrl) {
+      console.error('🚨 PRODUCTION: Failed to generate public URL');
       return { success: false, error: 'Failed to generate public URL' };
     }
-    
-    // Step 7: Clean up old avatar (non-blocking)
+
+    console.log('✅ PRODUCTION: Upload completed successfully:', {
+      filePath,
+      publicUrlLength: publicUrlData.publicUrl.length
+    });
+
+    // Step 7: Schedule old avatar cleanup (non-blocking)
     if (previousAvatarUrl && previousAvatarUrl !== publicUrlData.publicUrl) {
       setTimeout(async () => {
         try {
@@ -172,20 +276,21 @@ const uploadAvatarSafely = async (
           if (match && match[1]) {
             const oldFilePath = decodeURIComponent(match[1]);
             await supabase.storage.from('avatars').remove([oldFilePath]);
+            console.log('🧹 PRODUCTION: Old avatar cleaned up:', oldFilePath);
           }
         } catch (cleanupError) {
-          console.warn('🚨 PRODUCTION: Old avatar cleanup failed:', cleanupError);
+          console.warn('🚨 PRODUCTION: Old avatar cleanup failed (non-critical):', cleanupError);
         }
-      }, 1000);
+      }, 2000);
     }
-    
+
     return {
       success: true,
       publicUrl: publicUrlData.publicUrl
     };
-    
+
   } catch (error) {
-    console.error('🚨 PRODUCTION: Avatar upload failed:', error);
+    console.error('🚨 PRODUCTION: Upload catastrophic failure:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown upload error'
@@ -193,103 +298,40 @@ const uploadAvatarSafely = async (
   }
 };
 
-// PRODUCTION BULLETPROOF FIX 5: Safe image selection with direct base64 output
-const selectImageSafely = async (useCamera: boolean): Promise<{ success: boolean; base64?: string; error?: string; cancelled?: boolean }> => {
+// PRODUCTION RULE 5: Safe avatar deletion with error isolation
+const deleteAvatarWithProductionSafety = async (publicUrl: string): Promise<{
+  success: boolean;
+  error?: string;
+}> => {
   try {
-    // Request permissions safely
-    const hasPermission = await getSafePermission(
-      useCamera 
-        ? () => ImagePicker.requestCameraPermissionsAsync()
-        : () => ImagePicker.requestMediaLibraryPermissionsAsync()
-    );
-    
-    if (!hasPermission) {
-      Alert.alert(
-        'Permission Required',
-        `Please enable ${useCamera ? 'camera' : 'photo library'} access in your device settings.`,
-        [{ text: 'OK' }]
-      );
-      return { success: false, error: 'Permission denied' };
+    if (!publicUrl || typeof publicUrl !== 'string' || publicUrl.length === 0) {
+      return { success: false, error: 'Invalid URL provided' };
     }
-    
-    // Launch picker with timeout and base64 enabled
-    const pickerPromise = useCamera
-      ? ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          allowsEditing: true,
-          aspect: [1, 1],
-          quality: 0.8,
-          base64: true, // Enable base64 for direct conversion
-          exif: false,
-        })
-      : ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          allowsEditing: true,
-          aspect: [1, 1],
-          quality: 0.8,
-          base64: true, // Enable base64 for direct conversion
-          exif: false,
-        });
-    
-    const result = await Promise.race([
-      pickerPromise,
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Picker timeout')), 25000))
-    ]);
-    
-    if (result.canceled) {
-      return { success: false, cancelled: true };
-    }
-    
-    if (!result.assets || result.assets.length === 0) {
-      return { success: false, error: 'No image selected' };
-    }
-    
-    // Get base64 data directly from picker
-    const base64Data = result.assets[0].base64;
-    if (!base64Data || base64Data.length === 0) {
-      return { success: false, error: 'Failed to get image data' };
-    }
-    
-    return { success: true, base64: base64Data };
-    
-  } catch (error) {
-    console.error('🚨 PRODUCTION: Image selection failed:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Image selection failed'
-    };
-  }
-};
 
-// PRODUCTION BULLETPROOF FIX 6: Safe avatar deletion
-const deleteAvatarSafely = async (publicUrl: string): Promise<{ success: boolean; error?: string }> => {
-  try {
-    if (!publicUrl) {
-      return { success: false, error: 'No URL provided' };
-    }
-    
     const urlPattern = /\/storage\/v1\/object\/public\/avatars\/(.+)$/;
     const match = publicUrl.match(urlPattern);
     
     if (!match || !match[1]) {
-      return { success: false, error: 'Invalid URL format' };
+      return { success: false, error: 'Could not extract file path from URL' };
     }
-    
+
     const filePath = decodeURIComponent(match[1]);
-    
+    console.log('🗑️ PRODUCTION: Deleting avatar:', filePath);
+
     const { error } = await supabase.storage
       .from('avatars')
       .remove([filePath]);
-    
+
     if (error) {
       console.error('🚨 PRODUCTION: Delete failed:', error);
       return { success: false, error: error.message };
     }
-    
+
+    console.log('✅ PRODUCTION: Avatar deleted successfully');
     return { success: true };
-    
+
   } catch (error) {
-    console.error('🚨 PRODUCTION: Delete error:', error);
+    console.error('🚨 PRODUCTION: Delete catastrophic failure:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Delete failed'
@@ -331,12 +373,16 @@ interface AvatarOperationState {
   success: string | null;
 }
 
-// PRODUCTION BULLETPROOF FIX 7: Main component with comprehensive error handling
+// PRODUCTION RULE 6: Main component with progressive loading and crash isolation
 export default function Profile() {
   const { signOut, profile, saveProfile } = useAuth();
   const { colorScheme } = useColorScheme();
+  
+  // PRODUCTION RULE 6A: State management with defensive initialization
   const [loading, setLoading] = useState(false);
+  const [componentReady, setComponentReady] = useState(false);
   const isMountedRef = useRef(true);
+  const initializationRef = useRef(false);
   
   const [avatarState, setAvatarState] = useState<AvatarOperationState>({
     uploading: false,
@@ -363,256 +409,167 @@ export default function Profile() {
     thisMonthMatches: 0,
   });
 
-  // Safe state update helper
-  const safeSetState = useCallback((updateFn: (prev: any) => any, setter: React.Dispatch<React.SetStateAction<any>>) => {
-    if (isMountedRef.current) {
-      try {
+  // PRODUCTION RULE 6B: Ultra-safe state update mechanism
+  const safeSetState = useCallback((
+    updateFn: (prev: any) => any, 
+    setter: React.Dispatch<React.SetStateAction<any>>,
+    stateName: string = 'unknown'
+  ) => {
+    try {
+      if (isMountedRef.current) {
         setter(updateFn);
-      } catch (error) {
-        console.error('🚨 PRODUCTION: State update failed:', error);
+      } else {
+        console.warn(`🚨 PRODUCTION: Attempted ${stateName} update on unmounted component`);
       }
+    } catch (error) {
+      console.error(`🚨 PRODUCTION: State update failed for ${stateName}:`, error);
     }
   }, []);
 
-  // Component lifecycle
+  // PRODUCTION RULE 6C: Progressive component initialization
   useEffect(() => {
-    isMountedRef.current = true;
-    
-    if (profile?.id) {
-      fetchPlayerStatistics(profile.id).catch(error => {
-        console.error('🚨 PRODUCTION: Failed to fetch stats:', error);
-      });
-    }
+    const initializeComponent = async () => {
+      try {
+        if (initializationRef.current) return;
+        initializationRef.current = true;
+
+        console.log('🚀 PRODUCTION: Initializing profile component');
+        isMountedRef.current = true;
+        
+        // Progressive initialization with delay
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        if (isMountedRef.current) {
+          safeSetState(() => true, setComponentReady, 'componentReady');
+        }
+
+        // Initialize stats if profile is available
+        if (profile?.id && isMountedRef.current) {
+          console.log('🔧 PRODUCTION: Profile available, initializing stats');
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+          if (isMountedRef.current) {
+            await fetchPlayerStatisticsWithSafety(profile.id);
+          }
+        }
+
+      } catch (error) {
+        console.error('🚨 PRODUCTION: Component initialization failed:', error);
+        if (isMountedRef.current) {
+          safeSetState(() => true, setComponentReady, 'componentReady'); // Still show component
+        }
+      }
+    };
+
+    initializeComponent();
 
     return () => {
+      console.log('🧹 PRODUCTION: Cleaning up profile component');
       isMountedRef.current = false;
     };
-  }, [profile?.id]);
+  }, [profile?.id, safeSetState]);
 
-  // Auto-clear messages
+  // PRODUCTION RULE 6D: Safe message cleanup
   useEffect(() => {
-    if (avatarState.error || avatarState.success) {
+    if ((avatarState.error || avatarState.success) && componentReady) {
       const timer = setTimeout(() => {
-        safeSetState(prev => ({ ...prev, error: null, success: null }), setAvatarState);
+        if (isMountedRef.current) {
+          safeSetState(
+            prev => ({ ...prev, error: null, success: null }), 
+            setAvatarState, 
+            'avatarState'
+          );
+        }
       }, 4000);
       
       return () => clearTimeout(timer);
     }
-  }, [avatarState.error, avatarState.success, safeSetState]);
+  }, [avatarState.error, avatarState.success, componentReady, safeSetState]);
 
-  // PRODUCTION BULLETPROOF FIX 8: Safe avatar upload handler with verified base64 method
-  const handleAvatarUpload = async () => {
-    if (!profile?.id) {
-      safeSetState(prev => ({ ...prev, error: 'Profile not available' }), setAvatarState);
-      return;
-    }
-
+  // PRODUCTION RULE 7: Ultra-safe statistics fetching with comprehensive error handling
+  const fetchPlayerStatisticsWithSafety = async (playerId: string) => {
     try {
-      safeSetState(() => ({ uploading: false, deleting: false, error: null, success: null }), setAvatarState);
+      if (!isMountedRef.current || !playerId) return;
+      
+      console.log('📊 PRODUCTION: Starting stats fetch for:', playerId.substring(0, 8) + '...');
+      safeSetState(() => true, setLoading, 'loading');
+      
+      // Add delay to prevent race conditions
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      if (!isMountedRef.current) return;
 
-      // Show selection options
-      const selection = await new Promise<'camera' | 'library' | null>((resolve) => {
-        Alert.alert(
-          'Select Profile Picture',
-          'Choose how you would like to set your profile picture',
-          [
-            { text: 'Camera', onPress: () => resolve('camera') },
-            { text: 'Photo Library', onPress: () => resolve('library') },
-            { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
-          ],
-          { cancelable: true, onDismiss: () => resolve(null) }
-        );
+      // Fetch with conservative timeout
+      const fetchPromise = supabase
+        .from('matches')
+        .select(`
+          *,
+          player1:profiles!player1_id(id, full_name, email, glicko_rating),
+          player2:profiles!player2_id(id, full_name, email, glicko_rating),
+          player3:profiles!player3_id(id, full_name, email, glicko_rating),
+          player4:profiles!player4_id(id, full_name, email, glicko_rating)
+        `)
+        .or(`player1_id.eq.${playerId},player2_id.eq.${playerId},player3_id.eq.${playerId},player4_id.eq.${playerId}`)
+        .order('created_at', { ascending: false })
+        .limit(100); // Limit results for production performance
+
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Query timeout')), 8000);
       });
 
-      if (!selection || !isMountedRef.current) return;
-
-      // Select image with base64 output
-      const selectionResult = await selectImageSafely(selection === 'camera');
-      
-      if (!isMountedRef.current) return;
-      
-      if (!selectionResult.success) {
-        if (!selectionResult.cancelled && selectionResult.error) {
-          safeSetState(prev => ({ ...prev, error: selectionResult.error }), setAvatarState);
-        }
-        return;
-      }
-
-      if (!selectionResult.base64) {
-        safeSetState(prev => ({ ...prev, error: 'No image data received' }), setAvatarState);
-        return;
-      }
-
-      // Start upload
-      safeSetState(prev => ({ ...prev, uploading: true }), setAvatarState);
-
-      const uploadResult = await uploadAvatarSafely(
-        selectionResult.base64,
-        profile.id,
-        profile.avatar_url
-      );
-
-      if (!isMountedRef.current) return;
-
-      if (!uploadResult.success) {
-        safeSetState(() => ({
-          uploading: false,
-          deleting: false,
-          error: uploadResult.error || 'Upload failed',
-          success: null,
-        }), setAvatarState);
-        return;
-      }
-
-      // Update profile
-      await saveProfile({ avatar_url: uploadResult.publicUrl });
-
-      if (isMountedRef.current) {
-        safeSetState(() => ({
-          uploading: false,
-          deleting: false,
-          error: null,
-          success: 'Profile picture updated successfully!',
-        }), setAvatarState);
-      }
-
-    } catch (error) {
-      console.error('🚨 PRODUCTION: Avatar upload error:', error);
-      if (isMountedRef.current) {
-        safeSetState(() => ({
-          uploading: false,
-          deleting: false,
-          error: 'Failed to update profile picture',
-          success: null,
-        }), setAvatarState);
-      }
-    }
-  };
-
-  // PRODUCTION BULLETPROOF FIX 9: Safe avatar removal handler
-  const handleAvatarRemove = async () => {
-    if (!profile?.id || !profile.avatar_url) {
-      safeSetState(prev => ({ ...prev, error: 'No profile picture to remove' }), setAvatarState);
-      return;
-    }
-
-    Alert.alert(
-      'Remove Profile Picture',
-      'Are you sure you want to remove your profile picture?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              safeSetState(prev => ({ ...prev, deleting: true, error: null }), setAvatarState);
-
-              const deleteResult = await deleteAvatarSafely(profile.avatar_url!);
-              
-              if (!isMountedRef.current) return;
-              
-              // Update profile regardless of delete result
-              await saveProfile({ avatar_url: null });
-
-              if (isMountedRef.current) {
-                safeSetState(() => ({
-                  uploading: false,
-                  deleting: false,
-                  error: null,
-                  success: 'Profile picture removed successfully!',
-                }), setAvatarState);
-              }
-
-            } catch (error) {
-              console.error('🚨 PRODUCTION: Avatar removal error:', error);
-              if (isMountedRef.current) {
-                safeSetState(() => ({
-                  uploading: false,
-                  deleting: false,
-                  error: 'Failed to remove profile picture',
-                  success: null,
-                }), setAvatarState);
-              }
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const showAvatarOptions = () => {
-    if (!profile?.id) return;
-
-    const options = [{ text: 'Change Picture', onPress: handleAvatarUpload }];
-    
-    if (profile.avatar_url) {
-      options.push({ text: 'Remove Picture', onPress: handleAvatarRemove });
-    }
-    
-    options.push({ text: 'Cancel', onPress: () => {} });
-
-    Alert.alert(
-      'Profile Picture Options',
-      'Choose an action for your profile picture',
-      options.map(option => ({
-        text: option.text,
-        style: option.text === 'Cancel' ? 'cancel' : option.text === 'Remove Picture' ? 'destructive' : 'default',
-        onPress: option.onPress,
-      }))
-    );
-  };
-
-  // PRODUCTION BULLETPROOF FIX 10: Safe statistics fetching
-  const fetchPlayerStatistics = async (playerId: string) => {
-    try {
-      if (!isMountedRef.current) return;
-      
-      safeSetState(() => true, setLoading);
-      
-      // Fetch with shorter timeout for production
       const { data: matchData, error: matchError } = await Promise.race([
-        supabase
-          .from('matches')
-          .select(`
-            *,
-            player1:profiles!player1_id(id, full_name, email, glicko_rating),
-            player2:profiles!player2_id(id, full_name, email, glicko_rating),
-            player3:profiles!player3_id(id, full_name, email, glicko_rating),
-            player4:profiles!player4_id(id, full_name, email, glicko_rating)
-          `)
-          .or(`player1_id.eq.${playerId},player2_id.eq.${playerId},player3_id.eq.${playerId},player4_id.eq.${playerId}`)
-          .order('created_at', { ascending: false }),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Query timeout')), 10000))
+        fetchPromise,
+        timeoutPromise
       ]);
 
       if (!isMountedRef.current) return;
 
       if (matchError) {
         console.error('🚨 PRODUCTION: Match fetch error:', matchError);
-        throw matchError;
+        // Don't throw, continue with empty data
       }
 
-      // Safe stats calculation with error boundaries
-      const stats = calculateStatsWithErrorHandling(matchData || [], playerId);
+      console.log('📊 PRODUCTION: Processing match data:', matchData?.length || 0, 'matches');
+
+      // Safe stats calculation with error isolation
+      const stats = await calculateStatsWithMaximumSafety(matchData || [], playerId);
       
       if (isMountedRef.current) {
-        safeSetState(() => stats, setPlayerStats);
+        safeSetState(() => stats, setPlayerStats, 'playerStats');
+        console.log('✅ PRODUCTION: Stats updated successfully');
       }
       
     } catch (error) {
-      console.error("🚨 PRODUCTION: Error fetching stats:", error);
-      // Continue with default stats instead of crashing
+      console.error("🚨 PRODUCTION: Stats fetch catastrophic failure:", error);
+      // Don't crash - continue with default stats
     } finally {
       if (isMountedRef.current) {
-        safeSetState(() => false, setLoading);
+        safeSetState(() => false, setLoading, 'loading');
       }
     }
   };
 
-  // Safe stats calculation
-  const calculateStatsWithErrorHandling = (matchData: any[], playerId: string): EnhancedPlayerStats => {
+  // PRODUCTION RULE 8: Bulletproof stats calculation with individual error isolation
+  const calculateStatsWithMaximumSafety = async (
+    matchData: any[], 
+    playerId: string
+  ): Promise<EnhancedPlayerStats> => {
     try {
+      console.log('🔢 PRODUCTION: Starting stats calculation');
+      
+      // Initialize with safe defaults
+      const defaultStats: EnhancedPlayerStats = {
+        matches: 0, wins: 0, losses: 0, winRate: 0, streak: 0, longestStreak: 0,
+        upcomingMatches: 0, needsAttention: 0, ratingHistory: [], recentMatches: [], 
+        scheduledMatches: [], averageMatchDuration: 0, recentPerformance: 'stable',
+        thisWeekMatches: 0, thisMonthMatches: 0,
+      };
+
+      if (!Array.isArray(matchData) || matchData.length === 0) {
+        console.log('📊 PRODUCTION: No match data available, using defaults');
+        return defaultStats;
+      }
+
       const now = new Date();
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -624,8 +581,15 @@ export default function Profile() {
       const recentMatches: any[] = [];
       const scheduledMatches: any[] = [];
       
-      // Default rating history
-      const baseRating = profile?.glicko_rating ? parseFloat(profile.glicko_rating.toString()) : 1500;
+      // Generate safe rating history
+      const baseRating = (() => {
+        try {
+          return profile?.glicko_rating ? parseFloat(profile.glicko_rating.toString()) : 1500;
+        } catch {
+          return 1500;
+        }
+      })();
+      
       const ratingHistory = [
         { date: '1 May', rating: Math.round(baseRating) },
         { date: '8 May', rating: Math.round(baseRating) },
@@ -639,116 +603,129 @@ export default function Profile() {
       const recentResults: boolean[] = [];
       const olderResults: boolean[] = [];
       
-      // Safe match processing
-      if (Array.isArray(matchData)) {
-        const completedMatches = matchData
-          .filter(match => {
-            try {
-              return match && match.team1_score_set1 !== null && match.team2_score_set1 !== null;
-            } catch {
-              return false;
-            }
-          })
-          .sort((a, b) => {
-            try {
-              const dateA = new Date(a.completed_at || a.end_time || a.start_time);
-              const dateB = new Date(b.completed_at || b.end_time || b.start_time);
-              return dateA.getTime() - dateB.getTime();
-            } catch {
-              return 0;
-            }
-          });
+      // Safe match processing with individual error isolation
+      const safeMatches = matchData.filter(match => {
+        try {
+          return match && typeof match === 'object' && match.start_time;
+        } catch {
+          return false;
+        }
+      });
 
-        // Process each match safely
-        matchData.forEach(match => {
-          try {
-            if (!match || !match.start_time) return;
-            
-            const startTime = new Date(match.start_time);
-            const endTime = match.end_time ? new Date(match.end_time) : null;
-            const completedTime = match.completed_at ? new Date(match.completed_at) : null;
-            
-            const isFuture = startTime > now;
-            const isPast = endTime ? endTime < now : startTime < now;
-            const hasScores = match.team1_score_set1 !== null && match.team2_score_set1 !== null;
-            const needsScores = isPast && !hasScores && match.status !== MatchStatus.CANCELLED;
-            const needsConfirmation = match.status === MatchStatus.NEEDS_CONFIRMATION;
-            
-            if (needsScores || needsConfirmation) needsAttention++;
-            
-            if (isFuture) {
-              upcomingMatches++;
-              if (scheduledMatches.length < 3) scheduledMatches.push(match);
-            }
-            
-            const matchDate = completedTime || endTime || startTime;
-            if (hasScores) {
-              if (matchDate >= weekAgo) thisWeekMatches++;
-              if (matchDate >= monthAgo) thisMonthMatches++;
-              
-              if (recentMatches.length < 3) recentMatches.push(match);
-              
-              if (match.start_time && match.end_time) {
-                const duration = new Date(match.end_time).getTime() - new Date(match.start_time).getTime();
-                if (duration > 0) {
-                  totalDuration += duration;
-                  matchesWithDuration++;
-                }
-              }
-            }
-          } catch (error) {
-            console.warn('🚨 PRODUCTION: Match processing error:', error);
-          }
-        });
+      console.log('🔢 PRODUCTION: Processing', safeMatches.length, 'safe matches');
 
-        // Calculate wins/losses safely
-        completedMatches.forEach((match) => {
-          try {
-            const isTeam1 = match.player1_id === playerId || match.player2_id === playerId;
-            let userWon = false;
-            
-            if (match.winner_team) {
-              userWon = (isTeam1 && match.winner_team === 1) || (!isTeam1 && match.winner_team === 2);
-            } else {
-              let team1Sets = 0, team2Sets = 0;
-              
-              if (match.team1_score_set1 > match.team2_score_set1) team1Sets++;
-              else if (match.team2_score_set1 > match.team1_score_set1) team2Sets++;
-              
-              if (match.team1_score_set2 !== null && match.team2_score_set2 !== null) {
-                if (match.team1_score_set2 > match.team2_score_set2) team1Sets++;
-                else if (match.team2_score_set2 > match.team1_score_set2) team2Sets++;
-              }
-              
-              if (match.team1_score_set3 !== null && match.team2_score_set3 !== null) {
-                if (match.team1_score_set3 > match.team2_score_set3) team1Sets++;
-                else if (match.team2_score_set3 > match.team1_score_set3) team2Sets++;
-              }
-              
-              if (team1Sets > team2Sets) userWon = isTeam1;
-              else if (team2Sets > team1Sets) userWon = !isTeam1;
-            }
-            
-            const matchDate = new Date(match.completed_at || match.end_time || match.start_time);
-            
-            if (matchDate >= weekAgo) recentResults.push(userWon);
-            else if (matchDate >= monthAgo) olderResults.push(userWon);
-            
-            if (userWon) {
-              wins++;
-              currentStreak = currentStreak >= 0 ? currentStreak + 1 : 1;
-            } else {
-              losses++;
-              currentStreak = currentStreak <= 0 ? currentStreak - 1 : -1;
-            }
-            
-            if (Math.abs(currentStreak) > Math.abs(longestStreak)) {
-              longestStreak = currentStreak;
-            }
-          } catch (error) {
-            console.warn('🚨 PRODUCTION: Win/loss calculation error:', error);
+      // Process completed matches for wins/losses
+      const completedMatches = safeMatches.filter(match => {
+        try {
+          return match.team1_score_set1 !== null && 
+                 match.team1_score_set1 !== undefined && 
+                 match.team2_score_set1 !== null && 
+                 match.team2_score_set1 !== undefined;
+        } catch {
+          return false;
+        }
+      }).sort((a, b) => {
+        try {
+          const dateA = new Date(a.completed_at || a.end_time || a.start_time).getTime();
+          const dateB = new Date(b.completed_at || b.end_time || b.start_time).getTime();
+          return dateA - dateB;
+        } catch {
+          return 0;
+        }
+      });
+
+      // Process each match with individual error boundaries
+      for (const match of safeMatches) {
+        try {
+          if (!match || !match.start_time) continue;
+          
+          const startTime = new Date(match.start_time);
+          const endTime = match.end_time ? new Date(match.end_time) : null;
+          const completedTime = match.completed_at ? new Date(match.completed_at) : null;
+          
+          const isFuture = startTime > now;
+          const isPast = endTime ? endTime < now : startTime < now;
+          const hasScores = match.team1_score_set1 !== null && match.team2_score_set1 !== null;
+          const needsScores = isPast && !hasScores && match.status !== MatchStatus.CANCELLED;
+          const needsConfirmation = match.status === MatchStatus.NEEDS_CONFIRMATION;
+          
+          if (needsScores || needsConfirmation) needsAttention++;
+          
+          if (isFuture) {
+            upcomingMatches++;
+            if (scheduledMatches.length < 3) scheduledMatches.push(match);
           }
-        });
+          
+          const matchDate = completedTime || endTime || startTime;
+          if (hasScores) {
+            if (matchDate >= weekAgo) thisWeekMatches++;
+            if (matchDate >= monthAgo) thisMonthMatches++;
+            
+            if (recentMatches.length < 3) recentMatches.push(match);
+            
+            if (match.start_time && match.end_time) {
+              const duration = new Date(match.end_time).getTime() - new Date(match.start_time).getTime();
+              if (duration > 0 && duration < 24 * 60 * 60 * 1000) { // Reasonable duration check
+                totalDuration += duration;
+                matchesWithDuration++;
+              }
+            }
+          }
+        } catch (matchError) {
+          console.warn('🚨 PRODUCTION: Match processing error (non-critical):', matchError);
+          continue;
+        }
+      }
+
+      // Calculate wins/losses with individual error isolation
+      for (const match of completedMatches) {
+        try {
+          const isTeam1 = match.player1_id === playerId || match.player2_id === playerId;
+          let userWon = false;
+          
+          if (match.winner_team) {
+            userWon = (isTeam1 && match.winner_team === 1) || (!isTeam1 && match.winner_team === 2);
+          } else {
+            // Calculate winner based on sets
+            let team1Sets = 0, team2Sets = 0;
+            
+            if (match.team1_score_set1 > match.team2_score_set1) team1Sets++;
+            else if (match.team2_score_set1 > match.team1_score_set1) team2Sets++;
+            
+            if (match.team1_score_set2 !== null && match.team2_score_set2 !== null) {
+              if (match.team1_score_set2 > match.team2_score_set2) team1Sets++;
+              else if (match.team2_score_set2 > match.team1_score_set2) team2Sets++;
+            }
+            
+            if (match.team1_score_set3 !== null && match.team2_score_set3 !== null) {
+              if (match.team1_score_set3 > match.team2_score_set3) team1Sets++;
+              else if (match.team2_score_set3 > match.team1_score_set3) team2Sets++;
+            }
+            
+            if (team1Sets > team2Sets) userWon = isTeam1;
+            else if (team2Sets > team1Sets) userWon = !isTeam1;
+          }
+          
+          const matchDate = new Date(match.completed_at || match.end_time || match.start_time);
+          
+          if (matchDate >= weekAgo) recentResults.push(userWon);
+          else if (matchDate >= monthAgo) olderResults.push(userWon);
+          
+          if (userWon) {
+            wins++;
+            currentStreak = currentStreak >= 0 ? currentStreak + 1 : 1;
+          } else {
+            losses++;
+            currentStreak = currentStreak <= 0 ? currentStreak - 1 : -1;
+          }
+          
+          if (Math.abs(currentStreak) > Math.abs(longestStreak)) {
+            longestStreak = currentStreak;
+          }
+        } catch (winLossError) {
+          console.warn('🚨 PRODUCTION: Win/loss calculation error (non-critical):', winLossError);
+          continue;
+        }
       }
       
       // Calculate performance trend safely
@@ -761,47 +738,291 @@ export default function Profile() {
           if (recentWinRate > olderWinRate + 0.15) recentPerformance = 'improving';
           else if (recentWinRate < olderWinRate - 0.15) recentPerformance = 'declining';
         }
-      } catch (error) {
-        console.warn('🚨 PRODUCTION: Performance calculation error:', error);
+      } catch (performanceError) {
+        console.warn('🚨 PRODUCTION: Performance calculation error (non-critical):', performanceError);
       }
       
       const winRate = wins + losses > 0 ? Math.round((wins / (wins + losses)) * 100) : 0;
       const averageMatchDuration = matchesWithDuration > 0 ? totalDuration / matchesWithDuration : 0;
       
-      return {
+      const finalStats: EnhancedPlayerStats = {
         matches: wins + losses,
         wins, losses, winRate, streak: currentStreak, longestStreak,
         upcomingMatches, needsAttention, ratingHistory, recentMatches, scheduledMatches,
         averageMatchDuration, recentPerformance, thisWeekMatches, thisMonthMatches,
       };
+
+      console.log('✅ PRODUCTION: Stats calculation completed successfully');
+      return finalStats;
       
     } catch (error) {
-      console.error('🚨 PRODUCTION: Stats calculation failed:', error);
-      // Return safe default stats
+      console.error('🚨 PRODUCTION: Stats calculation catastrophic failure:', error);
+      // Return safe defaults
       return {
         matches: 0, wins: 0, losses: 0, winRate: 0, streak: 0, longestStreak: 0,
-        upcomingMatches: 0, needsAttention: 0, ratingHistory: [], recentMatches: [], scheduledMatches: [],
-        averageMatchDuration: 0, recentPerformance: 'stable', thisWeekMatches: 0, thisMonthMatches: 0,
+        upcomingMatches: 0, needsAttention: 0, ratingHistory: [], recentMatches: [], 
+        scheduledMatches: [], averageMatchDuration: 0, recentPerformance: 'stable',
+        thisWeekMatches: 0, thisMonthMatches: 0,
       };
     }
   };
 
-  const handleSignOut = async () => {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
-      { 
-        text: "Sign Out", 
-        onPress: async () => { 
-          try {
-            await signOut();
-          } catch (error) {
-            console.error('🚨 PRODUCTION: Sign out error:', error);
-            Alert.alert('Error', 'Failed to sign out. Please try again.');
-          }
-        }, 
-        style: "destructive" 
+  // PRODUCTION RULE 9: Ultra-safe avatar upload handler
+  const handleAvatarUpload = async () => {
+    try {
+      if (!profile?.id) {
+        safeSetState(
+          prev => ({ ...prev, error: 'Profile not available' }), 
+          setAvatarState, 
+          'avatarState'
+        );
+        return;
       }
-    ]);
+
+      console.log('📷 PRODUCTION: Starting avatar upload process');
+      safeSetState(
+        () => ({ uploading: false, deleting: false, error: null, success: null }), 
+        setAvatarState, 
+        'avatarState'
+      );
+
+      // Show selection options with production-safe promise handling
+      const selection = await new Promise<'camera' | 'library' | null>((resolve) => {
+        try {
+          Alert.alert(
+            'Select Profile Picture',
+            'Choose how you would like to set your profile picture',
+            [
+              { text: 'Camera', onPress: () => resolve('camera') },
+              { text: 'Photo Library', onPress: () => resolve('library') },
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
+            ],
+            { 
+              cancelable: true, 
+              onDismiss: () => resolve(null) 
+            }
+          );
+        } catch (alertError) {
+          console.error('🚨 PRODUCTION: Alert error:', alertError);
+          resolve(null);
+        }
+      });
+
+      if (!selection || !isMountedRef.current) {
+        console.log('📷 PRODUCTION: Upload cancelled by user');
+        return;
+      }
+
+      // Select image with production safety
+      const selectionResult = await selectImageWithProductionSafety(selection === 'camera');
+      
+      if (!isMountedRef.current) return;
+      
+      if (!selectionResult.success) {
+        if (!selectionResult.cancelled && selectionResult.error) {
+          safeSetState(
+            prev => ({ ...prev, error: selectionResult.error }), 
+            setAvatarState, 
+            'avatarState'
+          );
+        }
+        return;
+      }
+
+      if (!selectionResult.base64) {
+        safeSetState(
+          prev => ({ ...prev, error: 'No image data received' }), 
+          setAvatarState, 
+          'avatarState'
+        );
+        return;
+      }
+
+      // Start upload process
+      console.log('📷 PRODUCTION: Starting upload with base64 data length:', selectionResult.base64.length);
+      safeSetState(
+        prev => ({ ...prev, uploading: true }), 
+        setAvatarState, 
+        'avatarState'
+      );
+
+      const uploadResult = await uploadAvatarWithProductionSafety(
+        selectionResult.base64,
+        profile.id,
+        profile.avatar_url
+      );
+
+      if (!isMountedRef.current) return;
+
+      if (!uploadResult.success) {
+        safeSetState(
+          () => ({
+            uploading: false,
+            deleting: false,
+            error: uploadResult.error || 'Upload failed',
+            success: null,
+          }), 
+          setAvatarState, 
+          'avatarState'
+        );
+        return;
+      }
+
+      // Update profile with new avatar URL
+      console.log('📷 PRODUCTION: Updating profile with new avatar URL');
+      await saveProfile({ avatar_url: uploadResult.publicUrl });
+
+      if (isMountedRef.current) {
+        safeSetState(
+          () => ({
+            uploading: false,
+            deleting: false,
+            error: null,
+            success: 'Profile picture updated successfully!',
+          }), 
+          setAvatarState, 
+          'avatarState'
+        );
+        console.log('✅ PRODUCTION: Avatar upload completed successfully');
+      }
+
+    } catch (error) {
+      console.error('🚨 PRODUCTION: Avatar upload catastrophic failure:', error);
+      if (isMountedRef.current) {
+        safeSetState(
+          () => ({
+            uploading: false,
+            deleting: false,
+            error: 'Failed to update profile picture',
+            success: null,
+          }), 
+          setAvatarState, 
+          'avatarState'
+        );
+      }
+    }
+  };
+
+  // PRODUCTION RULE 10: Ultra-safe avatar removal handler
+  const handleAvatarRemove = async () => {
+    try {
+      if (!profile?.id || !profile.avatar_url) {
+        safeSetState(
+          prev => ({ ...prev, error: 'No profile picture to remove' }), 
+          setAvatarState, 
+          'avatarState'
+        );
+        return;
+      }
+
+      Alert.alert(
+        'Remove Profile Picture',
+        'Are you sure you want to remove your profile picture?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Remove',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                console.log('🗑️ PRODUCTION: Starting avatar removal process');
+                safeSetState(
+                  prev => ({ ...prev, deleting: true, error: null }), 
+                  setAvatarState, 
+                  'avatarState'
+                );
+
+                const deleteResult = await deleteAvatarWithProductionSafety(profile.avatar_url!);
+                
+                if (!isMountedRef.current) return;
+                
+                // Update profile regardless of delete result (graceful degradation)
+                await saveProfile({ avatar_url: null });
+
+                if (isMountedRef.current) {
+                  safeSetState(
+                    () => ({
+                      uploading: false,
+                      deleting: false,
+                      error: null,
+                      success: 'Profile picture removed successfully!',
+                    }), 
+                    setAvatarState, 
+                    'avatarState'
+                  );
+                  console.log('✅ PRODUCTION: Avatar removal completed');
+                }
+
+              } catch (error) {
+                console.error('🚨 PRODUCTION: Avatar removal error:', error);
+                if (isMountedRef.current) {
+                  safeSetState(
+                    () => ({
+                      uploading: false,
+                      deleting: false,
+                      error: 'Failed to remove profile picture',
+                      success: null,
+                    }), 
+                    setAvatarState, 
+                    'avatarState'
+                  );
+                }
+              }
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('🚨 PRODUCTION: Avatar removal setup error:', error);
+    }
+  };
+
+  const showAvatarOptions = () => {
+    try {
+      if (!profile?.id) return;
+
+      const options = [{ text: 'Change Picture', onPress: handleAvatarUpload }];
+      
+      if (profile.avatar_url) {
+        options.push({ text: 'Remove Picture', onPress: handleAvatarRemove });
+      }
+      
+      options.push({ text: 'Cancel', onPress: () => {} });
+
+      Alert.alert(
+        'Profile Picture Options',
+        'Choose an action for your profile picture',
+        options.map(option => ({
+          text: option.text,
+          style: option.text === 'Cancel' ? 'cancel' : option.text === 'Remove Picture' ? 'destructive' : 'default',
+          onPress: option.onPress,
+        }))
+      );
+    } catch (error) {
+      console.error('🚨 PRODUCTION: Avatar options error:', error);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Sign Out", 
+          onPress: async () => { 
+            try {
+              await signOut();
+            } catch (error) {
+              console.error('🚨 PRODUCTION: Sign out error:', error);
+              Alert.alert('Error', 'Failed to sign out. Please try again.');
+            }
+          }, 
+          style: "destructive" 
+        }
+      ]);
+    } catch (error) {
+      console.error('🚨 PRODUCTION: Sign out setup error:', error);
+    }
   };
 
   const shareProfile = async () => {
@@ -809,11 +1030,11 @@ export default function Profile() {
       const message = `Check out my Padel profile!\n\nName: ${profile?.full_name || 'Anonymous Player'}\nRating: ${profile?.glicko_rating || '-'}\nWin Rate: ${playerStats.winRate}%\nMatches: ${playerStats.matches}\nStreak: ${playerStats.streak}\n\nLet's play a match!`;
       await Share.share({ message, title: 'Padel Profile' });
     } catch (error) {
-      console.error('🚨 PRODUCTION: Share failed:', error);
+      console.error('🚨 PRODUCTION: Share failed (non-critical):', error);
     }
   };
 
-  // Safe render helpers
+  // PRODUCTION RULE 11: Ultra-safe render helpers with error isolation
   const safeRender = (renderFn: () => React.ReactNode, fallback: React.ReactNode = null) => {
     try {
       return renderFn();
@@ -825,7 +1046,11 @@ export default function Profile() {
 
   const renderBulletproofAvatar = () => (
     <View className="items-center mb-4">
-      <TouchableOpacity onPress={showAvatarOptions} disabled={avatarState.uploading || avatarState.deleting}>
+      <TouchableOpacity 
+        onPress={showAvatarOptions} 
+        disabled={avatarState.uploading || avatarState.deleting}
+        style={{ opacity: (avatarState.uploading || avatarState.deleting) ? 0.7 : 1 }}
+      >
         <View className="relative">
           <View className="w-32 h-32 rounded-full bg-primary items-center justify-center overflow-hidden">
             {profile?.avatar_url && !avatarState.uploading && !avatarState.deleting ? (
@@ -841,7 +1066,13 @@ export default function Profile() {
               />
             ) : (
               <Text className="text-4xl font-bold text-primary-foreground">
-                {profile?.full_name?.charAt(0)?.toUpperCase() || '?'}
+                {(() => {
+                  try {
+                    return profile?.full_name?.charAt(0)?.toUpperCase() || '?';
+                  } catch {
+                    return '?';
+                  }
+                })()}
               </Text>
             )}
           </View>
@@ -873,7 +1104,11 @@ export default function Profile() {
             {avatarState.error}
           </Text>
           <TouchableOpacity 
-            onPress={() => safeSetState(prev => ({ ...prev, error: null }), setAvatarState)}
+            onPress={() => safeSetState(
+              prev => ({ ...prev, error: null }), 
+              setAvatarState, 
+              'avatarState'
+            )}
             className="mt-2 items-center"
           >
             <Text className="text-xs text-red-600 dark:text-red-400 underline">Dismiss</Text>
@@ -909,7 +1144,13 @@ export default function Profile() {
         <View className="flex-row items-center">
           <Text className="text-xs text-muted-foreground mr-2">Current Rating:</Text>
           <Text className="text-base font-bold text-primary">
-            {profile?.glicko_rating ? parseInt(profile.glicko_rating.toString()).toString() : '-'}
+            {(() => {
+              try {
+                return profile?.glicko_rating ? parseInt(profile.glicko_rating.toString()).toString() : '-';
+              } catch {
+                return '-';
+              }
+            })()}
           </Text>
         </View>
         <TouchableOpacity onPress={shareProfile}>
@@ -1123,6 +1364,16 @@ export default function Profile() {
     );
   };
 
+  // PRODUCTION RULE 12: Progressive loading and crash protection
+  if (!componentReady) {
+    return (
+      <View className="flex-1 bg-background items-center justify-center">
+        <ActivityIndicator size="large" color="#1a7ebd" />
+        <Text className="mt-4 text-muted-foreground">Loading profile...</Text>
+      </View>
+    );
+  }
+
   return (
     <View className="flex-1 bg-background">
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}> 
@@ -1144,6 +1395,7 @@ export default function Profile() {
           {loading && (
             <View className="py-4 items-center">
               <ActivityIndicator size="small" color="#1a7ebd" />
+              <Text className="mt-2 text-xs text-muted-foreground">Loading statistics...</Text>
             </View>
           )}
         
