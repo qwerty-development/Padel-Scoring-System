@@ -848,7 +848,7 @@ export default function EnhancedHome() {
       <View className="flex-row items-center mb-4">
         <View className="flex-1">
           <Text className="text-4xl font-bold">
-            👋 {profile?.full_name?.split(' ')[0] || 'Player'}
+            👋 potato {profile?.full_name?.split(' ')[0] || 'Player'}
           </Text>
         </View>
       </View>
