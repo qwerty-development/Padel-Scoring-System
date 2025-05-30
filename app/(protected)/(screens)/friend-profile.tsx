@@ -768,7 +768,7 @@ export default function FriendProfileScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Enhanced Header with Back Button */}
-        <View className="px-6 pt-4 flex-row items-center">
+        <View className=" pt-4 flex-row items-center">
           <Button 
             variant="ghost" 
             onPress={() => router.back()}
@@ -776,7 +776,6 @@ export default function FriendProfileScreen() {
           >
             <Ionicons name="arrow-back" size={24} color="#1a7ebd" />
           </Button>
-          <Text className="text-lg font-medium">Friend Profile</Text>
         </View>
 
         {/* Enhanced Profile Header with Avatar Integration */}

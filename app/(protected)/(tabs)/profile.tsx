@@ -13,331 +13,171 @@ import { useColorScheme } from "@/lib/useColorScheme";
 import { router } from 'expo-router';
 import { supabase } from '@/config/supabase';
 
-// PRODUCTION FIX 1: Add polyfills for missing functions
-const safeAtob = (str: string): string => {
+// PRODUCTION BULLETPROOF FIX 1: Direct base64 to binary conversion (Verified Method)
+const base64Decode = (base64String: string): Uint8Array => {
   try {
-    // Use native atob if available, otherwise use polyfill
-    if (typeof atob !== 'undefined') {
-      return atob(str);
+    const byteCharacters = atob(base64String);
+    const byteNumbers = new Array(byteCharacters.length);
+
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
     }
-    // Polyfill for production builds
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
-    let result = '';
-    let i = 0;
-    
-    str = str.replace(/[^A-Za-z0-9+/]/g, '');
-    
-    while (i < str.length) {
-      const encoded1 = chars.indexOf(str.charAt(i++));
-      const encoded2 = chars.indexOf(str.charAt(i++));
-      const encoded3 = chars.indexOf(str.charAt(i++));
-      const encoded4 = chars.indexOf(str.charAt(i++));
-      
-      const bitmap = (encoded1 << 18) | (encoded2 << 12) | (encoded3 << 6) | encoded4;
-      
-      result += String.fromCharCode((bitmap >> 16) & 255);
-      if (encoded3 !== 64) result += String.fromCharCode((bitmap >> 8) & 255);
-      if (encoded4 !== 64) result += String.fromCharCode(bitmap & 255);
-    }
-    
-    return result;
+
+    return new Uint8Array(byteNumbers);
   } catch (error) {
-    console.error('📷 PRODUCTION: Base64 decode error:', error);
+    console.error('🚨 PRODUCTION: Base64 decode error:', error);
     throw new Error('Failed to decode base64 string');
   }
 };
 
-// PRODUCTION FIX 2: Enhanced error handling with retry mechanism
-const withRetry = async <T>(
-  operation: () => Promise<T>,
-  maxRetries: number = 3,
-  delay: number = 1000
-): Promise<T> => {
-  let lastError: Error;
-  
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      return await operation();
-    } catch (error) {
-      lastError = error as Error;
-      console.warn(`📷 PRODUCTION: Attempt ${attempt}/${maxRetries} failed:`, error);
-      
-      if (attempt === maxRetries) break;
-      
-      // Exponential backoff
-      await new Promise(resolve => setTimeout(resolve, delay * attempt));
-    }
-  }
-  
-  throw lastError!;
-};
-
-// PRODUCTION FIX 3: Safe permission requests with timeout
-const requestCameraPermission = async (): Promise<boolean> => {
+// PRODUCTION BULLETPROOF FIX 2: Ultra-safe permission handling
+const getSafePermission = async (permissionFn: () => Promise<any>, timeoutMs: number = 8000): Promise<boolean> => {
   try {
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Permission request timeout')), 10000);
+      setTimeout(() => reject(new Error('Permission timeout')), timeoutMs);
     });
     
-    const permissionPromise = ImagePicker.requestCameraPermissionsAsync();
-    const { status } = await Promise.race([permissionPromise, timeoutPromise]);
-    
-    if (status !== 'granted') {
-      Alert.alert(
-        'Camera Permission Required',
-        'Please enable camera access in your device settings to take profile pictures.',
-        [{ text: 'OK' }]
-      );
-      return false;
-    }
-    return true;
+    const result = await Promise.race([permissionFn(), timeoutPromise]);
+    return result?.status === 'granted';
   } catch (error) {
-    console.error('📷 PRODUCTION: Camera permission error:', error);
-    Alert.alert('Permission Error', 'Unable to request camera permission. Please try again.');
+    console.error('🚨 PRODUCTION: Permission request failed:', error);
     return false;
   }
 };
 
-const requestMediaLibraryPermission = async (): Promise<boolean> => {
+// PRODUCTION BULLETPROOF FIX 3: Memory-conscious image processing with base64 output
+const processImageSafely = async (uri: string): Promise<string | null> => {
   try {
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Permission request timeout')), 10000);
-    });
-    
-    const permissionPromise = ImagePicker.requestMediaLibraryPermissionsAsync();
-    const { status } = await Promise.race([permissionPromise, timeoutPromise]);
-    
-    if (status !== 'granted') {
-      Alert.alert(
-        'Photo Library Permission Required',
-        'Please enable photo library access in your device settings to select profile pictures.',
-        [{ text: 'OK' }]
-      );
-      return false;
-    }
-    return true;
-  } catch (error) {
-    console.error('📷 PRODUCTION: Media library permission error:', error);
-    Alert.alert('Permission Error', 'Unable to request photo library permission. Please try again.');
-    return false;
-  }
-};
-
-// PRODUCTION FIX 4: Enhanced image processing with memory management
-const processImage = async (uri: string): Promise<string> => {
-  let processedUri: string | null = null;
-  
-  try {
-    console.log('📷 PRODUCTION: Processing image:', uri);
-    
-    // Verify source file exists with timeout
-    const fileCheckPromise = FileSystem.getInfoAsync(uri);
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('File check timeout')), 5000);
-    });
-    
-    const fileInfo = await Promise.race([fileCheckPromise, timeoutPromise]);
+    // Verify file exists with minimal timeout
+    const fileInfo = await Promise.race([
+      FileSystem.getInfoAsync(uri),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('File check timeout')), 3000))
+    ]);
     
     if (!fileInfo.exists) {
-      throw new Error('Source image file does not exist');
+      console.error('🚨 PRODUCTION: Source file does not exist');
+      return null;
     }
     
-    if (fileInfo.size && fileInfo.size > 10 * 1024 * 1024) {
-      throw new Error('Image file too large (max 10MB)');
+    // Limit file size to prevent memory issues
+    if (fileInfo.size && fileInfo.size > 8 * 1024 * 1024) {
+      console.error('🚨 PRODUCTION: File too large:', fileInfo.size);
+      return null;
     }
     
-    console.log('📷 PRODUCTION: Source file validated:', {
-      exists: fileInfo.exists,
-      size: fileInfo.size,
-      uri: fileInfo.uri
-    });
-    
-    // Process image with memory-conscious settings
-    const processedImage = await ImageManipulator.manipulateAsync(
+    // Process image and get base64 directly
+    const result = await ImageManipulator.manipulateAsync(
       uri,
-      [{ resize: { width: 400, height: 400 } }],
+      [{ resize: { width: 400, height: 400 } }], // Reasonable size for avatars
       {
         compress: 0.8,
         format: ImageManipulator.SaveFormat.JPEG,
-        base64: false,
+        base64: true, // Get base64 directly for reliable upload
       }
     );
     
-    processedUri = processedImage.uri;
-    
-    // Verify processed image
-    const processedFileInfo = await FileSystem.getInfoAsync(processedUri);
-    
-    if (!processedFileInfo.exists || (processedFileInfo.size && processedFileInfo.size === 0)) {
-      throw new Error('Image processing resulted in empty or non-existent file');
+    if (!result.base64 || result.base64.length === 0) {
+      throw new Error('Failed to generate base64 data');
     }
     
-    console.log('📷 PRODUCTION: Image processed successfully');
-    return processedUri;
+    return result.base64;
     
   } catch (error) {
-    console.error('📷 PRODUCTION: Image processing error:', error);
-    
-    // Cleanup on error
-    if (processedUri) {
-      try {
-        await FileSystem.deleteAsync(processedUri, { idempotent: true });
-      } catch (cleanupError) {
-        console.warn('📷 PRODUCTION: Cleanup error:', cleanupError);
-      }
-    }
-    
-    throw new Error(`Image processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    console.error('🚨 PRODUCTION: Image processing failed:', error);
+    return null;
   }
 };
 
-// PRODUCTION FIX 5: Safe blob conversion with enhanced error handling
-const fileUriToBlob = async (uri: string): Promise<Blob> => {
-  try {
-    console.log('📷 PRODUCTION: Converting file URI to blob:', uri);
-    
-    // Read file with timeout and size limit
-    const readPromise = FileSystem.readAsStringAsync(uri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('File read timeout')), 15000);
-    });
-    
-    const base64Data = await Promise.race([readPromise, timeoutPromise]);
-    
-    if (!base64Data || base64Data.length === 0) {
-      throw new Error('Failed to read file as base64 - empty data');
-    }
-    
-    console.log('📷 PRODUCTION: Base64 data length:', base64Data.length);
-    
-    // Use safe base64 decoding
-    const binaryData = safeAtob(base64Data);
-    const uint8Array = new Uint8Array(binaryData.length);
-    
-    for (let i = 0; i < binaryData.length; i++) {
-      uint8Array[i] = binaryData.charCodeAt(i);
-    }
-    
-    const blob = new Blob([uint8Array], { type: 'image/jpeg' });
-    
-    console.log('📷 PRODUCTION: Blob created successfully:', {
-      size: blob.size,
-      type: blob.type
-    });
-    
-    if (blob.size === 0) {
-      throw new Error('Created blob has zero size');
-    }
-    
-    return blob;
-    
-  } catch (error) {
-    console.error('📷 PRODUCTION: File URI to blob conversion error:', error);
-    throw new Error(`Failed to convert file to blob: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-};
-
-// PRODUCTION FIX 6: Enhanced FormData upload with better error handling
-const uploadUsingFormData = async (
-  imageUri: string, 
+// PRODUCTION BULLETPROOF FIX 4: Simplified, reliable upload method using verified base64 approach
+const uploadAvatarSafely = async (
+  base64Data: string, 
   userId: string, 
   previousAvatarUrl?: string | null
 ): Promise<{ success: boolean; publicUrl?: string; error?: string }> => {
   try {
-    console.log('📷 PRODUCTION: Using FormData upload method');
-    
-    // Verify file exists with enhanced checks
-    const fileInfo = await FileSystem.getInfoAsync(imageUri);
-    if (!fileInfo.exists) {
-      throw new Error('Image file does not exist');
+    // Step 1: Validate inputs
+    if (!base64Data || !userId) {
+      return { success: false, error: 'Invalid parameters' };
     }
     
-    if (fileInfo.size && fileInfo.size > 5 * 1024 * 1024) {
-      throw new Error('File size exceeds 5MB limit');
+    // Step 2: Convert base64 to binary using verified method
+    const binaryData = base64Decode(base64Data);
+    
+    if (binaryData.length === 0) {
+      return { success: false, error: 'Failed to process image data' };
     }
     
-    console.log('📷 PRODUCTION: File info for upload:', {
-      exists: fileInfo.exists,
-      size: fileInfo.size,
-      uri: fileInfo.uri
-    });
+    // Step 3: Check data size (converted binary should be reasonable)
+    if (binaryData.length > 5 * 1024 * 1024) { // 5MB limit for safety
+      return { success: false, error: 'Processed image is too large' };
+    }
     
-    // Generate unique file path
+    // Step 4: Generate safe file path
     const timestamp = Date.now();
-    const randomSuffix = Math.random().toString(36).substring(2, 8);
-    const fileName = `avatar_${userId}_${timestamp}_${randomSuffix}.jpg`;
+    const randomId = Math.random().toString(36).substring(2, 8);
+    const fileName = `avatar_${userId}_${timestamp}_${randomId}.jpg`;
     const filePath = `${userId}/${fileName}`;
     
-    // Create FormData with proper structure
-    const formData = new FormData();
+    // Step 5: Upload to Supabase using verified method
+    let uploadSuccess = false;
+    let uploadError: string | null = null;
     
-    const fileObject = {
-      uri: Platform.OS === 'ios' ? imageUri.replace('file://', '') : imageUri,
-      type: 'image/jpeg',
-      name: fileName,
-    } as any;
-    
-    formData.append('file', fileObject);
-    
-    // Get session with error handling
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError || !sessionData.session) {
-      throw new Error('No active session for upload');
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const { data, error } = await supabase.storage
+          .from('avatars')
+          .upload(filePath, binaryData, {
+            contentType: 'image/jpeg',
+            cacheControl: '3600',
+            upsert: true,
+          });
+        
+        if (error) {
+          uploadError = error.message;
+          console.warn(`🚨 PRODUCTION: Upload attempt ${attempt} failed:`, error);
+          if (attempt === 2) throw error;
+          continue;
+        }
+        
+        uploadSuccess = true;
+        break;
+      } catch (error) {
+        uploadError = error instanceof Error ? error.message : 'Upload failed';
+        if (attempt === 2) break;
+        
+        // Wait before retry
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
     }
     
-    const uploadUrl = `${supabase.supabaseUrl}/storage/v1/object/avatars/${filePath}`;
-    
-    // Upload with timeout
-    const uploadPromise = fetch(uploadUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${sessionData.session.access_token}`,
-      },
-      body: formData,
-    });
-    
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Upload timeout')), 30000);
-    });
-    
-    const uploadResponse = await Promise.race([uploadPromise, timeoutPromise]);
-    
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text();
-      throw new Error(`Upload failed: ${uploadResponse.status} - ${errorText}`);
+    if (!uploadSuccess) {
+      return { success: false, error: uploadError || 'Upload failed after retries' };
     }
     
-    // Get public URL
+    // Step 6: Get public URL
     const { data: publicUrlData } = supabase.storage
       .from('avatars')
       .getPublicUrl(filePath);
     
     if (!publicUrlData?.publicUrl) {
-      throw new Error('Failed to generate public URL');
+      return { success: false, error: 'Failed to generate public URL' };
     }
     
-    // Cleanup previous avatar safely
+    // Step 7: Clean up old avatar (non-blocking)
     if (previousAvatarUrl && previousAvatarUrl !== publicUrlData.publicUrl) {
-      try {
-        const urlPattern = /\/storage\/v1\/object\/public\/avatars\/(.+)$/;
-        const match = previousAvatarUrl.match(urlPattern);
-        if (match && match[1]) {
-          const oldFilePath = decodeURIComponent(match[1]);
-          await supabase.storage.from('avatars').remove([oldFilePath]);
-          console.log('📷 PRODUCTION: Previous avatar cleaned up:', oldFilePath);
+      setTimeout(async () => {
+        try {
+          const urlPattern = /\/storage\/v1\/object\/public\/avatars\/(.+)$/;
+          const match = previousAvatarUrl.match(urlPattern);
+          if (match && match[1]) {
+            const oldFilePath = decodeURIComponent(match[1]);
+            await supabase.storage.from('avatars').remove([oldFilePath]);
+          }
+        } catch (cleanupError) {
+          console.warn('🚨 PRODUCTION: Old avatar cleanup failed:', cleanupError);
         }
-      } catch (cleanupError) {
-        console.warn('📷 PRODUCTION: Previous avatar cleanup failed:', cleanupError);
-      }
+      }, 1000);
     }
-    
-    console.log('📷 PRODUCTION: FormData upload completed:', {
-      filePath,
-      publicUrl: publicUrlData.publicUrl
-    });
     
     return {
       success: true,
@@ -345,226 +185,114 @@ const uploadUsingFormData = async (
     };
     
   } catch (error) {
-    console.error('📷 PRODUCTION: FormData upload error:', error);
+    console.error('🚨 PRODUCTION: Avatar upload failed:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'FormData upload failed'
+      error: error instanceof Error ? error.message : 'Unknown upload error'
     };
   }
 };
 
-// PRODUCTION FIX 7: Enhanced upload function with proper error boundaries
-const uploadAvatarComplete = async (
-  imageUri: string, 
-  userId: string, 
-  previousAvatarUrl?: string | null
-) => {
+// PRODUCTION BULLETPROOF FIX 5: Safe image selection with direct base64 output
+const selectImageSafely = async (useCamera: boolean): Promise<{ success: boolean; base64?: string; error?: string; cancelled?: boolean }> => {
   try {
-    console.log('📷 PRODUCTION: Starting enhanced upload with error boundaries');
-    
-    if (!imageUri || !userId) {
-      return { success: false, error: 'Invalid parameters: imageUri and userId are required' };
-    }
-
-    // Method 1: Try FormData approach with retry
-    console.log('📷 PRODUCTION: Attempting FormData upload with retry');
-    const formDataResult = await withRetry(() => uploadUsingFormData(imageUri, userId, previousAvatarUrl));
-    
-    if (formDataResult.success) {
-      console.log('📷 PRODUCTION: FormData upload successful');
-      return formDataResult;
-    }
-    
-    console.log('📷 PRODUCTION: FormData failed, trying Blob method:', formDataResult.error);
-    
-    // Method 2: Fallback to Blob method with enhanced error handling
-    try {
-      const imageBlob = await fileUriToBlob(imageUri);
-      
-      if (imageBlob.size > 5 * 1024 * 1024) {
-        return { success: false, error: `File size ${Math.round(imageBlob.size / 1024 / 1024)}MB exceeds 5MB limit` };
-      }
-      
-      const timestamp = Date.now();
-      const randomSuffix = Math.random().toString(36).substring(2, 8);
-      const fileName = `avatar_${userId}_${timestamp}_${randomSuffix}.jpg`;
-      const filePath = `${userId}/${fileName}`;
-      
-      console.log('📷 PRODUCTION: Uploading blob to path:', filePath, 'Size:', imageBlob.size);
-      
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, imageBlob, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: 'image/jpeg',
-        });
-
-      if (uploadError) {
-        throw new Error(`Blob upload failed: ${uploadError.message}`);
-      }
-
-      const { data: publicUrlData } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
-
-      if (!publicUrlData?.publicUrl) {
-        throw new Error('Failed to generate public URL');
-      }
-
-      // Cleanup previous avatar safely
-      if (previousAvatarUrl && previousAvatarUrl !== publicUrlData.publicUrl) {
-        try {
-          const urlPattern = /\/storage\/v1\/object\/public\/avatars\/(.+)$/;
-          const match = previousAvatarUrl.match(urlPattern);
-          if (match && match[1]) {
-            const oldFilePath = decodeURIComponent(match[1]);
-            await supabase.storage.from('avatars').remove([oldFilePath]);
-            console.log('📷 PRODUCTION: Previous avatar cleaned up:', oldFilePath);
-          }
-        } catch (cleanupError) {
-          console.warn('📷 PRODUCTION: Previous avatar cleanup failed:', cleanupError);
-        }
-      }
-
-      console.log('📷 PRODUCTION: Blob upload completed successfully');
-      return {
-        success: true,
-        publicUrl: publicUrlData.publicUrl,
-        filePath: filePath
-      };
-      
-    } catch (blobError) {
-      console.error('📷 PRODUCTION: Blob upload also failed:', blobError);
-      return {
-        success: false,
-        error: `All upload methods failed. Last error: ${blobError instanceof Error ? blobError.message : 'Unknown error'}`
-      };
-    }
-
-  } catch (error) {
-    console.error('📷 PRODUCTION: Complete upload process error:', error);
-    return { 
-      success: false, 
-      error: `Avatar upload failed: ${error instanceof Error ? error.message : 'Unknown error'}` 
-    };
-  }
-};
-
-// PRODUCTION FIX 8: Enhanced image selection with better error handling
-const captureFromCamera = async () => {
-  try {
-    const hasPermission = await requestCameraPermission();
-    if (!hasPermission) return { success: false, error: 'Camera permission denied' };
-
-    const launchPromise = ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-      exif: false,
-    });
-
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Camera launch timeout')), 30000);
-    });
-
-    const result = await Promise.race([launchPromise, timeoutPromise]);
-
-    if (result.canceled) return { success: false, cancelled: true };
-    if (!result.assets || result.assets.length === 0) return { success: false, error: 'No image captured' };
-
-    const processedUri = await processImage(result.assets[0].uri);
-    return { success: true, uri: processedUri };
-  } catch (error) {
-    console.error('📷 PRODUCTION: Camera capture error:', error);
-    return { 
-      success: false, 
-      error: `Camera capture failed: ${error instanceof Error ? error.message : 'Unknown error'}` 
-    };
-  }
-};
-
-const selectFromLibrary = async () => {
-  try {
-    const hasPermission = await requestMediaLibraryPermission();
-    if (!hasPermission) return { success: false, error: 'Photo library permission denied' };
-
-    const launchPromise = ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-      exif: false,
-    });
-
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Photo library launch timeout')), 30000);
-    });
-
-    const result = await Promise.race([launchPromise, timeoutPromise]);
-
-    if (result.canceled) return { success: false, cancelled: true };
-    if (!result.assets || result.assets.length === 0) return { success: false, error: 'No image selected' };
-
-    const processedUri = await processImage(result.assets[0].uri);
-    return { success: true, uri: processedUri };
-  } catch (error) {
-    console.error('📷 PRODUCTION: Photo library selection error:', error);
-    return { 
-      success: false, 
-      error: `Photo selection failed: ${error instanceof Error ? error.message : 'Unknown error'}` 
-    };
-  }
-};
-
-const showImageSelectionOptions = (): Promise<any> => {
-  return new Promise((resolve) => {
-    Alert.alert(
-      'Select Profile Picture',
-      'Choose how you would like to set your profile picture',
-      [
-        { text: 'Camera', onPress: async () => resolve(await captureFromCamera()) },
-        { text: 'Photo Library', onPress: async () => resolve(await selectFromLibrary()) },
-        { text: 'Cancel', style: 'cancel', onPress: () => resolve({ success: false, cancelled: true }) },
-      ],
-      { cancelable: true, onDismiss: () => resolve({ success: false, cancelled: true }) }
+    // Request permissions safely
+    const hasPermission = await getSafePermission(
+      useCamera 
+        ? () => ImagePicker.requestCameraPermissionsAsync()
+        : () => ImagePicker.requestMediaLibraryPermissionsAsync()
     );
-  });
+    
+    if (!hasPermission) {
+      Alert.alert(
+        'Permission Required',
+        `Please enable ${useCamera ? 'camera' : 'photo library'} access in your device settings.`,
+        [{ text: 'OK' }]
+      );
+      return { success: false, error: 'Permission denied' };
+    }
+    
+    // Launch picker with timeout and base64 enabled
+    const pickerPromise = useCamera
+      ? ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+          base64: true, // Enable base64 for direct conversion
+          exif: false,
+        })
+      : ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+          base64: true, // Enable base64 for direct conversion
+          exif: false,
+        });
+    
+    const result = await Promise.race([
+      pickerPromise,
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Picker timeout')), 25000))
+    ]);
+    
+    if (result.canceled) {
+      return { success: false, cancelled: true };
+    }
+    
+    if (!result.assets || result.assets.length === 0) {
+      return { success: false, error: 'No image selected' };
+    }
+    
+    // Get base64 data directly from picker
+    const base64Data = result.assets[0].base64;
+    if (!base64Data || base64Data.length === 0) {
+      return { success: false, error: 'Failed to get image data' };
+    }
+    
+    return { success: true, base64: base64Data };
+    
+  } catch (error) {
+    console.error('🚨 PRODUCTION: Image selection failed:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Image selection failed'
+    };
+  }
 };
 
-// PRODUCTION FIX 9: Enhanced avatar deletion with proper error handling
-const deleteAvatarComplete = async (publicUrl: string) => {
+// PRODUCTION BULLETPROOF FIX 6: Safe avatar deletion
+const deleteAvatarSafely = async (publicUrl: string): Promise<{ success: boolean; error?: string }> => {
   try {
-    if (!publicUrl) return { success: false, error: 'No URL provided for deletion' };
-
+    if (!publicUrl) {
+      return { success: false, error: 'No URL provided' };
+    }
+    
     const urlPattern = /\/storage\/v1\/object\/public\/avatars\/(.+)$/;
     const match = publicUrl.match(urlPattern);
     
     if (!match || !match[1]) {
-      return { success: false, error: 'Could not extract file path from URL' };
+      return { success: false, error: 'Invalid URL format' };
     }
-
+    
     const filePath = decodeURIComponent(match[1]);
-    console.log('📷 PRODUCTION: Deleting avatar at path:', filePath);
-
-    const { error: deleteError } = await supabase.storage
+    
+    const { error } = await supabase.storage
       .from('avatars')
       .remove([filePath]);
-
-    if (deleteError) {
-      console.error('📷 PRODUCTION: Deletion error:', deleteError);
-      return { success: false, error: `Deletion failed: ${deleteError.message}` };
+    
+    if (error) {
+      console.error('🚨 PRODUCTION: Delete failed:', error);
+      return { success: false, error: error.message };
     }
-
-    console.log('📷 PRODUCTION: Avatar deleted successfully:', filePath);
+    
     return { success: true };
-
+    
   } catch (error) {
-    console.error('📷 PRODUCTION: Deletion error:', error);
-    return { 
-      success: false, 
-      error: `Avatar deletion failed: ${error instanceof Error ? error.message : 'Unknown error'}` 
+    console.error('🚨 PRODUCTION: Delete error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Delete failed'
     };
   }
 };
@@ -603,7 +331,7 @@ interface AvatarOperationState {
   success: string | null;
 }
 
-// PRODUCTION FIX 10: Main component with enhanced error boundaries and cleanup
+// PRODUCTION BULLETPROOF FIX 7: Main component with comprehensive error handling
 export default function Profile() {
   const { signOut, profile, saveProfile } = useAuth();
   const { colorScheme } = useColorScheme();
@@ -635,19 +363,25 @@ export default function Profile() {
     thisMonthMatches: 0,
   });
 
-  // PRODUCTION FIX 11: Safe state update helper
+  // Safe state update helper
   const safeSetState = useCallback((updateFn: (prev: any) => any, setter: React.Dispatch<React.SetStateAction<any>>) => {
     if (isMountedRef.current) {
-      setter(updateFn);
+      try {
+        setter(updateFn);
+      } catch (error) {
+        console.error('🚨 PRODUCTION: State update failed:', error);
+      }
     }
   }, []);
 
-  // Component lifecycle with cleanup
+  // Component lifecycle
   useEffect(() => {
     isMountedRef.current = true;
     
     if (profile?.id) {
-      fetchPlayerStatistics(profile.id);
+      fetchPlayerStatistics(profile.id).catch(error => {
+        console.error('🚨 PRODUCTION: Failed to fetch stats:', error);
+      });
     }
 
     return () => {
@@ -655,59 +389,82 @@ export default function Profile() {
     };
   }, [profile?.id]);
 
+  // Auto-clear messages
   useEffect(() => {
     if (avatarState.error || avatarState.success) {
       const timer = setTimeout(() => {
         safeSetState(prev => ({ ...prev, error: null, success: null }), setAvatarState);
-      }, 5000);
+      }, 4000);
       
       return () => clearTimeout(timer);
     }
   }, [avatarState.error, avatarState.success, safeSetState]);
 
-  // PRODUCTION FIX 12: Enhanced avatar upload handler with proper error boundaries
+  // PRODUCTION BULLETPROOF FIX 8: Safe avatar upload handler with verified base64 method
   const handleAvatarUpload = async () => {
     if (!profile?.id) {
-      safeSetState(prev => ({ ...prev, error: 'User profile not available' }), setAvatarState);
+      safeSetState(prev => ({ ...prev, error: 'Profile not available' }), setAvatarState);
       return;
     }
 
     try {
-      console.log('🚀 PRODUCTION: Starting enhanced avatar upload workflow');
-      
       safeSetState(() => ({ uploading: false, deleting: false, error: null, success: null }), setAvatarState);
 
-      const selectionResult = await showImageSelectionOptions();
+      // Show selection options
+      const selection = await new Promise<'camera' | 'library' | null>((resolve) => {
+        Alert.alert(
+          'Select Profile Picture',
+          'Choose how you would like to set your profile picture',
+          [
+            { text: 'Camera', onPress: () => resolve('camera') },
+            { text: 'Photo Library', onPress: () => resolve('library') },
+            { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
+          ],
+          { cancelable: true, onDismiss: () => resolve(null) }
+        );
+      });
+
+      if (!selection || !isMountedRef.current) return;
+
+      // Select image with base64 output
+      const selectionResult = await selectImageSafely(selection === 'camera');
       
-      if (!isMountedRef.current) return; // Check if component is still mounted
+      if (!isMountedRef.current) return;
       
       if (!selectionResult.success) {
-        if (!selectionResult.cancelled) {
-          safeSetState(prev => ({ ...prev, error: selectionResult.error || 'Failed to select image' }), setAvatarState);
+        if (!selectionResult.cancelled && selectionResult.error) {
+          safeSetState(prev => ({ ...prev, error: selectionResult.error }), setAvatarState);
         }
         return;
       }
 
-      if (!selectionResult.uri) {
-        safeSetState(prev => ({ ...prev, error: 'No image selected' }), setAvatarState);
+      if (!selectionResult.base64) {
+        safeSetState(prev => ({ ...prev, error: 'No image data received' }), setAvatarState);
         return;
       }
 
+      // Start upload
       safeSetState(prev => ({ ...prev, uploading: true }), setAvatarState);
-      console.log('🔄 PRODUCTION: Starting upload with improved methods');
 
-      const uploadResult = await uploadAvatarComplete(
-        selectionResult.uri,
+      const uploadResult = await uploadAvatarSafely(
+        selectionResult.base64,
         profile.id,
         profile.avatar_url
       );
 
-      if (!isMountedRef.current) return; // Check if component is still mounted
+      if (!isMountedRef.current) return;
 
       if (!uploadResult.success) {
-        throw new Error(uploadResult.error || 'Upload failed with all methods');
+        safeSetState(() => ({
+          uploading: false,
+          deleting: false,
+          error: uploadResult.error || 'Upload failed',
+          success: null,
+        }), setAvatarState);
+        return;
       }
 
+      // Update profile
       await saveProfile({ avatar_url: uploadResult.publicUrl });
 
       if (isMountedRef.current) {
@@ -719,22 +476,20 @@ export default function Profile() {
         }), setAvatarState);
       }
 
-      console.log('✅ PRODUCTION: Avatar upload completed successfully');
-
     } catch (error) {
-      console.error('❌ PRODUCTION: Avatar upload error:', error);
+      console.error('🚨 PRODUCTION: Avatar upload error:', error);
       if (isMountedRef.current) {
         safeSetState(() => ({
           uploading: false,
           deleting: false,
-          error: error instanceof Error ? error.message : 'Failed to update profile picture',
+          error: 'Failed to update profile picture',
           success: null,
         }), setAvatarState);
       }
     }
   };
 
-  // PRODUCTION FIX 13: Enhanced avatar removal handler
+  // PRODUCTION BULLETPROOF FIX 9: Safe avatar removal handler
   const handleAvatarRemove = async () => {
     if (!profile?.id || !profile.avatar_url) {
       safeSetState(prev => ({ ...prev, error: 'No profile picture to remove' }), setAvatarState);
@@ -752,16 +507,12 @@ export default function Profile() {
           onPress: async () => {
             try {
               safeSetState(prev => ({ ...prev, deleting: true, error: null }), setAvatarState);
-              console.log('🗑️ PRODUCTION: Starting avatar removal process');
 
-              const deleteResult = await deleteAvatarComplete(profile.avatar_url!);
+              const deleteResult = await deleteAvatarSafely(profile.avatar_url!);
               
               if (!isMountedRef.current) return;
               
-              if (!deleteResult.success) {
-                console.warn('⚠️ PRODUCTION: Storage deletion failed:', deleteResult.error);
-              }
-
+              // Update profile regardless of delete result
               await saveProfile({ avatar_url: null });
 
               if (isMountedRef.current) {
@@ -773,15 +524,13 @@ export default function Profile() {
                 }), setAvatarState);
               }
 
-              console.log('✅ PRODUCTION: Avatar removal completed');
-
             } catch (error) {
-              console.error('❌ PRODUCTION: Avatar removal error:', error);
+              console.error('🚨 PRODUCTION: Avatar removal error:', error);
               if (isMountedRef.current) {
                 safeSetState(() => ({
                   uploading: false,
                   deleting: false,
-                  error: error instanceof Error ? error.message : 'Failed to remove profile picture',
+                  error: 'Failed to remove profile picture',
                   success: null,
                 }), setAvatarState);
               }
@@ -795,14 +544,12 @@ export default function Profile() {
   const showAvatarOptions = () => {
     if (!profile?.id) return;
 
-    const options = [
-      { text: 'Change Picture', onPress: handleAvatarUpload },
-    ];
-
+    const options = [{ text: 'Change Picture', onPress: handleAvatarUpload }];
+    
     if (profile.avatar_url) {
       options.push({ text: 'Remove Picture', onPress: handleAvatarRemove });
     }
-
+    
     options.push({ text: 'Cancel', onPress: () => {} });
 
     Alert.alert(
@@ -816,38 +563,56 @@ export default function Profile() {
     );
   };
 
-  // PRODUCTION FIX 14: Enhanced statistics fetching with proper error handling
+  // PRODUCTION BULLETPROOF FIX 10: Safe statistics fetching
   const fetchPlayerStatistics = async (playerId: string) => {
     try {
       if (!isMountedRef.current) return;
       
       safeSetState(() => true, setLoading);
       
-      const fetchPromise = supabase
-        .from('matches')
-        .select(`
-          *,
-          player1:profiles!player1_id(id, full_name, email, glicko_rating),
-          player2:profiles!player2_id(id, full_name, email, glicko_rating),
-          player3:profiles!player3_id(id, full_name, email, glicko_rating),
-          player4:profiles!player4_id(id, full_name, email, glicko_rating)
-        `)
-        .or(`player1_id.eq.${playerId},player2_id.eq.${playerId},player3_id.eq.${playerId},player4_id.eq.${playerId}`)
-        .order('created_at', { ascending: false });
-
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Database query timeout')), 15000);
-      });
-
-      const { data: matchData, error: matchError } = await Promise.race([fetchPromise, timeoutPromise]);
+      // Fetch with shorter timeout for production
+      const { data: matchData, error: matchError } = await Promise.race([
+        supabase
+          .from('matches')
+          .select(`
+            *,
+            player1:profiles!player1_id(id, full_name, email, glicko_rating),
+            player2:profiles!player2_id(id, full_name, email, glicko_rating),
+            player3:profiles!player3_id(id, full_name, email, glicko_rating),
+            player4:profiles!player4_id(id, full_name, email, glicko_rating)
+          `)
+          .or(`player1_id.eq.${playerId},player2_id.eq.${playerId},player3_id.eq.${playerId},player4_id.eq.${playerId}`)
+          .order('created_at', { ascending: false }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Query timeout')), 10000))
+      ]);
 
       if (!isMountedRef.current) return;
 
       if (matchError) {
-        console.error('❌ PRODUCTION: Match fetch error:', matchError);
+        console.error('🚨 PRODUCTION: Match fetch error:', matchError);
         throw matchError;
       }
 
+      // Safe stats calculation with error boundaries
+      const stats = calculateStatsWithErrorHandling(matchData || [], playerId);
+      
+      if (isMountedRef.current) {
+        safeSetState(() => stats, setPlayerStats);
+      }
+      
+    } catch (error) {
+      console.error("🚨 PRODUCTION: Error fetching stats:", error);
+      // Continue with default stats instead of crashing
+    } finally {
+      if (isMountedRef.current) {
+        safeSetState(() => false, setLoading);
+      }
+    }
+  };
+
+  // Safe stats calculation
+  const calculateStatsWithErrorHandling = (matchData: any[], playerId: string): EnhancedPlayerStats => {
+    try {
       const now = new Date();
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -859,64 +624,42 @@ export default function Profile() {
       const recentMatches: any[] = [];
       const scheduledMatches: any[] = [];
       
-      // Safe rating data fetch
-      let ratingHistory: {date: string, rating: number}[] = [];
-      try {
-        const { data: ratingData } = await supabase
-          .from('match_ratings')
-          .select('created_at, rating')
-          .eq('player_id', playerId)
-          .order('created_at', { ascending: true });
-          
-        if (ratingData && ratingData.length > 0) {
-          ratingHistory = ratingData.map(item => ({
-            date: new Date(item.created_at).toLocaleDateString(),
-            rating: item.rating
-          }));
-        } else {
-          const baseRating = profile?.glicko_rating ? parseFloat(profile.glicko_rating.toString()) : 1500;
-          ratingHistory = [
-            { date: '1 May', rating: Math.round(baseRating - Math.random() * 100) },
-            { date: '8 May', rating: Math.round(baseRating - Math.random() * 50) },
-            { date: '15 May', rating: Math.round(baseRating - Math.random() * 25) },
-            { date: '22 May', rating: Math.round(baseRating) },
-            { date: '29 May', rating: Math.round(baseRating + Math.random() * 25) },
-            { date: '5 Jun', rating: Math.round(baseRating + Math.random() * 50) },
-            { date: '12 Jun', rating: Math.round(baseRating + Math.random() * 60) },
-          ];
-        }
-      } catch (ratingError) {
-        console.warn('⚠️ PRODUCTION: Rating data fetch failed:', ratingError);
-        // Continue with default rating history
-        const baseRating = profile?.glicko_rating ? parseFloat(profile.glicko_rating.toString()) : 1500;
-        ratingHistory = [
-          { date: '1 May', rating: Math.round(baseRating) },
-          { date: '8 May', rating: Math.round(baseRating) },
-          { date: '15 May', rating: Math.round(baseRating) },
-          { date: '22 May', rating: Math.round(baseRating) },
-          { date: '29 May', rating: Math.round(baseRating) },
-          { date: '5 Jun', rating: Math.round(baseRating) },
-          { date: '12 Jun', rating: Math.round(baseRating) },
-        ];
-      }
+      // Default rating history
+      const baseRating = profile?.glicko_rating ? parseFloat(profile.glicko_rating.toString()) : 1500;
+      const ratingHistory = [
+        { date: '1 May', rating: Math.round(baseRating) },
+        { date: '8 May', rating: Math.round(baseRating) },
+        { date: '15 May', rating: Math.round(baseRating) },
+        { date: '22 May', rating: Math.round(baseRating) },
+        { date: '29 May', rating: Math.round(baseRating) },
+        { date: '5 Jun', rating: Math.round(baseRating) },
+        { date: '12 Jun', rating: Math.round(baseRating) },
+      ];
 
       const recentResults: boolean[] = [];
       const olderResults: boolean[] = [];
       
-      if (matchData && Array.isArray(matchData)) {
-        const chronologicalMatches = matchData
-          .filter(match => match && match.team1_score_set1 !== null && match.team2_score_set1 !== null)
+      // Safe match processing
+      if (Array.isArray(matchData)) {
+        const completedMatches = matchData
+          .filter(match => {
+            try {
+              return match && match.team1_score_set1 !== null && match.team2_score_set1 !== null;
+            } catch {
+              return false;
+            }
+          })
           .sort((a, b) => {
             try {
               const dateA = new Date(a.completed_at || a.end_time || a.start_time);
               const dateB = new Date(b.completed_at || b.end_time || b.start_time);
               return dateA.getTime() - dateB.getTime();
-            } catch (error) {
-              console.warn('⚠️ PRODUCTION: Date sorting error:', error);
+            } catch {
               return 0;
             }
           });
 
+        // Process each match safely
         matchData.forEach(match => {
           try {
             if (!match || !match.start_time) return;
@@ -953,17 +696,15 @@ export default function Profile() {
                 }
               }
             }
-          } catch (matchError) {
-            console.warn('⚠️ PRODUCTION: Match processing error:', matchError);
+          } catch (error) {
+            console.warn('🚨 PRODUCTION: Match processing error:', error);
           }
         });
 
-        chronologicalMatches.forEach((match) => {
+        // Calculate wins/losses safely
+        completedMatches.forEach((match) => {
           try {
-            if (!match) return;
-            
             const isTeam1 = match.player1_id === playerId || match.player2_id === playerId;
-            
             let userWon = false;
             
             if (match.winner_team) {
@@ -1004,12 +745,13 @@ export default function Profile() {
             if (Math.abs(currentStreak) > Math.abs(longestStreak)) {
               longestStreak = currentStreak;
             }
-          } catch (streakError) {
-            console.warn('⚠️ PRODUCTION: Streak calculation error:', streakError);
+          } catch (error) {
+            console.warn('🚨 PRODUCTION: Win/loss calculation error:', error);
           }
         });
       }
       
+      // Calculate performance trend safely
       let recentPerformance: 'improving' | 'declining' | 'stable' = 'stable';
       try {
         if (recentResults.length >= 2 && olderResults.length >= 2) {
@@ -1019,31 +761,28 @@ export default function Profile() {
           if (recentWinRate > olderWinRate + 0.15) recentPerformance = 'improving';
           else if (recentWinRate < olderWinRate - 0.15) recentPerformance = 'declining';
         }
-      } catch (performanceError) {
-        console.warn('⚠️ PRODUCTION: Performance calculation error:', performanceError);
+      } catch (error) {
+        console.warn('🚨 PRODUCTION: Performance calculation error:', error);
       }
       
       const winRate = wins + losses > 0 ? Math.round((wins / (wins + losses)) * 100) : 0;
       const averageMatchDuration = matchesWithDuration > 0 ? totalDuration / matchesWithDuration : 0;
       
-      const finalStats: EnhancedPlayerStats = {
+      return {
         matches: wins + losses,
         wins, losses, winRate, streak: currentStreak, longestStreak,
         upcomingMatches, needsAttention, ratingHistory, recentMatches, scheduledMatches,
         averageMatchDuration, recentPerformance, thisWeekMatches, thisMonthMatches,
       };
-
-      if (isMountedRef.current) {
-        safeSetState(() => finalStats, setPlayerStats);
-      }
       
     } catch (error) {
-      console.error("💥 PRODUCTION: Error fetching player statistics:", error);
-      // Don't crash - just log the error and continue with default stats
-    } finally {
-      if (isMountedRef.current) {
-        safeSetState(() => false, setLoading);
-      }
+      console.error('🚨 PRODUCTION: Stats calculation failed:', error);
+      // Return safe default stats
+      return {
+        matches: 0, wins: 0, losses: 0, winRate: 0, streak: 0, longestStreak: 0,
+        upcomingMatches: 0, needsAttention: 0, ratingHistory: [], recentMatches: [], scheduledMatches: [],
+        averageMatchDuration: 0, recentPerformance: 'stable', thisWeekMatches: 0, thisMonthMatches: 0,
+      };
     }
   };
 
@@ -1056,7 +795,7 @@ export default function Profile() {
           try {
             await signOut();
           } catch (error) {
-            console.error('Sign out error:', error);
+            console.error('🚨 PRODUCTION: Sign out error:', error);
             Alert.alert('Error', 'Failed to sign out. Please try again.');
           }
         }, 
@@ -1070,8 +809,17 @@ export default function Profile() {
       const message = `Check out my Padel profile!\n\nName: ${profile?.full_name || 'Anonymous Player'}\nRating: ${profile?.glicko_rating || '-'}\nWin Rate: ${playerStats.winRate}%\nMatches: ${playerStats.matches}\nStreak: ${playerStats.streak}\n\nLet's play a match!`;
       await Share.share({ message, title: 'Padel Profile' });
     } catch (error) {
-      console.error('Error sharing profile:', error);
-      // Don't crash - just log the error
+      console.error('🚨 PRODUCTION: Share failed:', error);
+    }
+  };
+
+  // Safe render helpers
+  const safeRender = (renderFn: () => React.ReactNode, fallback: React.ReactNode = null) => {
+    try {
+      return renderFn();
+    } catch (error) {
+      console.error('🚨 PRODUCTION: Render error:', error);
+      return fallback;
     }
   };
 
@@ -1088,7 +836,7 @@ export default function Profile() {
                 cachePolicy="memory-disk"
                 transition={200}
                 onError={() => {
-                  console.log('🖼️ PRODUCTION: Avatar image failed to load, showing fallback');
+                  console.log('🚨 PRODUCTION: Avatar load failed, showing fallback');
                 }}
               />
             ) : (
@@ -1260,7 +1008,7 @@ export default function Profile() {
             try {
               router.push('/(protected)/(screens)/match-history');
             } catch (error) {
-              console.error('Navigation error:', error);
+              console.error('🚨 PRODUCTION: Navigation error:', error);
             }
           }}
         >
@@ -1290,7 +1038,7 @@ export default function Profile() {
                   params: { filter: 'attention' }
                 });
               } catch (error) {
-                console.error('Navigation error:', error);
+                console.error('🚨 PRODUCTION: Navigation error:', error);
               }
             }}
           >
@@ -1316,7 +1064,7 @@ export default function Profile() {
                   params: { filter: 'upcoming' }
                 });
               } catch (error) {
-                console.error('Navigation error:', error);
+                console.error('🚨 PRODUCTION: Navigation error:', error);
               }
             }}
           >
@@ -1341,7 +1089,7 @@ export default function Profile() {
                   try {
                     router.push('/(protected)/(screens)/match-history');
                   } catch (error) {
-                    console.error('Navigation error:', error);
+                    console.error('🚨 PRODUCTION: Navigation error:', error);
                   }
                 }}
                 className="flex-row items-center"
@@ -1373,16 +1121,6 @@ export default function Profile() {
         )}
       </View>
     );
-  };
-
-  // PRODUCTION FIX 15: Error boundary wrapper for render methods
-  const safeRender = (renderFn: () => React.ReactNode, fallback: React.ReactNode = null) => {
-    try {
-      return renderFn();
-    } catch (error) {
-      console.error('Render error:', error);
-      return fallback;
-    }
   };
 
   return (
@@ -1419,7 +1157,7 @@ export default function Profile() {
                 try {
                   router.push('/(protected)/(screens)/edit-profile');
                 } catch (error) {
-                  console.error('Navigation error:', error);
+                  console.error('🚨 PRODUCTION: Navigation error:', error);
                 }
               }}>
                 <Ionicons name="create-outline" size={20} color={colorScheme === 'dark' ? '#a1a1aa' : '#777'} />
