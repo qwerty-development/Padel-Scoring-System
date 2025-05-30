@@ -2,8 +2,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, ScrollView, TouchableOpacity, ActivityIndicator, Share, Alert, Platform } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
-import * as FileSystem from 'expo-file-system';
 import { Image } from 'expo-image';
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
@@ -13,119 +11,213 @@ import { useColorScheme } from "@/lib/useColorScheme";
 import { router } from 'expo-router';
 import { supabase } from '@/config/supabase';
 
-// PRODUCTION BULLETPROOF FIX 1: Direct base64 to binary conversion (Verified Method)
-const base64Decode = (base64String: string): Uint8Array => {
+// PRODUCTION RULE 1: Ultra-conservative base64 decoding with comprehensive error boundaries
+const safeBase64Decode = (base64String: string): Uint8Array | null => {
   try {
-    const byteCharacters = atob(base64String);
-    const byteNumbers = new Array(byteCharacters.length);
+    if (!base64String || typeof base64String !== 'string' || base64String.length === 0) {
+      console.error('🚨 PRODUCTION: Invalid base64 input');
+      return null;
+    }
 
+    // Sanitize input
+    const cleanedBase64 = base64String.replace(/[^A-Za-z0-9+/]/g, '');
+    if (cleanedBase64.length === 0) {
+      console.error('🚨 PRODUCTION: Empty base64 after sanitization');
+      return null;
+    }
+
+    // Use native atob with fallback
+    let byteCharacters: string;
+    try {
+      byteCharacters = atob(cleanedBase64);
+    } catch (atobError) {
+      console.error('🚨 PRODUCTION: atob failed, using manual decode');
+      // Manual base64 decode fallback
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+      let result = '';
+      let i = 0;
+      
+      while (i < cleanedBase64.length) {
+        const encoded1 = chars.indexOf(cleanedBase64.charAt(i++));
+        const encoded2 = chars.indexOf(cleanedBase64.charAt(i++));
+        const encoded3 = chars.indexOf(cleanedBase64.charAt(i++));
+        const encoded4 = chars.indexOf(cleanedBase64.charAt(i++));
+        
+        if (encoded1 === -1 || encoded2 === -1) break;
+        
+        const bitmap = (encoded1 << 18) | (encoded2 << 12) | (encoded3 << 6) | encoded4;
+        
+        result += String.fromCharCode((bitmap >> 16) & 255);
+        if (encoded3 !== 64 && encoded3 !== -1) result += String.fromCharCode((bitmap >> 8) & 255);
+        if (encoded4 !== 64 && encoded4 !== -1) result += String.fromCharCode(bitmap & 255);
+      }
+      byteCharacters = result;
+    }
+
+    if (!byteCharacters || byteCharacters.length === 0) {
+      console.error('🚨 PRODUCTION: Failed to decode base64');
+      return null;
+    }
+
+    // Convert to Uint8Array with size limits
+    const maxSize = 10 * 1024 * 1024; // 10MB absolute limit
+    if (byteCharacters.length > maxSize) {
+      console.error('🚨 PRODUCTION: Decoded data too large:', byteCharacters.length);
+      return null;
+    }
+
+    const byteNumbers = new Array(byteCharacters.length);
     for (let i = 0; i < byteCharacters.length; i++) {
       byteNumbers[i] = byteCharacters.charCodeAt(i);
     }
 
     return new Uint8Array(byteNumbers);
   } catch (error) {
-    console.error('🚨 PRODUCTION: Base64 decode error:', error);
-    throw new Error('Failed to decode base64 string');
-  }
-};
-
-// PRODUCTION BULLETPROOF FIX 2: Ultra-safe permission handling
-const getSafePermission = async (permissionFn: () => Promise<any>, timeoutMs: number = 8000): Promise<boolean> => {
-  try {
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Permission timeout')), timeoutMs);
-    });
-    
-    const result = await Promise.race([permissionFn(), timeoutPromise]);
-    return result?.status === 'granted';
-  } catch (error) {
-    console.error('🚨 PRODUCTION: Permission request failed:', error);
-    return false;
-  }
-};
-
-// PRODUCTION BULLETPROOF FIX 3: Memory-conscious image processing with base64 output
-const processImageSafely = async (uri: string): Promise<string | null> => {
-  try {
-    // Verify file exists with minimal timeout
-    const fileInfoPromise = FileSystem.getInfoAsync(uri);
-    const timeoutPromiseFileInfo = new Promise<FileSystem.FileInfo>((_, reject) => 
-        setTimeout(() => reject(new Error('File check timeout')), 3000)
-    );
-    // Correctly type fileInfo
-    const fileInfo = await Promise.race([fileInfoPromise, timeoutPromiseFileInfo]) as FileSystem.FileInfo & { exists: boolean };
-
-    if (!fileInfo || !fileInfo.exists) { // Check if fileInfo itself is null/undefined from timeout
-      console.error('🚨 PRODUCTION: Source file does not exist or check timed out');
-      return null;
-    }
-    
-    // Limit file size to prevent memory issues
-    if (fileInfo.size && fileInfo.size > 8 * 1024 * 1024) {
-      console.error('🚨 PRODUCTION: File too large:', fileInfo.size);
-      return null;
-    }
-    
-    // Process image and get base64 directly
-    const result = await ImageManipulator.manipulateAsync(
-      uri,
-      [{ resize: { width: 400, height: 400 } }], // Reasonable size for avatars
-      {
-        compress: 0.8,
-        format: ImageManipulator.SaveFormat.JPEG,
-        base64: true, // Get base64 directly for reliable upload
-      }
-    );
-    
-    if (!result.base64 || result.base64.length === 0) {
-      throw new Error('Failed to generate base64 data');
-    }
-    
-    return result.base64;
-    
-  } catch (error) {
-    console.error('🚨 PRODUCTION: Image processing failed:', error);
+    console.error('🚨 PRODUCTION: Base64 decode catastrophic failure:', error);
     return null;
   }
 };
 
-// PRODUCTION BULLETPROOF FIX 4: Simplified, reliable upload method using verified base64 approach
-const uploadAvatarSafely = async (
-  base64Data: string, 
-  userId: string, 
+// PRODUCTION RULE 2: Progressive permission handling with timeout protection
+const requestPermissionSafely = async (
+  permissionType: 'camera' | 'library',
+  timeoutMs: number = 5000
+): Promise<boolean> => {
+  try {
+    const permissionPromise = permissionType === 'camera' 
+      ? ImagePicker.requestCameraPermissionsAsync()
+      : ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Permission timeout')), timeoutMs);
+    });
+
+    const result = await Promise.race([permissionPromise, timeoutPromise]);
+    return result?.status === 'granted';
+  } catch (error) {
+    console.error(`🚨 PRODUCTION: ${permissionType} permission failed:`, error);
+    return false;
+  }
+};
+
+// PRODUCTION RULE 3: Simplified image selection with conservative settings
+const selectImageWithProductionSafety = async (useCamera: boolean): Promise<{
+  success: boolean;
+  base64?: string;
+  error?: string;
+  cancelled?: boolean;
+}> => {
+  try {
+    // Step 1: Request permissions with timeout
+    const hasPermission = await requestPermissionSafely(useCamera ? 'camera' : 'library');
+    if (!hasPermission) {
+      Alert.alert(
+        'Permission Required',
+        `Please enable ${useCamera ? 'camera' : 'photo library'} access in device settings.`
+      );
+      return { success: false, error: 'Permission denied' };
+    }
+
+    // Step 2: Launch picker with ultra-conservative settings
+    const pickerOptions = {
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1] as [number, number],
+      quality: 0.5, // Conservative quality for production stability
+      base64: true,
+      exif: false,
+    };
+
+    const pickerPromise = useCamera
+      ? ImagePicker.launchCameraAsync(pickerOptions)
+      : ImagePicker.launchImageLibraryAsync(pickerOptions);
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Picker timeout')), 20000);
+    });
+
+    const result = await Promise.race([pickerPromise, timeoutPromise]);
+
+    if (result.canceled) {
+      return { success: false, cancelled: true };
+    }
+
+    if (!result.assets || result.assets.length === 0 || !result.assets[0].base64) {
+      return { success: false, error: 'No image data received' };
+    }
+
+    const base64Data = result.assets[0].base64;
+    
+    // Validate base64 data size before returning
+    if (base64Data.length > 15 * 1024 * 1024) { // 15MB base64 limit
+      return { success: false, error: 'Image too large for processing' };
+    }
+
+    return { success: true, base64: base64Data };
+
+  } catch (error) {
+    console.error('🚨 PRODUCTION: Image selection failed:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Image selection failed' 
+    };
+  }
+};
+
+// PRODUCTION RULE 4: Bulletproof upload with extensive error recovery
+const uploadAvatarWithProductionSafety = async (
+  base64Data: string,
+  userId: string,
   previousAvatarUrl?: string | null
 ): Promise<{ success: boolean; publicUrl?: string; error?: string }> => {
   try {
-    // Step 1: Validate inputs
-    if (!base64Data || !userId) {
-      return { success: false, error: 'Invalid parameters' };
+    // Step 1: Input validation with detailed logging
+    if (!base64Data || typeof base64Data !== 'string' || base64Data.length === 0) {
+      console.error('🚨 PRODUCTION: Invalid base64 data provided');
+      return { success: false, error: 'Invalid image data' };
     }
-    
-    // Step 2: Convert base64 to binary using verified method
-    const binaryData = base64Decode(base64Data);
-    
-    if (binaryData.length === 0) {
+
+    if (!userId || typeof userId !== 'string' || userId.length === 0) {
+      console.error('🚨 PRODUCTION: Invalid user ID provided');
+      return { success: false, error: 'Invalid user ID' };
+    }
+
+    // Step 2: Convert base64 to binary with safety checks
+    const binaryData = safeBase64Decode(base64Data);
+    if (!binaryData || binaryData.length === 0) {
+      console.error('🚨 PRODUCTION: Base64 conversion failed');
       return { success: false, error: 'Failed to process image data' };
     }
-    
-    // Step 3: Check data size (converted binary should be reasonable)
-    if (binaryData.length > 5 * 1024 * 1024) { // 5MB limit for safety
-      return { success: false, error: 'Processed image is too large' };
+
+    // Step 3: Size validation
+    const maxUploadSize = 5 * 1024 * 1024; // 5MB binary limit
+    if (binaryData.length > maxUploadSize) {
+      console.error('🚨 PRODUCTION: Binary data too large:', binaryData.length);
+      return { success: false, error: 'Image size exceeds limit' };
     }
-    
-    // Step 4: Generate safe file path
+
+    console.log('🔧 PRODUCTION: Processing upload:', {
+      userId: userId.substring(0, 8) + '...',
+      dataSize: binaryData.length,
+      timestamp: Date.now()
+    });
+
+    // Step 4: Generate unique file path
     const timestamp = Date.now();
-    const randomId = Math.random().toString(36).substring(2, 8);
-    const fileName = `avatar_${userId}_${timestamp}_${randomId}.jpg`;
+    const randomSuffix = Math.random().toString(36).substring(2, 8);
+    const fileName = `avatar_${userId.substring(0, 8)}_${timestamp}_${randomSuffix}.jpg`;
     const filePath = `${userId}/${fileName}`;
-    
-    // Step 5: Upload to Supabase using verified method
-    let uploadSuccess = false;
-    let uploadError: string | null = null;
-    
-    for (let attempt = 1; attempt <= 2; attempt++) {
+
+    // Step 5: Attempt upload with retry mechanism
+    let uploadAttempts = 0;
+    const maxAttempts = 2;
+    let lastError: string | null = null;
+
+    while (uploadAttempts < maxAttempts) {
       try {
+        uploadAttempts++;
+        console.log(`🔧 PRODUCTION: Upload attempt ${uploadAttempts}/${maxAttempts}`);
+
         const { data, error } = await supabase.storage
           .from('avatars')
           .upload(filePath, binaryData, {
@@ -133,38 +225,49 @@ const uploadAvatarSafely = async (
             cacheControl: '3600',
             upsert: true,
           });
-        
+
         if (error) {
-          uploadError = error.message;
-          console.warn(`🚨 PRODUCTION: Upload attempt ${attempt} failed:`, error);
-          if (attempt === 2) throw error; // Rethrow to be caught by outer try-catch
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait before retry
-          continue;
+          lastError = error.message;
+          console.warn(`🚨 PRODUCTION: Upload attempt ${uploadAttempts} failed:`, error);
+          
+          if (uploadAttempts < maxAttempts) {
+            // Wait before retry
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            continue;
+          } else {
+            throw error;
+          }
         }
-        
-        uploadSuccess = true;
+
+        console.log('✅ PRODUCTION: Upload successful on attempt', uploadAttempts);
         break;
-      } catch (errorAttempt) { // Catch rethrown error or new error
-        uploadError = errorAttempt instanceof Error ? errorAttempt.message : 'Upload failed in attempt';
-        if (attempt === 2) break; // Break if last attempt
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait before retry
+
+      } catch (attemptError) {
+        lastError = attemptError instanceof Error ? attemptError.message : 'Upload failed';
+        console.error(`🚨 PRODUCTION: Upload attempt ${uploadAttempts} error:`, attemptError);
+        
+        if (uploadAttempts >= maxAttempts) {
+          return { success: false, error: lastError || 'Upload failed after retries' };
+        }
       }
     }
-    
-    if (!uploadSuccess) {
-      return { success: false, error: uploadError || 'Upload failed after retries' };
-    }
-    
+
     // Step 6: Get public URL
     const { data: publicUrlData } = supabase.storage
       .from('avatars')
       .getPublicUrl(filePath);
-    
+
     if (!publicUrlData?.publicUrl) {
+      console.error('🚨 PRODUCTION: Failed to generate public URL');
       return { success: false, error: 'Failed to generate public URL' };
     }
-    
-    // Step 7: Clean up old avatar (non-blocking)
+
+    console.log('✅ PRODUCTION: Upload completed successfully:', {
+      filePath,
+      publicUrlLength: publicUrlData.publicUrl.length
+    });
+
+    // Step 7: Schedule old avatar cleanup (non-blocking)
     if (previousAvatarUrl && previousAvatarUrl !== publicUrlData.publicUrl) {
       setTimeout(async () => {
         try {
@@ -173,20 +276,21 @@ const uploadAvatarSafely = async (
           if (match && match[1]) {
             const oldFilePath = decodeURIComponent(match[1]);
             await supabase.storage.from('avatars').remove([oldFilePath]);
+            console.log('🧹 PRODUCTION: Old avatar cleaned up:', oldFilePath);
           }
         } catch (cleanupError) {
-          console.warn('🚨 PRODUCTION: Old avatar cleanup failed:', cleanupError);
+          console.warn('🚨 PRODUCTION: Old avatar cleanup failed (non-critical):', cleanupError);
         }
-      }, 1000);
+      }, 2000);
     }
-    
+
     return {
       success: true,
       publicUrl: publicUrlData.publicUrl
     };
-    
+
   } catch (error) {
-    console.error('🚨 PRODUCTION: Avatar upload failed:', error);
+    console.error('🚨 PRODUCTION: Upload catastrophic failure:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown upload error'
@@ -194,98 +298,40 @@ const uploadAvatarSafely = async (
   }
 };
 
-// PRODUCTION BULLETPROOF FIX 5: Safe image selection with direct base64 output
-const selectImageSafely = async (useCamera: boolean): Promise<{ success: boolean; base64?: string; error?: string; cancelled?: boolean }> => {
+// PRODUCTION RULE 5: Safe avatar deletion with error isolation
+const deleteAvatarWithProductionSafety = async (publicUrl: string): Promise<{
+  success: boolean;
+  error?: string;
+}> => {
   try {
-    // Request permissions safely
-    const hasPermission = await getSafePermission(
-      useCamera 
-        ? ImagePicker.requestCameraPermissionsAsync
-        : ImagePicker.requestMediaLibraryPermissionsAsync
-    );
-    
-    if (!hasPermission) {
-      Alert.alert(
-        'Permission Required',
-        `Please enable ${useCamera ? 'camera' : 'photo library'} access in your device settings.`,
-        [{ text: 'OK' }]
-      );
-      return { success: false, error: 'Permission denied' };
+    if (!publicUrl || typeof publicUrl !== 'string' || publicUrl.length === 0) {
+      return { success: false, error: 'Invalid URL provided' };
     }
-    
-    // Launch picker with timeout and base64 enabled
-    const pickerFn = useCamera
-      ? ImagePicker.launchCameraAsync
-      : ImagePicker.launchImageLibraryAsync;
 
-    const pickerPromise = pickerFn({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-        base64: true, 
-        exif: false,
-      });
-    
-    const result = await Promise.race([
-      pickerPromise,
-      new Promise<ImagePicker.ImagePickerResult>((_, reject) => setTimeout(() => reject(new Error('Picker timeout')), 25000))
-    ]);
-    
-    if (result.canceled) {
-      return { success: false, cancelled: true };
-    }
-    
-    if (!result.assets || result.assets.length === 0 || !result.assets[0]) {
-      return { success: false, error: 'No image selected or asset is invalid' };
-    }
-    
-    // Get base64 data directly from picker
-    const base64Data = result.assets[0].base64;
-    if (!base64Data || base64Data.length === 0) {
-      return { success: false, error: 'Failed to get image data (base64)' };
-    }
-    
-    return { success: true, base64: base64Data };
-    
-  } catch (error) {
-    console.error('🚨 PRODUCTION: Image selection failed:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Image selection failed'
-    };
-  }
-};
-
-// PRODUCTION BULLETPROOF FIX 6: Safe avatar deletion
-const deleteAvatarSafely = async (publicUrl: string): Promise<{ success: boolean; error?: string }> => {
-  try {
-    if (!publicUrl) {
-      return { success: false, error: 'No URL provided' };
-    }
-    
     const urlPattern = /\/storage\/v1\/object\/public\/avatars\/(.+)$/;
     const match = publicUrl.match(urlPattern);
     
     if (!match || !match[1]) {
-      return { success: false, error: 'Invalid URL format' };
+      return { success: false, error: 'Could not extract file path from URL' };
     }
-    
+
     const filePath = decodeURIComponent(match[1]);
-    
+    console.log('🗑️ PRODUCTION: Deleting avatar:', filePath);
+
     const { error } = await supabase.storage
       .from('avatars')
       .remove([filePath]);
-    
+
     if (error) {
       console.error('🚨 PRODUCTION: Delete failed:', error);
       return { success: false, error: error.message };
     }
-    
+
+    console.log('✅ PRODUCTION: Avatar deleted successfully');
     return { success: true };
-    
+
   } catch (error) {
-    console.error('🚨 PRODUCTION: Delete error:', error);
+    console.error('🚨 PRODUCTION: Delete catastrophic failure:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Delete failed'
@@ -327,12 +373,16 @@ interface AvatarOperationState {
   success: string | null;
 }
 
-// PRODUCTION BULLETPROOF FIX 7: Main component with comprehensive error handling
+// PRODUCTION RULE 6: Main component with progressive loading and crash isolation
 export default function Profile() {
   const { signOut, profile, saveProfile } = useAuth();
   const { colorScheme } = useColorScheme();
-  const [loading, setLoading] = useState(false); // Consider setting true initially if stats load on mount
+  
+  // PRODUCTION RULE 6A: State management with defensive initialization
+  const [loading, setLoading] = useState(false);
+  const [componentReady, setComponentReady] = useState(false);
   const isMountedRef = useRef(true);
+  const initializationRef = useRef(false);
   
   const [avatarState, setAvatarState] = useState<AvatarOperationState>({
     uploading: false,
@@ -350,7 +400,7 @@ export default function Profile() {
     longestStreak: 0,
     upcomingMatches: 0,
     needsAttention: 0,
-    ratingHistory: [], // Will be populated by calculateStats
+    ratingHistory: [],
     recentMatches: [],
     scheduledMatches: [],
     averageMatchDuration: 0,
@@ -359,220 +409,167 @@ export default function Profile() {
     thisMonthMatches: 0,
   });
 
-  // Safe state update helper
-  const safeSetState = useCallback(<T>(setter: React.Dispatch<React.SetStateAction<T>>, value: T | ((prevState: T) => T)) => {
-    if (isMountedRef.current) {
-      try {
-        setter(value);
-      } catch (error) {
-        console.error('🚨 PRODUCTION: State update failed:', error);
+  // PRODUCTION RULE 6B: Ultra-safe state update mechanism
+  const safeSetState = useCallback((
+    updateFn: (prev: any) => any, 
+    setter: React.Dispatch<React.SetStateAction<any>>,
+    stateName: string = 'unknown'
+  ) => {
+    try {
+      if (isMountedRef.current) {
+        setter(updateFn);
+      } else {
+        console.warn(`🚨 PRODUCTION: Attempted ${stateName} update on unmounted component`);
       }
+    } catch (error) {
+      console.error(`🚨 PRODUCTION: State update failed for ${stateName}:`, error);
     }
   }, []);
 
-
-  // Component lifecycle
+  // PRODUCTION RULE 6C: Progressive component initialization
   useEffect(() => {
-    isMountedRef.current = true;
-    
-    if (profile?.id) {
-      fetchPlayerStatistics(profile.id).catch(error => {
-        console.error('🚨 PRODUCTION: Failed to fetch stats on mount:', error);
-        // Potentially set an error state for stats or use default
-      });
-    }
+    const initializeComponent = async () => {
+      try {
+        if (initializationRef.current) return;
+        initializationRef.current = true;
+
+        console.log('🚀 PRODUCTION: Initializing profile component');
+        isMountedRef.current = true;
+        
+        // Progressive initialization with delay
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        if (isMountedRef.current) {
+          safeSetState(() => true, setComponentReady, 'componentReady');
+        }
+
+        // Initialize stats if profile is available
+        if (profile?.id && isMountedRef.current) {
+          console.log('🔧 PRODUCTION: Profile available, initializing stats');
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+          if (isMountedRef.current) {
+            await fetchPlayerStatisticsWithSafety(profile.id);
+          }
+        }
+
+      } catch (error) {
+        console.error('🚨 PRODUCTION: Component initialization failed:', error);
+        if (isMountedRef.current) {
+          safeSetState(() => true, setComponentReady, 'componentReady'); // Still show component
+        }
+      }
+    };
+
+    initializeComponent();
 
     return () => {
+      console.log('🧹 PRODUCTION: Cleaning up profile component');
       isMountedRef.current = false;
     };
-  }, [profile?.id]); // Removed safeSetState from deps as it's stable
+  }, [profile?.id, safeSetState]);
 
-  // Auto-clear messages
+  // PRODUCTION RULE 6D: Safe message cleanup
   useEffect(() => {
-    let timer: NodeJS.Timeout | undefined;
-    if (avatarState.error || avatarState.success) {
-      timer = setTimeout(() => {
-        safeSetState(setAvatarState, prev => ({ ...prev, error: null, success: null }));
+    if ((avatarState.error || avatarState.success) && componentReady) {
+      const timer = setTimeout(() => {
+        if (isMountedRef.current) {
+          safeSetState(
+            prev => ({ ...prev, error: null, success: null }), 
+            setAvatarState, 
+            'avatarState'
+          );
+        }
       }, 4000);
+      
+      return () => clearTimeout(timer);
     }
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [avatarState.error, avatarState.success, safeSetState]);
+  }, [avatarState.error, avatarState.success, componentReady, safeSetState]);
 
-  // PRODUCTION BULLETPROOF FIX 8: Safe avatar upload handler with verified base64 method
-  const handleAvatarUpload = async () => {
-    if (!profile?.id) {
-      safeSetState(setAvatarState, prev => ({ ...prev, error: 'Profile not available' }));
-      return;
-    }
-
+  // PRODUCTION RULE 7: Ultra-safe statistics fetching with comprehensive error handling
+  const fetchPlayerStatisticsWithSafety = async (playerId: string) => {
     try {
-      safeSetState(setAvatarState, { uploading: false, deleting: false, error: null, success: null });
+      if (!isMountedRef.current || !playerId) return;
+      
+      console.log('📊 PRODUCTION: Starting stats fetch for:', playerId.substring(0, 8) + '...');
+      safeSetState(() => true, setLoading, 'loading');
+      
+      // Add delay to prevent race conditions
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      if (!isMountedRef.current) return;
 
-      const selection = await new Promise<'camera' | 'library' | null>((resolve) => {
-        Alert.alert(
-          'Select Profile Picture',
-          'Choose how you would like to set your profile picture',
-          [
-            { text: 'Camera', onPress: () => resolve('camera') },
-            { text: 'Photo Library', onPress: () => resolve('library') },
-            { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
-          ],
-          { cancelable: true, onDismiss: () => resolve(null) }
-        );
+      // Fetch with conservative timeout
+      const fetchPromise = supabase
+        .from('matches')
+        .select(`
+          *,
+          player1:profiles!player1_id(id, full_name, email, glicko_rating),
+          player2:profiles!player2_id(id, full_name, email, glicko_rating),
+          player3:profiles!player3_id(id, full_name, email, glicko_rating),
+          player4:profiles!player4_id(id, full_name, email, glicko_rating)
+        `)
+        .or(`player1_id.eq.${playerId},player2_id.eq.${playerId},player3_id.eq.${playerId},player4_id.eq.${playerId}`)
+        .order('created_at', { ascending: false })
+        .limit(100); // Limit results for production performance
+
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Query timeout')), 8000);
       });
 
-      if (!selection || !isMountedRef.current) return;
+      const { data: matchData, error: matchError } = await Promise.race([
+        fetchPromise,
+        timeoutPromise
+      ]);
+
+      if (!isMountedRef.current) return;
+
+      if (matchError) {
+        console.error('🚨 PRODUCTION: Match fetch error:', matchError);
+        // Don't throw, continue with empty data
+      }
+
+      console.log('📊 PRODUCTION: Processing match data:', matchData?.length || 0, 'matches');
+
+      // Safe stats calculation with error isolation
+      const stats = await calculateStatsWithMaximumSafety(matchData || [], playerId);
       
-      safeSetState(setAvatarState, prev => ({ ...prev, uploading: true, error: null, success: null })); // Show uploading early
-
-      const selectionResult = await selectImageSafely(selection === 'camera');
-      
-      if (!isMountedRef.current) {
-        safeSetState(setAvatarState, prev => ({ ...prev, uploading: false }));
-        return;
-      }
-      
-      if (!selectionResult.success) {
-        if (!selectionResult.cancelled && selectionResult.error) {
-          safeSetState(setAvatarState, { uploading: false, deleting: false, error: selectionResult.error, success: null });
-        } else {
-          safeSetState(setAvatarState, prev => ({ ...prev, uploading: false })); // Cancelled or no error message
-        }
-        return;
-      }
-
-      if (!selectionResult.base64) {
-        safeSetState(setAvatarState, { uploading: false, deleting: false, error: 'No image data received', success: null });
-        return;
-      }
-
-      const uploadResult = await uploadAvatarSafely(
-        selectionResult.base64,
-        profile.id,
-        profile.avatar_url
-      );
-
-      if (!isMountedRef.current) return; // Upload might have finished after unmount
-
-      if (!uploadResult.success) {
-        safeSetState(setAvatarState, {
-          uploading: false,
-          deleting: false,
-          error: uploadResult.error || 'Upload failed',
-          success: null,
-        });
-        return;
-      }
-
-      await saveProfile({ avatar_url: uploadResult.publicUrl });
-
       if (isMountedRef.current) {
-        safeSetState(setAvatarState, {
-          uploading: false,
-          deleting: false,
-          error: null,
-          success: 'Profile picture updated successfully!',
-        });
+        safeSetState(() => stats, setPlayerStats, 'playerStats');
+        console.log('✅ PRODUCTION: Stats updated successfully');
       }
-
+      
     } catch (error) {
-      console.error('🚨 PRODUCTION: Avatar upload error:', error);
+      console.error("🚨 PRODUCTION: Stats fetch catastrophic failure:", error);
+      // Don't crash - continue with default stats
+    } finally {
       if (isMountedRef.current) {
-        safeSetState(setAvatarState, {
-          uploading: false,
-          deleting: false,
-          error: 'Failed to update profile picture',
-          success: null,
-        });
+        safeSetState(() => false, setLoading, 'loading');
       }
     }
   };
 
-  // PRODUCTION BULLETPROOF FIX 9: Safe avatar removal handler
-  const handleAvatarRemove = async () => {
-    if (!profile?.id || !profile.avatar_url) {
-      safeSetState(setAvatarState, prev => ({ ...prev, error: 'No profile picture to remove' }));
-      return;
-    }
-
-    Alert.alert(
-      'Remove Profile Picture',
-      'Are you sure you want to remove your profile picture?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              safeSetState(setAvatarState, { uploading: false, deleting: true, error: null, success: null });
-
-              // We attempt to delete from storage, but update profile even if storage deletion fails
-              // to ensure UI consistency. Storage errors are logged.
-              const deleteResult = await deleteAvatarSafely(profile.avatar_url!);
-              if (!deleteResult.success) {
-                console.warn('🚨 PRODUCTION: Failed to delete avatar from storage, but proceeding to update profile:', deleteResult.error);
-              }
-              
-              if (!isMountedRef.current) return;
-              
-              await saveProfile({ avatar_url: null });
-
-              if (isMountedRef.current) {
-                safeSetState(setAvatarState, {
-                  uploading: false,
-                  deleting: false,
-                  error: null,
-                  success: 'Profile picture removed successfully!',
-                });
-              }
-
-            } catch (error) {
-              console.error('🚨 PRODUCTION: Avatar removal error:', error);
-              if (isMountedRef.current) {
-                safeSetState(setAvatarState, {
-                  uploading: false,
-                  deleting: false,
-                  error: 'Failed to remove profile picture',
-                  success: null,
-                });
-              }
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const showAvatarOptions = () => {
-    if (!profile?.id) return;
-
-    const options = [{ text: 'Change Picture', onPress: handleAvatarUpload }];
-    
-    if (profile.avatar_url) {
-      options.push({ text: 'Remove Picture', onPress: handleAvatarRemove, style: 'destructive' as const });
-    }
-    
-    options.push({ text: 'Cancel', style: 'cancel' as const });
-
-    Alert.alert(
-      'Profile Picture Options',
-      'Choose an action for your profile picture',
-      options
-    );
-  };
-  
-  // Safe stats calculation
-  const calculateStatsWithErrorHandling = useCallback((matchData: any[], playerId: string, currentProfile: typeof profile): EnhancedPlayerStats => {
-    const defaultStats: EnhancedPlayerStats = {
-      matches: 0, wins: 0, losses: 0, winRate: 0, streak: 0, longestStreak: 0,
-      upcomingMatches: 0, needsAttention: 0, ratingHistory: [], recentMatches: [], scheduledMatches: [],
-      averageMatchDuration: 0, recentPerformance: 'stable', thisWeekMatches: 0, thisMonthMatches: 0,
-    };
-
+  // PRODUCTION RULE 8: Bulletproof stats calculation with individual error isolation
+  const calculateStatsWithMaximumSafety = async (
+    matchData: any[], 
+    playerId: string
+  ): Promise<EnhancedPlayerStats> => {
     try {
+      console.log('🔢 PRODUCTION: Starting stats calculation');
+      
+      // Initialize with safe defaults
+      const defaultStats: EnhancedPlayerStats = {
+        matches: 0, wins: 0, losses: 0, winRate: 0, streak: 0, longestStreak: 0,
+        upcomingMatches: 0, needsAttention: 0, ratingHistory: [], recentMatches: [], 
+        scheduledMatches: [], averageMatchDuration: 0, recentPerformance: 'stable',
+        thisWeekMatches: 0, thisMonthMatches: 0,
+      };
+
+      if (!Array.isArray(matchData) || matchData.length === 0) {
+        console.log('📊 PRODUCTION: No match data available, using defaults');
+        return defaultStats;
+      }
+
       const now = new Date();
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -581,140 +578,157 @@ export default function Profile() {
       let needsAttention = 0, upcomingMatches = 0, thisWeekMatches = 0, thisMonthMatches = 0;
       let totalDuration = 0, matchesWithDuration = 0;
       
-      const recentMatchesLocal: any[] = [];
-      const scheduledMatchesLocal: any[] = [];
+      const recentMatches: any[] = [];
+      const scheduledMatches: any[] = [];
       
-      let baseRating = 1500;
-      const glickoRatingVal = currentProfile?.glicko_rating;
-      if (glickoRatingVal != null) { // Check for null or undefined
-        const numericRating = parseFloat(String(glickoRatingVal)); // Convert to string first, then parse
-        if (!isNaN(numericRating)) {
-          baseRating = numericRating;
+      // Generate safe rating history
+      const baseRating = (() => {
+        try {
+          return profile?.glicko_rating ? parseFloat(profile.glicko_rating.toString()) : 1500;
+        } catch {
+          return 1500;
         }
-      }
-
-      const ratingHistoryLocal = [ // Example dates, adjust as needed
-        { date: 'Week 1', rating: Math.round(baseRating * 0.95) }, // Placeholder logic
-        { date: 'Week 2', rating: Math.round(baseRating * 0.98) },
-        { date: 'Week 3', rating: Math.round(baseRating) },
-        { date: 'Week 4', rating: Math.round(baseRating * 1.02) },
-        { date: 'Current', rating: Math.round(baseRating) },
+      })();
+      
+      const ratingHistory = [
+        { date: '1 May', rating: Math.round(baseRating) },
+        { date: '8 May', rating: Math.round(baseRating) },
+        { date: '15 May', rating: Math.round(baseRating) },
+        { date: '22 May', rating: Math.round(baseRating) },
+        { date: '29 May', rating: Math.round(baseRating) },
+        { date: '5 Jun', rating: Math.round(baseRating) },
+        { date: '12 Jun', rating: Math.round(baseRating) },
       ];
 
       const recentResults: boolean[] = [];
       const olderResults: boolean[] = [];
       
-      if (Array.isArray(matchData)) {
-        const completedMatches = matchData
-          .filter(match => {
-            try {
-              return match && typeof match.team1_score_set1 === 'number' && typeof match.team2_score_set1 === 'number';
-            } catch { return false; }
-          })
-          .sort((a, b) => {
-            try {
-              const dateA = new Date(a.completed_at || a.end_time || a.start_time || 0).getTime();
-              const dateB = new Date(b.completed_at || b.end_time || b.start_time || 0).getTime();
-              if (isNaN(dateA) && isNaN(dateB)) return 0;
-              if (isNaN(dateA)) return 1; // Push NaN dates to the end
-              if (isNaN(dateB)) return -1;
-              return dateA - dateB;
-            } catch { return 0; }
-          });
+      // Safe match processing with individual error isolation
+      const safeMatches = matchData.filter(match => {
+        try {
+          return match && typeof match === 'object' && match.start_time;
+        } catch {
+          return false;
+        }
+      });
 
-        matchData.forEach(match => {
-          try {
-            if (!match || !match.start_time) return;
-            
-            const startTime = new Date(match.start_time);
-            if (isNaN(startTime.getTime())) return; // Invalid start time
+      console.log('🔢 PRODUCTION: Processing', safeMatches.length, 'safe matches');
 
-            const endTime = match.end_time ? new Date(match.end_time) : null;
-            const completedTime = match.completed_at ? new Date(match.completed_at) : null;
-            
-            const isFuture = startTime > now;
-            const isPast = endTime ? endTime < now : startTime < now;
-            const hasScores = typeof match.team1_score_set1 === 'number' && typeof match.team2_score_set1 === 'number';
-            const needsScores = isPast && !hasScores && match.status !== MatchStatus.CANCELLED;
-            const needsConfirmation = match.status === MatchStatus.NEEDS_CONFIRMATION;
-            
-            if (needsScores || needsConfirmation) needsAttention++;
-            
-            if (isFuture) {
-              upcomingMatches++;
-              if (scheduledMatchesLocal.length < 3) scheduledMatchesLocal.push(match);
-            }
-            
-            const matchDate = completedTime || endTime || startTime;
-            if (hasScores) {
-              if (matchDate >= weekAgo) thisWeekMatches++;
-              if (matchDate >= monthAgo) thisMonthMatches++;
-              
-              if (recentMatchesLocal.length < 3) recentMatchesLocal.push(match);
-              
-              if (match.start_time && match.end_time && endTime && !isNaN(endTime.getTime())) {
-                const duration = endTime.getTime() - startTime.getTime();
-                if (duration > 0) {
-                  totalDuration += duration;
-                  matchesWithDuration++;
-                }
-              }
-            }
-          } catch (error) {
-            console.warn('🚨 PRODUCTION: Match processing error in loop:', error, 'Match:', match);
+      // Process completed matches for wins/losses
+      const completedMatches = safeMatches.filter(match => {
+        try {
+          return match.team1_score_set1 !== null && 
+                 match.team1_score_set1 !== undefined && 
+                 match.team2_score_set1 !== null && 
+                 match.team2_score_set1 !== undefined;
+        } catch {
+          return false;
+        }
+      }).sort((a, b) => {
+        try {
+          const dateA = new Date(a.completed_at || a.end_time || a.start_time).getTime();
+          const dateB = new Date(b.completed_at || b.end_time || b.start_time).getTime();
+          return dateA - dateB;
+        } catch {
+          return 0;
+        }
+      });
+
+      // Process each match with individual error boundaries
+      for (const match of safeMatches) {
+        try {
+          if (!match || !match.start_time) continue;
+          
+          const startTime = new Date(match.start_time);
+          const endTime = match.end_time ? new Date(match.end_time) : null;
+          const completedTime = match.completed_at ? new Date(match.completed_at) : null;
+          
+          const isFuture = startTime > now;
+          const isPast = endTime ? endTime < now : startTime < now;
+          const hasScores = match.team1_score_set1 !== null && match.team2_score_set1 !== null;
+          const needsScores = isPast && !hasScores && match.status !== MatchStatus.CANCELLED;
+          const needsConfirmation = match.status === MatchStatus.NEEDS_CONFIRMATION;
+          
+          if (needsScores || needsConfirmation) needsAttention++;
+          
+          if (isFuture) {
+            upcomingMatches++;
+            if (scheduledMatches.length < 3) scheduledMatches.push(match);
           }
-        });
-
-        completedMatches.forEach((match) => {
-          try {
-            const isTeam1 = match.player1_id === playerId || match.player2_id === playerId;
-            let userWon = false;
+          
+          const matchDate = completedTime || endTime || startTime;
+          if (hasScores) {
+            if (matchDate >= weekAgo) thisWeekMatches++;
+            if (matchDate >= monthAgo) thisMonthMatches++;
             
-            if (typeof match.winner_team === 'number') {
-              userWon = (isTeam1 && match.winner_team === 1) || (!isTeam1 && match.winner_team === 2);
-            } else { // Fallback to score calculation if winner_team is not set
-              let team1Sets = 0, team2Sets = 0;
-              if (match.team1_score_set1 > match.team2_score_set1) team1Sets++;
-              else if (match.team2_score_set1 > match.team1_score_set1) team2Sets++;
-              
-              if (typeof match.team1_score_set2 === 'number' && typeof match.team2_score_set2 === 'number') {
-                if (match.team1_score_set2 > match.team2_score_set2) team1Sets++;
-                else if (match.team2_score_set2 > match.team1_score_set2) team2Sets++;
+            if (recentMatches.length < 3) recentMatches.push(match);
+            
+            if (match.start_time && match.end_time) {
+              const duration = new Date(match.end_time).getTime() - new Date(match.start_time).getTime();
+              if (duration > 0 && duration < 24 * 60 * 60 * 1000) { // Reasonable duration check
+                totalDuration += duration;
+                matchesWithDuration++;
               }
-              
-              if (typeof match.team1_score_set3 === 'number' && typeof match.team2_score_set3 === 'number') {
-                if (match.team1_score_set3 > match.team2_score_set3) team1Sets++;
-                else if (match.team2_score_set3 > match.team1_score_set3) team2Sets++;
-              }
-              
-              if (team1Sets > team2Sets) userWon = isTeam1;
-              else if (team2Sets > team1Sets) userWon = !isTeam1;
-              // If sets are equal, it's a draw or incomplete data - counts as neither win nor loss here.
             }
-            
-            const matchDate = new Date(match.completed_at || match.end_time || match.start_time || 0);
-            if (isNaN(matchDate.getTime())) return; // Skip if invalid date
-
-            if (matchDate >= weekAgo) recentResults.push(userWon);
-            else if (matchDate >= monthAgo) olderResults.push(userWon);
-            
-            if (userWon) {
-              wins++;
-              currentStreak = currentStreak >= 0 ? currentStreak + 1 : 1;
-            } else { // Assuming a non-win is a loss for streak calculation if scores are present
-              losses++;
-              currentStreak = currentStreak <= 0 ? currentStreak - 1 : -1;
-            }
-            
-            if (Math.abs(currentStreak) > Math.abs(longestStreak)) {
-              longestStreak = currentStreak;
-            }
-          } catch (error) {
-            console.warn('🚨 PRODUCTION: Win/loss calculation error:', error, 'Match:', match);
           }
-        });
+        } catch (matchError) {
+          console.warn('🚨 PRODUCTION: Match processing error (non-critical):', matchError);
+          continue;
+        }
+      }
+
+      // Calculate wins/losses with individual error isolation
+      for (const match of completedMatches) {
+        try {
+          const isTeam1 = match.player1_id === playerId || match.player2_id === playerId;
+          let userWon = false;
+          
+          if (match.winner_team) {
+            userWon = (isTeam1 && match.winner_team === 1) || (!isTeam1 && match.winner_team === 2);
+          } else {
+            // Calculate winner based on sets
+            let team1Sets = 0, team2Sets = 0;
+            
+            if (match.team1_score_set1 > match.team2_score_set1) team1Sets++;
+            else if (match.team2_score_set1 > match.team1_score_set1) team2Sets++;
+            
+            if (match.team1_score_set2 !== null && match.team2_score_set2 !== null) {
+              if (match.team1_score_set2 > match.team2_score_set2) team1Sets++;
+              else if (match.team2_score_set2 > match.team1_score_set2) team2Sets++;
+            }
+            
+            if (match.team1_score_set3 !== null && match.team2_score_set3 !== null) {
+              if (match.team1_score_set3 > match.team2_score_set3) team1Sets++;
+              else if (match.team2_score_set3 > match.team1_score_set3) team2Sets++;
+            }
+            
+            if (team1Sets > team2Sets) userWon = isTeam1;
+            else if (team2Sets > team1Sets) userWon = !isTeam1;
+          }
+          
+          const matchDate = new Date(match.completed_at || match.end_time || match.start_time);
+          
+          if (matchDate >= weekAgo) recentResults.push(userWon);
+          else if (matchDate >= monthAgo) olderResults.push(userWon);
+          
+          if (userWon) {
+            wins++;
+            currentStreak = currentStreak >= 0 ? currentStreak + 1 : 1;
+          } else {
+            losses++;
+            currentStreak = currentStreak <= 0 ? currentStreak - 1 : -1;
+          }
+          
+          if (Math.abs(currentStreak) > Math.abs(longestStreak)) {
+            longestStreak = currentStreak;
+          }
+        } catch (winLossError) {
+          console.warn('🚨 PRODUCTION: Win/loss calculation error (non-critical):', winLossError);
+          continue;
+        }
       }
       
+      // Calculate performance trend safely
       let recentPerformance: 'improving' | 'declining' | 'stable' = 'stable';
       try {
         if (recentResults.length >= 2 && olderResults.length >= 2) {
@@ -723,157 +737,353 @@ export default function Profile() {
           
           if (recentWinRate > olderWinRate + 0.15) recentPerformance = 'improving';
           else if (recentWinRate < olderWinRate - 0.15) recentPerformance = 'declining';
-        } else if (recentResults.length >= 3) { // Basic trend if not enough older data
-            const recentWins = recentResults.filter(Boolean).length;
-            if (recentWins / recentResults.length > 0.6) recentPerformance = 'improving';
-            else if (recentWins / recentResults.length < 0.4) recentPerformance = 'declining';
         }
-      } catch (error) {
-        console.warn('🚨 PRODUCTION: Performance calculation error:', error);
+      } catch (performanceError) {
+        console.warn('🚨 PRODUCTION: Performance calculation error (non-critical):', performanceError);
       }
       
-      const totalPlayed = wins + losses;
-      const winRate = totalPlayed > 0 ? Math.round((wins / totalPlayed) * 100) : 0;
-      const averageMatchDurationMs = matchesWithDuration > 0 ? totalDuration / matchesWithDuration : 0;
+      const winRate = wins + losses > 0 ? Math.round((wins / (wins + losses)) * 100) : 0;
+      const averageMatchDuration = matchesWithDuration > 0 ? totalDuration / matchesWithDuration : 0;
       
-      return {
-        matches: totalPlayed, wins, losses, winRate, streak: currentStreak, longestStreak,
-        upcomingMatches, needsAttention, ratingHistory: ratingHistoryLocal, 
-        recentMatches: recentMatchesLocal, scheduledMatches: scheduledMatchesLocal,
-        averageMatchDuration: averageMatchDurationMs, recentPerformance, 
-        thisWeekMatches, thisMonthMatches,
+      const finalStats: EnhancedPlayerStats = {
+        matches: wins + losses,
+        wins, losses, winRate, streak: currentStreak, longestStreak,
+        upcomingMatches, needsAttention, ratingHistory, recentMatches, scheduledMatches,
+        averageMatchDuration, recentPerformance, thisWeekMatches, thisMonthMatches,
       };
+
+      console.log('✅ PRODUCTION: Stats calculation completed successfully');
+      return finalStats;
       
     } catch (error) {
-      console.error('🚨 PRODUCTION: Stats calculation failed catastrophically:', error);
-      return defaultStats; // Return safe default stats
+      console.error('🚨 PRODUCTION: Stats calculation catastrophic failure:', error);
+      // Return safe defaults
+      return {
+        matches: 0, wins: 0, losses: 0, winRate: 0, streak: 0, longestStreak: 0,
+        upcomingMatches: 0, needsAttention: 0, ratingHistory: [], recentMatches: [], 
+        scheduledMatches: [], averageMatchDuration: 0, recentPerformance: 'stable',
+        thisWeekMatches: 0, thisMonthMatches: 0,
+      };
     }
-  }, [profile]); // Dependency on profile for glicko_rating
+  };
 
-  // PRODUCTION BULLETPROOF FIX 10: Safe statistics fetching
-  const fetchPlayerStatistics = async (playerId: string) => {
+  // PRODUCTION RULE 9: Ultra-safe avatar upload handler
+  const handleAvatarUpload = async () => {
     try {
-      if (!isMountedRef.current) return;
-      safeSetState(setLoading, true);
-      
-      const { data: matchData, error: matchError } = await Promise.race([
-        supabase
-          .from('matches')
-          .select(`
-            *,
-            player1:profiles!player1_id(id, full_name, email, glicko_rating),
-            player2:profiles!player2_id(id, full_name, email, glicko_rating),
-            player3:profiles!player3_id(id, full_name, email, glicko_rating),
-            player4:profiles!player4_id(id, full_name, email, glicko_rating)
-          `)
-          .or(`player1_id.eq.${playerId},player2_id.eq.${playerId},player3_id.eq.${playerId},player4_id.eq.${playerId}`)
-          .order('created_at', { ascending: false })
-          .limit(100), // Add a limit for safety
-        new Promise<{data: any[] | null, error: any}>((_, reject) => setTimeout(() => reject(new Error('Query timeout')), 15000)) // Increased timeout
-      ]);
-
-      if (!isMountedRef.current) return;
-
-      if (matchError) {
-        console.error('🚨 PRODUCTION: Match fetch error:', matchError);
-        // Keep existing (default) stats or set error state
-        throw matchError; // Propagate to be caught by calling useEffect's catch
+      if (!profile?.id) {
+        safeSetState(
+          prev => ({ ...prev, error: 'Profile not available' }), 
+          setAvatarState, 
+          'avatarState'
+        );
+        return;
       }
 
-      const stats = calculateStatsWithErrorHandling(matchData || [], playerId, profile);
+      console.log('📷 PRODUCTION: Starting avatar upload process');
+      safeSetState(
+        () => ({ uploading: false, deleting: false, error: null, success: null }), 
+        setAvatarState, 
+        'avatarState'
+      );
+
+      // Show selection options with production-safe promise handling
+      const selection = await new Promise<'camera' | 'library' | null>((resolve) => {
+        try {
+          Alert.alert(
+            'Select Profile Picture',
+            'Choose how you would like to set your profile picture',
+            [
+              { text: 'Camera', onPress: () => resolve('camera') },
+              { text: 'Photo Library', onPress: () => resolve('library') },
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
+            ],
+            { 
+              cancelable: true, 
+              onDismiss: () => resolve(null) 
+            }
+          );
+        } catch (alertError) {
+          console.error('🚨 PRODUCTION: Alert error:', alertError);
+          resolve(null);
+        }
+      });
+
+      if (!selection || !isMountedRef.current) {
+        console.log('📷 PRODUCTION: Upload cancelled by user');
+        return;
+      }
+
+      // Select image with production safety
+      const selectionResult = await selectImageWithProductionSafety(selection === 'camera');
       
+      if (!isMountedRef.current) return;
+      
+      if (!selectionResult.success) {
+        if (!selectionResult.cancelled && selectionResult.error) {
+          safeSetState(
+            prev => ({ ...prev, error: selectionResult.error }), 
+            setAvatarState, 
+            'avatarState'
+          );
+        }
+        return;
+      }
+
+      if (!selectionResult.base64) {
+        safeSetState(
+          prev => ({ ...prev, error: 'No image data received' }), 
+          setAvatarState, 
+          'avatarState'
+        );
+        return;
+      }
+
+      // Start upload process
+      console.log('📷 PRODUCTION: Starting upload with base64 data length:', selectionResult.base64.length);
+      safeSetState(
+        prev => ({ ...prev, uploading: true }), 
+        setAvatarState, 
+        'avatarState'
+      );
+
+      const uploadResult = await uploadAvatarWithProductionSafety(
+        selectionResult.base64,
+        profile.id,
+        profile.avatar_url
+      );
+
+      if (!isMountedRef.current) return;
+
+      if (!uploadResult.success) {
+        safeSetState(
+          () => ({
+            uploading: false,
+            deleting: false,
+            error: uploadResult.error || 'Upload failed',
+            success: null,
+          }), 
+          setAvatarState, 
+          'avatarState'
+        );
+        return;
+      }
+
+      // Update profile with new avatar URL
+      console.log('📷 PRODUCTION: Updating profile with new avatar URL');
+      await saveProfile({ avatar_url: uploadResult.publicUrl });
+
       if (isMountedRef.current) {
-        safeSetState(setPlayerStats, stats);
+        safeSetState(
+          () => ({
+            uploading: false,
+            deleting: false,
+            error: null,
+            success: 'Profile picture updated successfully!',
+          }), 
+          setAvatarState, 
+          'avatarState'
+        );
+        console.log('✅ PRODUCTION: Avatar upload completed successfully');
       }
-      
+
     } catch (error) {
-      console.error("🚨 PRODUCTION: Error fetching/processing stats:", error);
+      console.error('🚨 PRODUCTION: Avatar upload catastrophic failure:', error);
       if (isMountedRef.current) {
-         // Optionally set playerStats to default or indicate error
-        safeSetState(setPlayerStats, prev => ({...prev})); // Re-set to defaults or last known good
+        safeSetState(
+          () => ({
+            uploading: false,
+            deleting: false,
+            error: 'Failed to update profile picture',
+            success: null,
+          }), 
+          setAvatarState, 
+          'avatarState'
+        );
       }
-    } finally {
-      if (isMountedRef.current) {
-        safeSetState(setLoading, false);
+    }
+  };
+
+  // PRODUCTION RULE 10: Ultra-safe avatar removal handler
+  const handleAvatarRemove = async () => {
+    try {
+      if (!profile?.id || !profile.avatar_url) {
+        safeSetState(
+          prev => ({ ...prev, error: 'No profile picture to remove' }), 
+          setAvatarState, 
+          'avatarState'
+        );
+        return;
       }
+
+      Alert.alert(
+        'Remove Profile Picture',
+        'Are you sure you want to remove your profile picture?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Remove',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                console.log('🗑️ PRODUCTION: Starting avatar removal process');
+                safeSetState(
+                  prev => ({ ...prev, deleting: true, error: null }), 
+                  setAvatarState, 
+                  'avatarState'
+                );
+
+                const deleteResult = await deleteAvatarWithProductionSafety(profile.avatar_url!);
+                
+                if (!isMountedRef.current) return;
+                
+                // Update profile regardless of delete result (graceful degradation)
+                await saveProfile({ avatar_url: null });
+
+                if (isMountedRef.current) {
+                  safeSetState(
+                    () => ({
+                      uploading: false,
+                      deleting: false,
+                      error: null,
+                      success: 'Profile picture removed successfully!',
+                    }), 
+                    setAvatarState, 
+                    'avatarState'
+                  );
+                  console.log('✅ PRODUCTION: Avatar removal completed');
+                }
+
+              } catch (error) {
+                console.error('🚨 PRODUCTION: Avatar removal error:', error);
+                if (isMountedRef.current) {
+                  safeSetState(
+                    () => ({
+                      uploading: false,
+                      deleting: false,
+                      error: 'Failed to remove profile picture',
+                      success: null,
+                    }), 
+                    setAvatarState, 
+                    'avatarState'
+                  );
+                }
+              }
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('🚨 PRODUCTION: Avatar removal setup error:', error);
+    }
+  };
+
+  const showAvatarOptions = () => {
+    try {
+      if (!profile?.id) return;
+
+      const options = [{ text: 'Change Picture', onPress: handleAvatarUpload }];
+      
+      if (profile.avatar_url) {
+        options.push({ text: 'Remove Picture', onPress: handleAvatarRemove });
+      }
+      
+      options.push({ text: 'Cancel', onPress: () => {} });
+
+      Alert.alert(
+        'Profile Picture Options',
+        'Choose an action for your profile picture',
+        options.map(option => ({
+          text: option.text,
+          style: option.text === 'Cancel' ? 'cancel' : option.text === 'Remove Picture' ? 'destructive' : 'default',
+          onPress: option.onPress,
+        }))
+      );
+    } catch (error) {
+      console.error('🚨 PRODUCTION: Avatar options error:', error);
     }
   };
 
   const handleSignOut = async () => {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
-      { 
-        text: "Sign Out", 
-        onPress: async () => { 
-          try {
-            await signOut();
-            // Navigation to sign-in screen is usually handled by the AuthProvider/router setup
-          } catch (error) {
-            console.error('🚨 PRODUCTION: Sign out error:', error);
-            Alert.alert('Error', 'Failed to sign out. Please try again.');
-          }
-        }, 
-        style: "destructive" 
-      }
-    ]);
+    try {
+      Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Sign Out", 
+          onPress: async () => { 
+            try {
+              await signOut();
+            } catch (error) {
+              console.error('🚨 PRODUCTION: Sign out error:', error);
+              Alert.alert('Error', 'Failed to sign out. Please try again.');
+            }
+          }, 
+          style: "destructive" 
+        }
+      ]);
+    } catch (error) {
+      console.error('🚨 PRODUCTION: Sign out setup error:', error);
+    }
   };
 
   const shareProfile = async () => {
     try {
-      const glickoRatingDisplay = (profile?.glicko_rating != null ? Math.round(Number(profile.glicko_rating)).toString() : '-');
-      const message = `Check out my Padel profile!\n\nName: ${profile?.full_name || 'Anonymous Player'}\nRating: ${glickoRatingDisplay}\nWin Rate: ${playerStats.winRate}%\nMatches: ${playerStats.matches}\nStreak: ${playerStats.streak}\n\nLet's play a match!`;
+      const message = `Check out my Padel profile!\n\nName: ${profile?.full_name || 'Anonymous Player'}\nRating: ${profile?.glicko_rating || '-'}\nWin Rate: ${playerStats.winRate}%\nMatches: ${playerStats.matches}\nStreak: ${playerStats.streak}\n\nLet's play a match!`;
       await Share.share({ message, title: 'Padel Profile' });
-    } catch (error: any) {
-      if (error.message !== 'Share Canceled') { // Don't log if user manually cancels share sheet
-           console.error('🚨 PRODUCTION: Share failed:', error);
-      }
+    } catch (error) {
+      console.error('🚨 PRODUCTION: Share failed (non-critical):', error);
     }
   };
 
-  // Safe render helpers
-  const safeRender = (renderFn: () => React.ReactNode, fallback: React.ReactNode = null): React.ReactNode => {
+  // PRODUCTION RULE 11: Ultra-safe render helpers with error isolation
+  const safeRender = (renderFn: () => React.ReactNode, fallback: React.ReactNode = null) => {
     try {
       return renderFn();
     } catch (error) {
-      console.error('🚨 PRODUCTION: Render error in safeRender:', error);
-      // In development, you might want to throw the error to see it clearly
-      // if (process.env.NODE_ENV === 'development') throw error;
-      return fallback || <Text>Error displaying section.</Text>; // Provide a generic fallback
+      console.error('🚨 PRODUCTION: Render error:', error);
+      return fallback;
     }
   };
-  
+
   const renderBulletproofAvatar = () => (
     <View className="items-center mb-4">
-      <TouchableOpacity onPress={showAvatarOptions} disabled={avatarState.uploading || avatarState.deleting}>
+      <TouchableOpacity 
+        onPress={showAvatarOptions} 
+        disabled={avatarState.uploading || avatarState.deleting}
+        style={{ opacity: (avatarState.uploading || avatarState.deleting) ? 0.7 : 1 }}
+      >
         <View className="relative">
-          <View className="w-32 h-32 rounded-full bg-primary items-center justify-center overflow-hidden border-2 border-card">
+          <View className="w-32 h-32 rounded-full bg-primary items-center justify-center overflow-hidden">
             {profile?.avatar_url && !avatarState.uploading && !avatarState.deleting ? (
               <Image
                 source={{ uri: profile.avatar_url }}
                 style={{ width: '100%', height: '100%' }}
                 contentFit="cover"
-                placeholderContentFit="cover" // Added for consistency
-                // placeholder={{ blurhash: 'L6Pj0^i_.AyE_3t7t7RMostlyoIso?' }} // Example blurhash
-                transition={300} // Slightly longer for smoother feel
-                onError={(e) => {
-                  console.warn('🚨 PRODUCTION: Avatar load failed:', e?.error);
-                  // Optionally set a flag to show fallback if image fails to load even if URL is present
+                cachePolicy="memory-disk"
+                transition={200}
+                onError={() => {
+                  console.log('🚨 PRODUCTION: Avatar load failed, showing fallback');
                 }}
               />
             ) : (
               <Text className="text-4xl font-bold text-primary-foreground">
-                {(profile?.full_name?.charAt(0)?.toUpperCase()) || (profile?.email?.charAt(0)?.toUpperCase()) || '?'}
+                {(() => {
+                  try {
+                    return profile?.full_name?.charAt(0)?.toUpperCase() || '?';
+                  } catch {
+                    return '?';
+                  }
+                })()}
               </Text>
             )}
           </View>
           
-          <View className="absolute -bottom-1 -right-1 bg-primary rounded-full items-center justify-center w-8 h-8 border-2 border-background">
+          <View className="absolute -bottom-1 -right-1 bg-primary rounded-full items-center justify-center w-8 h-8">
             <Ionicons name="camera" size={16} color="#ffffff" />
           </View>
           
           {(avatarState.uploading || avatarState.deleting) && (
-            <View className="absolute inset-0 rounded-full bg-black/60 items-center justify-center">
-              <ActivityIndicator size="large" color="#ffffff" />
+            <View className="absolute inset-0 rounded-full bg-black/50 items-center justify-center">
+              <ActivityIndicator size="small" color="#ffffff" />
             </View>
           )}
         </View>
@@ -881,7 +1091,7 @@ export default function Profile() {
       
       {(avatarState.uploading || avatarState.deleting) && (
         <View className="mt-2 flex-row items-center">
-          <ActivityIndicator size="small" color={colorScheme === 'dark' ? '#a1a1aa' : '#777'} style={{ marginRight: 8 }} />
+          <ActivityIndicator size="small" color="#1a7ebd" style={{ marginRight: 8 }} />
           <Text className="text-sm text-muted-foreground">
             {avatarState.uploading ? 'Uploading picture...' : 'Removing picture...'}
           </Text>
@@ -889,22 +1099,26 @@ export default function Profile() {
       )}
       
       {avatarState.error && (
-        <View className="mt-2 p-3 bg-destructive/10 rounded-lg border border-destructive/30 max-w-xs">
-          <Text className="text-sm text-destructive text-center">
+        <View className="mt-2 p-3 bg-red-50 dark:bg-red-900/30 rounded-lg border border-red-200 dark:border-red-800 max-w-xs">
+          <Text className="text-sm text-red-800 dark:text-red-300 text-center">
             {avatarState.error}
           </Text>
           <TouchableOpacity 
-            onPress={() => safeSetState(setAvatarState, prev => ({ ...prev, error: null }))}
+            onPress={() => safeSetState(
+              prev => ({ ...prev, error: null }), 
+              setAvatarState, 
+              'avatarState'
+            )}
             className="mt-2 items-center"
           >
-            <Text className="text-xs text-destructive/80 underline">Dismiss</Text>
+            <Text className="text-xs text-red-600 dark:text-red-400 underline">Dismiss</Text>
           </TouchableOpacity>
         </View>
       )}
       
       {avatarState.success && (
-        <View className="mt-2 p-3 bg-green-500/10 rounded-lg border border-green-500/30 max-w-xs">
-          <Text className="text-sm text-green-700 dark:text-green-400 text-center">
+        <View className="mt-2 p-3 bg-green-50 dark:bg-green-900/30 rounded-lg border border-green-200 dark:border-green-800 max-w-xs">
+          <Text className="text-sm text-green-800 dark:text-green-300 text-center">
             {avatarState.success}
           </Text>
         </View>
@@ -912,138 +1126,152 @@ export default function Profile() {
     </View>
   );
 
-  const renderInfoCard = (title: string, value: string | number | null | undefined, icon: keyof typeof Ionicons.glyphMap) => (
-    <View className="bg-card rounded-lg p-4 mb-3 flex-row items-center shadow-sm">
+  const renderInfoCard = (title: string, value: string | null, icon: keyof typeof Ionicons.glyphMap) => (
+    <View className="bg-card rounded-lg p-4 mb-3 flex-row items-center">
       <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center mr-4">
-        <Ionicons name={icon} size={20} color={colorScheme === 'dark' ? '#38bdf8' : '#0284c7'} />
+        <Ionicons name={icon} size={20} color="#1a7ebd" />
       </View>
       <View className="flex-1">
         <Text className="text-sm text-muted-foreground">{title}</Text>
-        <Text className="font-medium text-card-foreground text-base">
-            {value != null && String(value).trim() !== '' ? String(value) : 'Not set'}
-        </Text>
+        <Text className="font-medium">{value || 'Not set'}</Text>
       </View>
     </View>
   );
 
-  const renderStatsCard = () => {
-    const glickoRatingDisplay = (profile?.glicko_rating != null) 
-      ? Math.round(Number(profile.glicko_rating)).toString() 
-      : '-';
-
-    return (
-      <View className="bg-card rounded-lg p-4 md:p-6 mb-6 shadow-md">
-        <View className="flex-row justify-between items-center mb-4">
-          <View className="flex-row items-center">
-            <Text className="text-xs text-muted-foreground mr-2">Current Rating:</Text>
-            <Text className="text-xl font-bold text-primary">
-              {glickoRatingDisplay}
-            </Text>
-          </View>
-          <TouchableOpacity onPress={shareProfile} className="p-2">
-            <Ionicons name="share-outline" size={22} color={colorScheme === 'dark' ? '#38bdf8' : '#0284c7'} />
-          </TouchableOpacity>
-        </View>
-        
-        <View className="flex-row justify-around mb-4">
-          {[
-            { label: 'Matches', value: playerStats.matches, color: 'text-primary' },
-            { label: 'Wins', value: playerStats.wins, color: 'text-green-500 dark:text-green-400' },
-            { label: 'Losses', value: playerStats.losses, color: 'text-red-500 dark:text-red-400' },
-            { label: 'Win Rate', value: `${playerStats.winRate}%`, color: 'text-primary' },
-          ].map(stat => (
-            <View key={stat.label} className="items-center">
-              <Text className={`text-2xl font-bold ${stat.color}`}>{stat.value}</Text>
-              <Text className="text-sm text-muted-foreground">{stat.label}</Text>
-            </View>
-          ))}
-        </View>
-        
-        <View className="bg-muted/30 dark:bg-muted/20 rounded-lg p-3 mb-4">
-          <View className="flex-row justify-around">
-            {[
-              { label: 'This Week', value: playerStats.thisWeekMatches },
-              { label: 'This Month', value: playerStats.thisMonthMatches },
-              { label: 'Best Streak', value: Math.abs(playerStats.longestStreak), 
-                color: playerStats.longestStreak > 0 ? 'text-green-500' : playerStats.longestStreak < 0 ? 'text-red-500' : 'text-foreground' },
-              { label: 'Avg Duration', value: playerStats.averageMatchDuration > 0 
-                  ? `${Math.round(playerStats.averageMatchDuration / (1000 * 60))}m` : '-' },
-            ].map(stat => (
-              <View key={stat.label} className="items-center px-1">
-                <Text className={`text-lg font-bold ${stat.color || 'text-foreground'}`}>{stat.value}</Text>
-                <Text className="text-xs text-muted-foreground text-center">{stat.label}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-        
-        <View className="h-px bg-border mb-4" />
-        
-        <View className="flex-row justify-between items-center">
-          <View className="flex-row items-center">
-            <Ionicons 
-              name={
-                playerStats.recentPerformance === 'improving' ? 'trending-up-outline' :
-                playerStats.recentPerformance === 'declining' ? 'trending-down-outline' : 'remove-outline'
-              } 
-              size={22} 
-              color={
-                playerStats.recentPerformance === 'improving' ? '#10b981' : // green-500
-                playerStats.recentPerformance === 'declining' ? '#ef4444' : // red-500
-                (colorScheme === 'dark' ? '#a1a1aa' : '#6b7280') // muted-foreground
-              } 
-              style={{ marginRight: 8 }} 
-            />
-            <View>
-              <Text className="text-sm text-muted-foreground">
-                Current Streak: 
-                <Text className={`font-medium ${
-                  playerStats.streak > 0 ? 'text-green-500' : 
-                  playerStats.streak < 0 ? 'text-red-500' : 'text-foreground'
-                }`}>
-                  {' '}{playerStats.streak > 0 ? `${playerStats.streak}W` : 
-                       playerStats.streak < 0 ? `${Math.abs(playerStats.streak)}L` : '0'}
-                </Text>
-              </Text>
-              <Text className={`text-xs capitalize ${
-                playerStats.recentPerformance === 'improving' ? 'text-green-500' :
-                playerStats.recentPerformance === 'declining' ? 'text-red-500' : 'text-muted-foreground'
-              }`}>
-                Recent form: {playerStats.recentPerformance}
-              </Text>
-            </View>
-          </View>
-          <TouchableOpacity 
-            className="flex-row items-center p-1"
-            onPress={() => {
+  const renderStatsCard = () => (
+    <View className="bg-card rounded-lg p-6 mb-6">
+      <View className="flex-row justify-between items-center mb-4">
+        <View className="flex-row items-center">
+          <Text className="text-xs text-muted-foreground mr-2">Current Rating:</Text>
+          <Text className="text-base font-bold text-primary">
+            {(() => {
               try {
-                router.push('/(protected)/(screens)/match-history');
-              } catch (error) {
-                console.error('🚨 PRODUCTION: Navigation error to match-history:', error);
-                Alert.alert("Navigation Error", "Could not open match history.");
+                return profile?.glicko_rating ? parseInt(profile.glicko_rating.toString()).toString() : '-';
+              } catch {
+                return '-';
               }
-            }}
-          >
-            <Text className="text-primary text-sm mr-1">Full History</Text>
-            <Ionicons name="chevron-forward-outline" size={16} color={colorScheme === 'dark' ? '#38bdf8' : '#0284c7'} />
-          </TouchableOpacity>
+            })()}
+          </Text>
+        </View>
+        <TouchableOpacity onPress={shareProfile}>
+          <Ionicons name="share-outline" size={20} color="#1a7ebd" />
+        </TouchableOpacity>
+      </View>
+      
+      <View className="flex-row justify-around mb-4">
+        <View className="items-center">
+          <Text className="text-2xl font-bold text-primary">{playerStats.matches}</Text>
+          <Text className="text-sm text-muted-foreground">Matches</Text>
+        </View>
+        <View className="items-center">
+          <Text className="text-2xl font-bold text-green-500">{playerStats.wins}</Text>
+          <Text className="text-sm text-muted-foreground">Wins</Text>
+        </View>
+        <View className="items-center">
+          <Text className="text-2xl font-bold text-red-500">{playerStats.losses}</Text>
+          <Text className="text-sm text-muted-foreground">Losses</Text>
+        </View>
+        <View className="items-center">
+          <Text className="text-2xl font-bold text-primary">{playerStats.winRate}%</Text>
+          <Text className="text-sm text-muted-foreground">Win Rate</Text>
         </View>
       </View>
-    );
-  };
+      
+      <View className="bg-muted/20 rounded-lg p-3 mb-4">
+        <View className="flex-row justify-around">
+          <View className="items-center">
+            <Text className="text-lg font-bold">{playerStats.thisWeekMatches}</Text>
+            <Text className="text-xs text-muted-foreground">This Week</Text>
+          </View>
+          <View className="items-center">
+            <Text className="text-lg font-bold">{playerStats.thisMonthMatches}</Text>
+            <Text className="text-xs text-muted-foreground">This Month</Text>
+          </View>
+          <View className="items-center">
+            <Text className={`text-lg font-bold ${
+              playerStats.longestStreak > 0 ? 'text-green-500' : 
+              playerStats.longestStreak < 0 ? 'text-red-500' : ''
+            }`}>
+              {Math.abs(playerStats.longestStreak)}
+            </Text>
+            <Text className="text-xs text-muted-foreground">Best Streak</Text>
+          </View>
+          <View className="items-center">
+            <Text className="text-lg font-bold">
+              {playerStats.averageMatchDuration > 0 
+                ? Math.round(playerStats.averageMatchDuration / (1000 * 60)) + 'm'
+                : '-'
+              }
+            </Text>
+            <Text className="text-xs text-muted-foreground">Avg Duration</Text>
+          </View>
+        </View>
+      </View>
+      
+      <View className="h-px bg-border mb-4" />
+      
+      <View className="flex-row justify-between items-center">
+        <View className="flex-row items-center">
+          <Ionicons 
+            name={
+              playerStats.recentPerformance === 'improving' ? 'trending-up' :
+              playerStats.recentPerformance === 'declining' ? 'trending-down' : 'remove'
+            } 
+            size={20} 
+            color={
+              playerStats.recentPerformance === 'improving' ? '#10b981' :
+              playerStats.recentPerformance === 'declining' ? '#ef4444' : '#6b7280'
+            } 
+            style={{ marginRight: 8 }} 
+          />
+          <View>
+            <Text className="text-sm text-muted-foreground">
+              Current Streak: 
+              <Text className={`font-medium ${
+                playerStats.streak > 0 ? 'text-green-500' : 
+                playerStats.streak < 0 ? 'text-red-500' : ''
+              }`}>
+                {' '}{playerStats.streak > 0 ? `${playerStats.streak}W` : 
+                     playerStats.streak < 0 ? `${Math.abs(playerStats.streak)}L` : '0'}
+              </Text>
+            </Text>
+            <Text className={`text-xs ${
+              playerStats.recentPerformance === 'improving' ? 'text-green-500' :
+              playerStats.recentPerformance === 'declining' ? 'text-red-500' : 'text-muted-foreground'
+            }`}>
+              Recent form: {playerStats.recentPerformance}
+            </Text>
+          </View>
+        </View>
+        <TouchableOpacity 
+          className="flex-row items-center"
+          onPress={() => {
+            try {
+              router.push('/(protected)/(screens)/match-history');
+            } catch (error) {
+              console.error('🚨 PRODUCTION: Navigation error:', error);
+            }
+          }}
+        >
+          <Text className="text-primary text-sm mr-1">Full History</Text>
+          <Ionicons name="chevron-forward" size={14} color="#1a7ebd" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 
   const renderMatchesSection = () => {
-    if (playerStats.recentMatches.length === 0 && playerStats.scheduledMatches.length === 0 && playerStats.needsAttention === 0 && playerStats.upcomingMatches === 0) {
-      return null; // No match-related data to show
+    if (playerStats.recentMatches.length === 0 && playerStats.scheduledMatches.length === 0 && playerStats.needsAttention === 0) {
+      return null;
     }
     
     return (
-      <View className="bg-card rounded-lg p-4 md:p-6 mb-6 shadow-md">
-        <H3 className="mb-3 text-card-foreground">Match Overview</H3>
+      <View className="bg-card rounded-lg p-4 mb-6">
+        <H3 className="mb-3">Match Overview</H3>
         
         {playerStats.needsAttention > 0 && (
           <TouchableOpacity 
-            className="mb-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30"
+            className="mb-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700"
             onPress={() => {
               try {
                 router.push({
@@ -1051,157 +1279,165 @@ export default function Profile() {
                   params: { filter: 'attention' }
                 });
               } catch (error) {
-                console.error('🚨 PRODUCTION: Navigation error to match-history (attention):', error);
-                Alert.alert("Navigation Error", "Could not open matches needing attention.");
+                console.error('🚨 PRODUCTION: Navigation error:', error);
               }
             }}
           >
             <View className="flex-row justify-between items-center">
               <View className="flex-row items-center">
-                <Ionicons name="alert-circle-outline" size={22} color="#f59e0b" style={{ marginRight: 8 }} />
-                <Text className="text-amber-700 dark:text-amber-400 font-medium">
+                <Ionicons name="alert-circle-outline" size={20} color="#d97706" style={{ marginRight: 8 }} />
+                <Text className="text-amber-800 dark:text-amber-300 font-medium">
                   {playerStats.needsAttention} match{playerStats.needsAttention !== 1 ? 'es' : ''} need{playerStats.needsAttention === 1 ? 's' : ''} attention
                 </Text>
               </View>
-              <Ionicons name="chevron-forward-outline" size={18} color="#f59e0b" />
+              <Ionicons name="chevron-forward" size={16} color="#d97706" />
             </View>
           </TouchableOpacity>
         )}
         
         {playerStats.upcomingMatches > 0 && (
           <TouchableOpacity 
-            className="mb-3 p-3 rounded-lg bg-sky-500/10 border border-sky-500/30"
-             onPress={() => {
+            className="mb-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700"
+            onPress={() => {
               try {
                 router.push({
                   pathname: '/(protected)/(screens)/match-history',
                   params: { filter: 'upcoming' }
                 });
               } catch (error) {
-                console.error('🚨 PRODUCTION: Navigation error to match-history (upcoming):', error);
-                Alert.alert("Navigation Error", "Could not open upcoming matches.");
+                console.error('🚨 PRODUCTION: Navigation error:', error);
               }
             }}
           >
             <View className="flex-row justify-between items-center">
               <View className="flex-row items-center">
-                <Ionicons name="calendar-outline" size={20} color="#0ea5e9" style={{ marginRight: 8 }} />
-                <Text className="text-sky-700 dark:text-sky-400 font-medium">
+                <Ionicons name="calendar-outline" size={20} color="#2563eb" style={{ marginRight: 8 }} />
+                <Text className="text-blue-800 dark:text-blue-300 font-medium">
                   {playerStats.upcomingMatches} upcoming match{playerStats.upcomingMatches !== 1 ? 'es' : ''}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward-outline" size={18} color="#0ea5e9" />
+              <Ionicons name="chevron-forward" size={16} color="#2563eb" />
             </View>
           </TouchableOpacity>
+        )}
+
+        {playerStats.matches > 0 && (
+          <View className="p-3 rounded-lg bg-primary/5 dark:bg-primary/10">
+            <View className="flex-row justify-between items-center">
+              <Text className="text-sm text-muted-foreground">Recent Activity</Text>
+              <TouchableOpacity 
+                onPress={() => {
+                  try {
+                    router.push('/(protected)/(screens)/match-history');
+                  } catch (error) {
+                    console.error('🚨 PRODUCTION: Navigation error:', error);
+                  }
+                }}
+                className="flex-row items-center"
+              >
+                <Text className="text-primary text-sm mr-1">View All</Text>
+                <Ionicons name="chevron-forward" size={12} color="#1a7ebd" />
+              </TouchableOpacity>
+            </View>
+            <View className="flex-row justify-around mt-2">
+              <View className="items-center">
+                <Text className="font-bold text-primary">{playerStats.thisWeekMatches}</Text>
+                <Text className="text-xs text-muted-foreground">This Week</Text>
+              </View>
+              <View className="items-center">
+                <Text className="font-bold">{playerStats.winRate}%</Text>
+                <Text className="text-xs text-muted-foreground">Win Rate</Text>
+              </View>
+              <View className="items-center">
+                <Text className={`font-bold ${
+                  playerStats.streak > 0 ? 'text-green-500' : 
+                  playerStats.streak < 0 ? 'text-red-500' : ''
+                }`}>
+                  {playerStats.streak || 0}
+                </Text>
+                <Text className="text-xs text-muted-foreground">Streak</Text>
+              </View>
+            </View>
+          </View>
         )}
       </View>
     );
   };
 
-  if (!profile && !loading) { // Handle case where profile is null and not loading (e.g. after sign out or error)
+  // PRODUCTION RULE 12: Progressive loading and crash protection
+  if (!componentReady) {
     return (
-        <View className="flex-1 justify-center items-center bg-background p-5">
-            <Ionicons name="person-circle-outline" size={60} color={colorScheme === 'dark' ? '#a1a1aa' : '#777'} />
-            <Text className="mt-4 text-lg text-muted-foreground">Profile not available.</Text>
-            <Text className="mt-1 text-sm text-muted-foreground text-center">
-                This can happen after signing out or if there was an issue loading your data.
-            </Text>
-            {/* Optionally add a button to try reloading or go to home */}
-        </View>
+      <View className="flex-1 bg-background items-center justify-center">
+        <ActivityIndicator size="large" color="#1a7ebd" />
+        <Text className="mt-4 text-muted-foreground">Loading profile...</Text>
+      </View>
     );
   }
 
-
   return (
     <View className="flex-1 bg-background">
-      <ScrollView 
-        contentContainerStyle={{ paddingBottom: 40 }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={ // Optional: Add pull-to-refresh for stats
-            profile?.id ? <ActivityIndicator 
-                // Faking RefreshControl for brevity, use actual RefreshControl for better UX
-                animating={loading && Platform.OS === 'android'} // iOS has its own indicator in ScrollView
-                color={colorScheme === 'dark' ? '#38bdf8' : '#0284c7'} 
-                // onRefresh={() => fetchPlayerStatistics(profile.id!)} // Would need actual RefreshControl
-            /> : undefined
-        }
-      > 
-        <View className="relative pt-12 pb-4 px-6 bg-primary/5 dark:bg-primary/10">
+      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}> 
+        <View className="relative pt-12 pb-4 px-6 bg-primary/10">
           <View className="items-center mt-10">
-            {safeRender(renderBulletproofAvatar)}
-            <View className="flex-row justify-center items-start w-full mt-2">
-              <View className="flex-1 items-center px-4">
-                <H1 className="mb-1 text-center text-2xl md:text-3xl text-foreground">
-                    {profile?.full_name || 'Player'}
-                </H1>
+            {safeRender(() => renderBulletproofAvatar())}
+            <View className="flex-row justify-between items-start">
+              <View className="flex-1 items-center">
+                <H1 className="mb-1 text-center">{profile?.full_name || 'Anonymous Player'}</H1>
                 {profile?.nickname && (
-                  <H2 className="text-muted-foreground text-center text-base md:text-lg">
-                    "{profile.nickname}"
-                  </H2>
+                  <H2 className="text-muted-foreground text-center">"{profile.nickname}"</H2>
                 )}
               </View>
             </View>
           </View>
         </View>
 
-        <View className="px-4 md:px-6 pb-8 pt-6">
-          {loading && profile?.id && ( // Show loader only if profile is available and loading stats
-            <View className="py-10 items-center">
-              <ActivityIndicator size="large" color={colorScheme === 'dark' ? '#38bdf8' : '#0284c7'} />
-              <Text className="mt-2 text-muted-foreground">Loading statistics...</Text>
+        <View className="px-6 pb-8 pt-6">
+          {loading && (
+            <View className="py-4 items-center">
+              <ActivityIndicator size="small" color="#1a7ebd" />
+              <Text className="mt-2 text-xs text-muted-foreground">Loading statistics...</Text>
             </View>
           )}
         
-          {!loading && profile?.id && ( // Show stats sections only if not loading and profile is available
-            <>
-              {safeRender(renderMatchesSection)}
-              {safeRender(renderStatsCard)}
-            </>
-          )}
+          {safeRender(() => renderMatchesSection())}
+          {safeRender(() => renderStatsCard())}
 
-          {profile && ( // Personal info section visible if profile exists
-            <>
-              <View className="mb-6">
-                <View className="flex-row justify-between items-center mb-3 px-1">
-                  <H3 className="text-card-foreground">Personal Information</H3>
-                  <TouchableOpacity onPress={() => {
-                    try {
-                      router.push('/(protected)/(screens)/edit-profile');
-                    } catch (error) {
-                      console.error('🚨 PRODUCTION: Navigation error to edit-profile:', error);
-                      Alert.alert("Navigation Error", "Could not open edit profile screen.");
-                    }
-                  }} className="p-1">
-                    <Ionicons name="create-outline" size={22} color={colorScheme === 'dark' ? '#a1a1aa' : '#777'} />
-                  </TouchableOpacity>
-                </View>
-                {safeRender(() => renderInfoCard("Age", profile.age, "body-outline"))}
-                {safeRender(() => renderInfoCard("Gender", profile.sex, "transgender-outline"))}
-                {safeRender(() => renderInfoCard("Email", profile.email, "mail-outline"))}
-              </View>
+          <View className="mb-6">
+            <View className="flex-row justify-between items-center mb-3">
+              <H3>Personal Information</H3>
+              <TouchableOpacity onPress={() => {
+                try {
+                  router.push('/(protected)/(screens)/edit-profile');
+                } catch (error) {
+                  console.error('🚨 PRODUCTION: Navigation error:', error);
+                }
+              }}>
+                <Ionicons name="create-outline" size={20} color={colorScheme === 'dark' ? '#a1a1aa' : '#777'} />
+              </TouchableOpacity>
+            </View>
+            {safeRender(() => renderInfoCard("Age", profile?.age ? profile.age.toString() : null, "person-outline"))}
+            {safeRender(() => renderInfoCard("Gender", profile?.sex, "body-outline"))}
+            {safeRender(() => renderInfoCard("Email", profile?.email, "mail-outline"))}
+          </View>
 
-              <View className="mb-6">
-                <H3 className="mb-3 px-1 text-card-foreground">Playing Preferences</H3>
-                {safeRender(() => renderInfoCard("Preferred Hand", profile.preferred_hand, "hand-left-outline"))}
-                {safeRender(() => renderInfoCard("Court Position", profile.court_playing_side, "move-outline"))}
-                {safeRender(() => renderInfoCard("Preferred Area", profile.preferred_area, "location-outline"))}
-              </View>
-            </>
-          )}
+          <View className="mb-6">
+            <H3 className="mb-3">Playing Preferences</H3>
+            {safeRender(() => renderInfoCard("Preferred Hand", profile?.preferred_hand, "hand-left-outline"))}
+            {safeRender(() => renderInfoCard("Court Position", profile?.court_playing_side, "tennisball-outline"))}
+            {safeRender(() => renderInfoCard("Preferred Area", profile?.preferred_area, "location-outline"))}
+          </View>
         </View>
 
-        {profile && ( // Sign out button visible only if profile exists (i.e., signed in)
-            <View className="px-4 md:px-6 mb-6">
-            <Button 
-                variant="destructive"
-                className="w-full py-3 flex-row justify-center items-center shadow-md"
-                onPress={handleSignOut}
-            >
-                <Ionicons name="log-out-outline" size={20} color="white" style={{ marginRight: 8 }} />
-                <Text className="text-destructive-foreground font-medium text-base">Sign Out</Text>
-            </Button>
-            </View>
-        )}
+        <View className="px-6 mb-6">
+          <Button 
+            variant="destructive"
+            className="w-full py-3 flex-row justify-center items-center"
+            onPress={handleSignOut}
+          >
+            <Ionicons name="log-out-outline" size={20} color="white" style={{ marginRight: 8 }} />
+            <Text className="text-white font-medium">Sign Out</Text>
+          </Button>
+        </View>
       </ScrollView>
     </View>
   );
