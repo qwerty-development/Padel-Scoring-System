@@ -12,6 +12,7 @@ import {
   Animated,
   Dimensions,
   Image,
+  Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, router } from "expo-router";
@@ -28,6 +29,8 @@ import {
   SetScore,
 } from "@/components/create-match/SetScoreInput";
 import { useColorScheme } from "@/lib/useColorScheme";
+import { useMatchReporting } from "@/hooks/useMatchReporting";
+import { ReportReason, ValidationStatus } from "@/types/match-reporting";
 
 // CORRECTED: Enhanced match status enumeration with proper TEXT database handling
 export enum MatchStatus {
@@ -352,6 +355,771 @@ export default function EnhancedMatchDetailsWithVisibility() {
   // ENHANCED: UI state management
   const [showAdvancedStats, setShowAdvancedStats] = useState(false);
   const [animatedValue] = useState(new Animated.Value(0));
+  
+  // CRITICAL: Match reporting state management
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState<ReportReason>(ReportReason.INCORRECT_SCORE);
+  const [reportDetails, setReportDetails] = useState('')
+  
+    // REQUIREMENT 1: Enhanced match state calculation with comprehensive analysis
+    const matchState = useMemo((): MatchState => {
+      if (!match || !session?.user?.id) {
+        return {
+          isFuture: false,
+          isPast: false,
+          needsScores: false,
+          hasScores: false,
+          canJoin: false,
+          userParticipating: false,
+          userTeam: null,
+          team1Sets: 0,
+          team2Sets: 0,
+          winnerTeam: 0,
+          userWon: null,
+          canCancel: false,
+          hoursFromCompletion: 0,
+          isCreator: false,
+          canEnterScores: false,
+          canViewScores: true,
+          matchPhase: 'upcoming',
+          timeStatus: 'early',
+        };
+      }
+  
+      console.log('🔍 Enhanced Match Details: Calculating comprehensive match state for:', match.id);
+  
+      // ENHANCED: Advanced time-based analysis
+      const now = new Date();
+      const startTime = new Date(match.start_time);
+      const endTime = match.end_time ? new Date(match.end_time) : null;
+      const completedTime = match.completed_at ? new Date(match.completed_at) : null;
+      
+      const isFuture = startTime > now;
+      const isPast = endTime ? endTime < now : startTime < now;
+      const hasScores = match.team1_score_set1 !== null && match.team2_score_set1 !== null;
+      
+      // FIXED: Use proper integer comparison for status
+      const statusInt = ensureInteger(match.status);
+      const needsScores = isPast && !hasScores && statusInt !== MatchStatus.CANCELLED;
+  
+      // ENHANCED: Time categorization for better UX
+      const minutesToStart = (startTime.getTime() - now.getTime()) / (1000 * 60);
+      const hoursFromCompletion = completedTime 
+        ? (now.getTime() - completedTime.getTime()) / (1000 * 60 * 60)
+        : endTime && !isFuture 
+          ? (now.getTime() - endTime.getTime()) / (1000 * 60 * 60)
+          : 0;
+  
+      const timeStatus: MatchState['timeStatus'] = 
+        minutesToStart > 1440 ? 'early' :    // More than 24 hours
+        minutesToStart > 60 ? 'soon' :        // 1-24 hours
+        minutesToStart > -60 ? 'now' :        // Within 1 hour
+        hoursFromCompletion < 24 ? 'recent' : // Last 24 hours
+        'old';                                // More than 24 hours ago
+  
+      const matchPhase: MatchState['matchPhase'] = 
+        statusInt === MatchStatus.CANCELLED ? 'cancelled' :
+        hasScores ? 'completed' :
+        isPast ? 'active' :
+        'upcoming';
+  
+      // ENHANCED: Advanced permission system
+      const userId = session.user.id;
+      const isCreator = userId === match.player1_id;
+      
+      const canCancel = isCreator && 
+                       statusInt !== MatchStatus.CANCELLED &&
+                       (isFuture || hoursFromCompletion < 24);
+  
+      const canEnterScores = isCreator && needsScores;
+      const canViewScores = hasScores || matchState?.userParticipating || isCreator;
+  
+      // ENHANCED: User participation analysis
+      const isPlayer1 = match.player1_id === userId;
+      const isPlayer2 = match.player2_id === userId;
+      const isPlayer3 = match.player3_id === userId;
+      const isPlayer4 = match.player4_id === userId;
+      
+      const userParticipating = isPlayer1 || isPlayer2 || isPlayer3 || isPlayer4;
+      const userTeam: 1 | 2 | null = 
+        (isPlayer1 || isPlayer2) ? 1 : 
+        (isPlayer3 || isPlayer4) ? 2 : null;
+  
+      const hasOpenSlots = !match.player2_id || !match.player3_id || !match.player4_id;
+      const canJoin = isFuture && !userParticipating && hasOpenSlots;
+  
+      // ENHANCED: Advanced score analysis with better winner determination
+      let team1Sets = 0, team2Sets = 0, winnerTeam = 0;
+      
+      if (hasScores) {
+        // Set 1 analysis
+        const t1s1 = ensureIntegerOrNull(match.team1_score_set1) || 0;
+        const t2s1 = ensureIntegerOrNull(match.team2_score_set1) || 0;
+        if (t1s1 > t2s1) team1Sets++;
+        else if (t2s1 > t1s1) team2Sets++;
+        
+        // Set 2 analysis
+        const t1s2 = ensureIntegerOrNull(match.team1_score_set2);
+        const t2s2 = ensureIntegerOrNull(match.team2_score_set2);
+        if (t1s2 !== null && t2s2 !== null) {
+          if (t1s2 > t2s2) team1Sets++;
+          else if (t2s2 > t1s2) team2Sets++;
+        }
+        
+        // Set 3 analysis
+        const t1s3 = ensureIntegerOrNull(match.team1_score_set3);
+        const t2s3 = ensureIntegerOrNull(match.team2_score_set3);
+        if (t1s3 !== null && t2s3 !== null) {
+          if (t1s3 > t2s3) team1Sets++;
+          else if (t2s3 > t1s3) team2Sets++;
+        }
+        
+        // Winner determination with database fallback
+        winnerTeam = ensureIntegerOrNull(match.winner_team) || 
+                    (team1Sets > team2Sets ? 1 : team2Sets > team1Sets ? 2 : 0);
+      }
+  
+      const userWon: boolean | null = userParticipating && winnerTeam > 0 
+        ? userTeam === winnerTeam 
+        : null;
+  
+      const finalState: MatchState = {
+        isFuture,
+        isPast,
+        needsScores,
+        hasScores,
+        canJoin,
+        userParticipating,
+        userTeam,
+        team1Sets,
+        team2Sets,
+        winnerTeam,
+        userWon,
+        canCancel,
+        hoursFromCompletion,
+        isCreator,
+        canEnterScores,
+        canViewScores,
+        matchPhase,
+        timeStatus,
+      };
+  
+      console.log('✅ Enhanced Match Details: Comprehensive final state:', finalState);
+      return finalState;
+    }, [match, session?.user?.id]);;
+  
+  const {
+    reports = [],
+    canReport = { can_report: false, reason: 'Loading...' },
+    reportingInfo = {
+      totalReports: 0,
+      hasReports: false,
+      isDisputed: false,
+      userCanReport: false,
+      userHasReported: false,
+      validationWindow: null,
+      isValidationOpen: false,
+      disputeThreshold: 2,
+      reportsNeededForDispute: 2,
+      validationStatus: 'pending' as any
+    },
+    reportMatch,
+    isSubmitting = false,
+    refresh: refreshReports
+  } = useMatchReporting(matchId as string) || {};
+  
+  const shouldShowReportButton = useMemo(() => {
+    console.log('🔍 [REPORT BUTTON] Evaluation starting...', {
+      timestamp: new Date().toISOString()
+    });
+  
+    // VALIDATION GATE 1: Essential data presence
+    if (!match || !session?.user?.id) {
+      console.log('❌ [REPORT BUTTON] Missing essential data', {
+        hasMatch: !!match,
+        hasUserId: !!session?.user?.id
+      });
+      return false;
+    }
+  
+    // VALIDATION GATE 2: Match must have recorded scores
+    if (!matchState.hasScores) {
+      console.log('❌ [REPORT BUTTON] No scores recorded', {
+        hasScores: matchState.hasScores,
+        team1Set1: match.team1_score_set1,
+        team2Set1: match.team2_score_set1
+      });
+      return false;
+    }
+  
+    // VALIDATION GATE 3: User must be match participant
+    if (!matchState.userParticipating) {
+      console.log('❌ [REPORT BUTTON] User not participating', {
+        userParticipating: matchState.userParticipating,
+        userId: session.user.id,
+        player1: match.player1_id,
+        player2: match.player2_id,
+        player3: match.player3_id,
+        player4: match.player4_id
+      });
+      return false;
+    }
+  
+    // VALIDATION GATE 4: Match must be completed (have completion timestamp)
+    if (!match.completed_at) {
+      console.log('❌ [REPORT BUTTON] Match not completed', {
+        completedAt: match.completed_at,
+        status: match.status
+      });
+      return false;
+    }
+  
+    // VALIDATION GATE 5: Must be within 24-hour reporting window
+    const completedTime = new Date(match.completed_at);
+    const currentTime = new Date();
+    const reportingWindowHours = 24;
+    const reportingDeadline = new Date(completedTime.getTime() + (reportingWindowHours * 60 * 60 * 1000));
+    const isWithinReportingWindow = currentTime < reportingDeadline;
+    const hoursRemaining = Math.max(0, (reportingDeadline.getTime() - currentTime.getTime()) / (1000 * 60 * 60));
+  
+    if (!isWithinReportingWindow) {
+      console.log('❌ [REPORT BUTTON] Outside reporting window', {
+        completedAt: completedTime.toISOString(),
+        currentTime: currentTime.toISOString(),
+        reportingDeadline: reportingDeadline.toISOString(),
+        hoursElapsed: Math.round((currentTime.getTime() - completedTime.getTime()) / (1000 * 60 * 60)),
+        windowHours: reportingWindowHours
+      });
+      return false;
+    }
+  
+    // VALIDATION GATE 6: User must not have already reported
+    const userAlreadyReported = reports.some(report => report.reporter_id === session.user.id);
+    
+    if (userAlreadyReported) {
+      console.log('❌ [REPORT BUTTON] User already reported', {
+        userId: session.user.id,
+        totalReports: reports.length,
+        userReports: reports.filter(r => r.reporter_id === session.user.id).length
+      });
+      return false;
+    }
+  
+    // VALIDATION GATE 7: Match must not be in disputed status
+    if (reportingInfo.isDisputed) {
+      console.log('❌ [REPORT BUTTON] Match already disputed', {
+        isDisputed: reportingInfo.isDisputed,
+        totalReports: reportingInfo.totalReports
+      });
+      return false;
+    }
+  
+    // ALL VALIDATIONS PASSED
+    console.log('✅ [REPORT BUTTON] All validations passed', {
+      hoursRemaining: Math.round(hoursRemaining * 100) / 100,
+      reportingDeadline: reportingDeadline.toISOString(),
+      userCanReport: true
+    });
+  
+    return true;
+  }, [
+    match,
+    session?.user?.id,
+    matchState.hasScores,
+    matchState.userParticipating,
+    reports,
+    reportingInfo.isDisputed
+  ]);
+
+  const renderReportingModal = () => {
+    // STEP 1: Basic visibility check
+    if (!showReportModal) return null;
+  
+    // STEP 2: Only check if user is participating (most permissive)
+    if (!matchState.userParticipating) {
+      console.log('🔍 Modal hidden: User not participating');
+      return null;
+    }
+  
+    // STEP 3: Don't block modal if user already reported (allow viewing)
+    const reportReasonOptions = [
+      { 
+        value: ReportReason.INCORRECT_SCORE, 
+        label: 'Incorrect Score', 
+        icon: 'calculator-outline',
+        description: 'The recorded score does not match what actually happened'
+      },
+      { 
+        value: ReportReason.WRONG_PLAYERS, 
+        label: 'Wrong Players', 
+        icon: 'people-outline',
+        description: 'One or more players listed did not participate'
+      },
+      { 
+        value: ReportReason.MATCH_NOT_PLAYED, 
+        label: 'Match Not Played', 
+        icon: 'close-circle-outline',
+        description: 'This match never took place'
+      },
+      { 
+        value: ReportReason.DUPLICATE_MATCH, 
+        label: 'Duplicate Entry', 
+        icon: 'copy-outline',
+        description: 'This match has been recorded multiple times'
+      },
+      { 
+        value: ReportReason.OTHER, 
+        label: 'Other Issue', 
+        icon: 'alert-circle-outline',
+        description: 'Another problem not listed above'
+      }
+    ];
+  
+    const handleSubmitReport = async () => {
+      if (!reportReason) {
+        Alert.alert('Error', 'Please select a reason for your report');
+        return;
+      }
+  
+      if (reportReason === ReportReason.OTHER && !reportDetails.trim()) {
+        Alert.alert('Error', 'Please provide details for your report');
+        return;
+      }
+  
+      Alert.alert(
+        'Confirm Report',
+        `Are you sure you want to report this match?\n\nReason: ${
+          reportReasonOptions.find(r => r.value === reportReason)?.label
+        }\n\nThis action cannot be undone.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Report Match',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                Vibration.vibrate(50);
+  
+                const result = await reportMatch(reportReason, reportDetails);
+  
+                if (result.success) {
+                  Vibration.vibrate([100, 50, 100]);
+                  
+                  Alert.alert(
+                    'Report Submitted',
+                    `Your report has been recorded.\n\n${
+                      reportingInfo.reportsNeededForDispute === 1
+                        ? 'One more report will trigger a review of this match.'
+                        : `${reportingInfo.reportsNeededForDispute} more reports needed for review.`
+                    }`,
+                    [{ text: 'OK' }]
+                  );
+  
+                  setShowReportModal(false);
+                  setReportReason(ReportReason.INCORRECT_SCORE);
+                  setReportDetails('');
+                } else {
+                  Vibration.vibrate(200);
+                  
+                  Alert.alert(
+                    'Report Failed',
+                    result.error || 'Failed to submit report. Please try again.',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Retry', onPress: handleSubmitReport }
+                    ]
+                  );
+                }
+              } catch (error) {
+                console.error('Critical error submitting report:', error);
+                Vibration.vibrate(300);
+                
+                Alert.alert(
+                  'System Error',
+                  'An unexpected error occurred. Please try again later.',
+                  [{ text: 'OK' }]
+                );
+              }
+            }
+          }
+        ]
+      );
+    };
+  
+    return (
+      <Modal
+        visible={showReportModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowReportModal(false)}
+      >
+        <View className="flex-1 bg-black/50">
+          <TouchableOpacity 
+            className="flex-1" 
+            activeOpacity={1}
+            onPress={() => setShowReportModal(false)}
+          />
+          
+          <View className="bg-background rounded-t-3xl p-6 pb-10" style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.25,
+            shadowRadius: 10,
+            elevation: 10,
+          }}>
+            <View className="flex-row justify-between items-center mb-6">
+              <H2>Report Match Issue</H2>
+              <TouchableOpacity
+                onPress={() => setShowReportModal(false)}
+                className="p-2"
+              >
+                <Ionicons name="close" size={24} color="#888" />
+              </TouchableOpacity>
+            </View>
+  
+            {/* Show different content based on user's report status */}
+            {reportingInfo.userHasReported ? (
+              <View className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg">
+                <View className="flex-row items-center">
+                  <Ionicons name="checkmark-circle" size={20} color="#059669" style={{ marginRight: 8 }} />
+                  <Text className="text-green-800 dark:text-green-300 font-medium">
+                    You have already reported this match
+                  </Text>
+                </View>
+                <Text className="text-green-700 dark:text-green-400 text-sm mt-2">
+                  Your report has been recorded and is being reviewed.
+                </Text>
+              </View>
+            ) : (
+              <>
+                <View className="bg-amber-50 dark:bg-amber-900/30 p-4 rounded-lg mb-6">
+                  <View className="flex-row items-start">
+                    <Ionicons 
+                      name="information-circle" 
+                      size={20} 
+                      color="#d97706" 
+                      style={{ marginTop: 2, marginRight: 8 }} 
+                    />
+                    <View className="flex-1">
+                      <Text className="text-amber-800 dark:text-amber-300 font-medium mb-1">
+                        Important Information
+                      </Text>
+                      <Text className="text-amber-700 dark:text-amber-400 text-sm leading-5">
+                        • Reports are permanent and cannot be withdrawn{'\n'}
+                        • {reportingInfo.disputeThreshold} reports will mark this match as disputed{'\n'}
+                        • False reports may result in account penalties{'\n'}
+                        • Only report genuine scoring errors or issues
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+  
+                <Text className="font-medium mb-3">Select Reason</Text>
+                <View className="mb-6">
+                  {reportReasonOptions.map((option) => (
+                    <TouchableOpacity
+                      key={option.value}
+                      className={`p-4 rounded-lg mb-2 border ${
+                        reportReason === option.value
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border bg-card'
+                      }`}
+                      onPress={() => setReportReason(option.value)}
+                      activeOpacity={0.7}
+                    >
+                      <View className="flex-row items-start">
+                        <View className="w-6 h-6 rounded-full border-2 mr-3 mt-0.5 items-center justify-center"
+                          style={{
+                            borderColor: reportReason === option.value ? '#1a7ebd' : '#888'
+                          }}
+                        >
+                          {reportReason === option.value && (
+                            <View className="w-3 h-3 rounded-full bg-primary" />
+                          )}
+                        </View>
+                        <View className="flex-1">
+                          <View className="flex-row items-center mb-1">
+                            <Ionicons 
+                              name={option.icon as any} 
+                              size={18} 
+                              color={reportReason === option.value ? '#1a7ebd' : '#888'}
+                              style={{ marginRight: 6 }}
+                            />
+                            <Text className={`font-medium ${
+                              reportReason === option.value ? 'text-primary' : ''
+                            }`}>
+                              {option.label}
+                            </Text>
+                          </View>
+                          <Text className="text-sm text-muted-foreground">
+                            {option.description}
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+  
+                {(reportReason === ReportReason.OTHER || reportDetails.length > 0) && (
+                  <View className="mb-6">
+                    <Text className="font-medium mb-2">
+                      Additional Details {reportReason === ReportReason.OTHER && '*'}
+                    </Text>
+                    <TextInput
+                      className="bg-card border border-border rounded-lg p-4 text-foreground"
+                      placeholder="Please provide specific details about the issue..."
+                      placeholderTextColor="#888"
+                      value={reportDetails}
+                      onChangeText={setReportDetails}
+                      multiline
+                      numberOfLines={4}
+                      maxLength={500}
+                      textAlignVertical="top"
+                    />
+                    <Text className="text-xs text-muted-foreground mt-1 text-right">
+                      {reportDetails.length}/500
+                    </Text>
+                  </View>
+                )}
+  
+                {reportingInfo.hasReports && (
+                  <View className="bg-muted/30 p-3 rounded-lg mb-6">
+                    <Text className="text-sm text-muted-foreground">
+                      <Text className="font-medium">{reportingInfo.totalReports}</Text> report{reportingInfo.totalReports !== 1 ? 's' : ''} already submitted.
+                      {reportingInfo.reportsNeededForDispute > 0 && (
+                        <Text> {reportingInfo.reportsNeededForDispute} more needed for dispute.</Text>
+                      )}
+                    </Text>
+                  </View>
+                )}
+              </>
+            )}
+  
+            <View className="flex-row gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onPress={() => setShowReportModal(false)}
+                disabled={isSubmitting}
+              >
+                <Text>Close</Text>
+              </Button>
+              
+              {!reportingInfo.userHasReported && (
+                <Button
+                  variant="destructive"
+                  className="flex-1"
+                  onPress={handleSubmitReport}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text className="text-white">Submit Report</Text>
+                  )}
+                </Button>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+  
+
+  const renderValidationStatusBanner = () => {
+    // GUARD CLAUSE 1: No banner for matches without scores
+    if (!match || !matchState.hasScores) return null;
+
+    // GUARD CLAUSE 2: No banner for matches without validation data
+    if (!match.validation_deadline) return null;
+
+    const validationInfo = reportingInfo.validationWindow;
+    
+    // CRITICAL: Determine banner configuration based on validation state
+    const getBannerConfig = () => {
+      // STATE 1: Match is disputed
+      if (reportingInfo.isDisputed) {
+        return {
+          bgColor: 'bg-red-100 dark:bg-red-900/30',
+          borderColor: 'border-red-500',
+          iconName: 'alert-circle' as const,
+          iconColor: '#dc2626',
+          title: 'Match Under Dispute',
+          description: `This match has been reported by ${reportingInfo.totalReports} players and is under review.`,
+          showTimer: false,
+          showReportButton: false
+        };
+      }
+
+      // STATE 2: Validation window is open
+      if (validationInfo?.is_open) {
+        return {
+          bgColor: validationInfo.hours_remaining > 12 
+            ? 'bg-green-100 dark:bg-green-900/30' 
+            : validationInfo.hours_remaining > 6
+              ? 'bg-amber-100 dark:bg-amber-900/30'
+              : 'bg-red-100 dark:bg-red-900/30',
+          borderColor: validationInfo.hours_remaining > 12 
+            ? 'border-green-500' 
+            : validationInfo.hours_remaining > 6
+              ? 'border-amber-500'
+              : 'border-red-500',
+          iconName: 'time-outline' as const,
+          iconColor: validationInfo.status_color,
+          title: 'Score Validation Period',
+          description: reportingInfo.userHasReported
+            ? 'You have reported this match. Waiting for validation period to end.'
+            : 'Report incorrect scores within the validation window.',
+          showTimer: true,
+          showReportButton: reportingInfo.userCanReport && !reportingInfo.userHasReported
+        };
+      }
+
+      // STATE 3: Validation completed
+      if (match.validation_status === 'validated') {
+        return {
+          bgColor: 'bg-green-100 dark:bg-green-900/30',
+          borderColor: 'border-green-500',
+          iconName: 'checkmark-circle' as const,
+          iconColor: '#059669',
+          title: 'Scores Validated',
+          description: 'Match scores have been validated and ratings applied.',
+          showTimer: false,
+          showReportButton: false
+        };
+      }
+
+      // STATE 4: Validation expired without dispute
+      return {
+        bgColor: 'bg-gray-100 dark:bg-gray-800/30',
+        borderColor: 'border-gray-400',
+        iconName: 'lock-closed' as const,
+        iconColor: '#6b7280',
+        title: 'Validation Period Ended',
+        description: 'The reporting window has closed for this match.',
+        showTimer: false,
+        showReportButton: false
+      };
+    };
+
+    const config = getBannerConfig();
+
+    return (
+      <Animated.View 
+        style={{ 
+          opacity: animatedValue,
+          transform: [{
+            translateY: animatedValue.interpolate({
+              inputRange: [0, 1],
+              outputRange: [-10, 0]
+            })
+          }]
+        }}
+        className={`${config.bgColor} rounded-xl p-4 mb-4 border-l-4 ${config.borderColor}`}
+      >
+        <View className="flex-row items-start">
+          {/* ICON SECTION: Visual indicator of state */}
+          <View className="w-10 h-10 rounded-full bg-white dark:bg-gray-800 items-center justify-center mr-3"
+            style={{
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.1,
+              shadowRadius: 2,
+              elevation: 2,
+            }}
+          >
+            <Ionicons
+              name={config.iconName}
+              size={24}
+              color={config.iconColor}
+            />
+          </View>
+
+          {/* CONTENT SECTION: Information and actions */}
+          <View className="flex-1">
+            <View className="flex-row items-center justify-between mb-1">
+              <Text className="font-bold text-base">
+                {config.title}
+              </Text>
+              
+              {/* TIMER DISPLAY: Real-time countdown */}
+              {config.showTimer && validationInfo && (
+                <View className="px-3 py-1 rounded-full" 
+                  style={{ backgroundColor: `${validationInfo.status_color}20` }}
+                >
+                  <Text className="text-sm font-bold" 
+                    style={{ color: validationInfo.status_color }}
+                  >
+                    {validationInfo.status_text}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <Text className="text-sm text-muted-foreground mb-3">
+              {config.description}
+            </Text>
+
+            {/* REPORT STATUS: Current reporting statistics */}
+            {reportingInfo.hasReports && (
+              <View className="bg-white/50 dark:bg-black/20 p-2 rounded-lg mb-3">
+                <Text className="text-xs font-medium">
+                  Current Reports: {reportingInfo.totalReports}/{reportingInfo.disputeThreshold}
+                  {reportingInfo.userHasReported && (
+                    <Text className="text-primary"> (Including yours)</Text>
+                  )}
+                </Text>
+              </View>
+            )}
+
+            {/* ACTION BUTTON: Context-sensitive CTA */}
+            {config.showReportButton && (
+              <Button
+                size="sm"
+                variant="destructive"
+                onPress={() => setShowReportModal(true)}
+                className="self-start"
+                style={{
+                  shadowColor: "#dc2626",
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.2,
+                  shadowRadius: 4,
+                  elevation: 3,
+                }}
+              >
+                <Ionicons name="flag-outline" size={14} color="white" style={{ marginRight: 6 }} />
+                <Text className="text-white text-sm font-medium">Report Issue</Text>
+              </Button>
+            )}
+          </View>
+        </View>
+
+        {/* DISPUTED MATCH DETAILS: Additional context for disputed matches */}
+        {reportingInfo.isDisputed && reports.length > 0 && (
+          <View className="mt-4 pt-4 border-t border-red-300 dark:border-red-800">
+            <Text className="text-sm font-medium mb-2">Reported Issues:</Text>
+            {reports.slice(0, 3).map((report, index) => (
+              <View key={report.id} className="flex-row items-center mb-1">
+                <View className="w-2 h-2 rounded-full bg-red-500 mr-2" />
+                <Text className="text-xs text-muted-foreground">
+                  {report.reason.replace(/_/g, ' ').toLowerCase()}
+                  {report.additional_details && ' - '}
+                  {report.additional_details?.slice(0, 50)}
+                  {report.additional_details && report.additional_details.length > 50 && '...'}
+                </Text>
+              </View>
+            ))}
+            {reports.length > 3 && (
+              <Text className="text-xs text-muted-foreground mt-1">
+                And {reports.length - 3} more...
+              </Text>
+            )}
+          </View>
+        )}
+      </Animated.View>
+    );
+  };
 
   // ENHANCEMENT: Visibility Badge Component for Match Visibility Indicator
   const renderVisibilityBadge = (isPublic: boolean, size: 'small' | 'medium' = 'small') => {
@@ -434,152 +1202,7 @@ export default function EnhancedMatchDetailsWithVisibility() {
     );
   };
 
-  // REQUIREMENT 1: Enhanced match state calculation with comprehensive analysis
-  const matchState = useMemo((): MatchState => {
-    if (!match || !session?.user?.id) {
-      return {
-        isFuture: false,
-        isPast: false,
-        needsScores: false,
-        hasScores: false,
-        canJoin: false,
-        userParticipating: false,
-        userTeam: null,
-        team1Sets: 0,
-        team2Sets: 0,
-        winnerTeam: 0,
-        userWon: null,
-        canCancel: false,
-        hoursFromCompletion: 0,
-        isCreator: false,
-        canEnterScores: false,
-        canViewScores: true,
-        matchPhase: 'upcoming',
-        timeStatus: 'early',
-      };
-    }
 
-    console.log('🔍 Enhanced Match Details: Calculating comprehensive match state for:', match.id);
-
-    // ENHANCED: Advanced time-based analysis
-    const now = new Date();
-    const startTime = new Date(match.start_time);
-    const endTime = match.end_time ? new Date(match.end_time) : null;
-    const completedTime = match.completed_at ? new Date(match.completed_at) : null;
-    
-    const isFuture = startTime > now;
-    const isPast = endTime ? endTime < now : startTime < now;
-    const hasScores = match.team1_score_set1 !== null && match.team2_score_set1 !== null;
-    
-    // FIXED: Use proper integer comparison for status
-    const statusInt = ensureInteger(match.status);
-    const needsScores = isPast && !hasScores && statusInt !== MatchStatus.CANCELLED;
-
-    // ENHANCED: Time categorization for better UX
-    const minutesToStart = (startTime.getTime() - now.getTime()) / (1000 * 60);
-    const hoursFromCompletion = completedTime 
-      ? (now.getTime() - completedTime.getTime()) / (1000 * 60 * 60)
-      : endTime && !isFuture 
-        ? (now.getTime() - endTime.getTime()) / (1000 * 60 * 60)
-        : 0;
-
-    const timeStatus: MatchState['timeStatus'] = 
-      minutesToStart > 1440 ? 'early' :    // More than 24 hours
-      minutesToStart > 60 ? 'soon' :        // 1-24 hours
-      minutesToStart > -60 ? 'now' :        // Within 1 hour
-      hoursFromCompletion < 24 ? 'recent' : // Last 24 hours
-      'old';                                // More than 24 hours ago
-
-    const matchPhase: MatchState['matchPhase'] = 
-      statusInt === MatchStatus.CANCELLED ? 'cancelled' :
-      hasScores ? 'completed' :
-      isPast ? 'active' :
-      'upcoming';
-
-    // ENHANCED: Advanced permission system
-    const userId = session.user.id;
-    const isCreator = userId === match.player1_id;
-    
-    const canCancel = isCreator && 
-                     statusInt !== MatchStatus.CANCELLED &&
-                     (isFuture || hoursFromCompletion < 24);
-
-    const canEnterScores = isCreator && needsScores;
-    const canViewScores = hasScores || matchState?.userParticipating || isCreator;
-
-    // ENHANCED: User participation analysis
-    const isPlayer1 = match.player1_id === userId;
-    const isPlayer2 = match.player2_id === userId;
-    const isPlayer3 = match.player3_id === userId;
-    const isPlayer4 = match.player4_id === userId;
-    
-    const userParticipating = isPlayer1 || isPlayer2 || isPlayer3 || isPlayer4;
-    const userTeam: 1 | 2 | null = 
-      (isPlayer1 || isPlayer2) ? 1 : 
-      (isPlayer3 || isPlayer4) ? 2 : null;
-
-    const hasOpenSlots = !match.player2_id || !match.player3_id || !match.player4_id;
-    const canJoin = isFuture && !userParticipating && hasOpenSlots;
-
-    // ENHANCED: Advanced score analysis with better winner determination
-    let team1Sets = 0, team2Sets = 0, winnerTeam = 0;
-    
-    if (hasScores) {
-      // Set 1 analysis
-      const t1s1 = ensureIntegerOrNull(match.team1_score_set1) || 0;
-      const t2s1 = ensureIntegerOrNull(match.team2_score_set1) || 0;
-      if (t1s1 > t2s1) team1Sets++;
-      else if (t2s1 > t1s1) team2Sets++;
-      
-      // Set 2 analysis
-      const t1s2 = ensureIntegerOrNull(match.team1_score_set2);
-      const t2s2 = ensureIntegerOrNull(match.team2_score_set2);
-      if (t1s2 !== null && t2s2 !== null) {
-        if (t1s2 > t2s2) team1Sets++;
-        else if (t2s2 > t1s2) team2Sets++;
-      }
-      
-      // Set 3 analysis
-      const t1s3 = ensureIntegerOrNull(match.team1_score_set3);
-      const t2s3 = ensureIntegerOrNull(match.team2_score_set3);
-      if (t1s3 !== null && t2s3 !== null) {
-        if (t1s3 > t2s3) team1Sets++;
-        else if (t2s3 > t1s3) team2Sets++;
-      }
-      
-      // Winner determination with database fallback
-      winnerTeam = ensureIntegerOrNull(match.winner_team) || 
-                  (team1Sets > team2Sets ? 1 : team2Sets > team1Sets ? 2 : 0);
-    }
-
-    const userWon: boolean | null = userParticipating && winnerTeam > 0 
-      ? userTeam === winnerTeam 
-      : null;
-
-    const finalState: MatchState = {
-      isFuture,
-      isPast,
-      needsScores,
-      hasScores,
-      canJoin,
-      userParticipating,
-      userTeam,
-      team1Sets,
-      team2Sets,
-      winnerTeam,
-      userWon,
-      canCancel,
-      hoursFromCompletion,
-      isCreator,
-      canEnterScores,
-      canViewScores,
-      matchPhase,
-      timeStatus,
-    };
-
-    console.log('✅ Enhanced Match Details: Comprehensive final state:', finalState);
-    return finalState;
-  }, [match, session?.user?.id]);
 
   // ENHANCED: Real-time score validation
   const validateCurrentScores = useCallback((): ScoreEntryState => {
@@ -773,6 +1396,68 @@ export default function EnhancedMatchDetailsWithVisibility() {
     }
   }, [matchId]);
 
+  const renderEnhancedFloatingActionMenu = () => {
+    if (editingScores) return null;
+  
+    return (
+      <View className="absolute bottom-6 right-6">
+      
+
+  
+          {shouldShowReportButton && (
+            <TouchableOpacity
+              onPress={() => {
+                console.log('🎯 [REPORT BUTTON] Pressed - Opening modal');
+                setShowReportModal(true);
+              }}
+              className="w-14 h-14 rounded-full bg-red-600 items-center justify-center shadow-lg mb-3"
+              style={{
+                shadowColor: "#dc2626",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 8,
+              }}
+            >
+              <Ionicons name="flag" size={24} color="white" />
+            </TouchableOpacity>
+          )}
+      
+
+      {matchState.canEnterScores && (
+      <TouchableOpacity
+        onPress={() => setEditingScores(true)}
+        className="w-14 h-14 rounded-full bg-green-600 items-center justify-center shadow-lg mb-3"
+        style={{
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 8,
+          elevation: 8,
+        }}
+      >
+        <Ionicons name="create" size={24} color="white" />
+      </TouchableOpacity>
+    )}
+        
+        {/* SHARE BUTTON */}
+        <TouchableOpacity
+          onPress={shareMatch}
+          className="w-12 h-12 rounded-full bg-primary items-center justify-center shadow-lg"
+          style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 8,
+          }}
+        >
+          <Ionicons name="share-social" size={20} color="white" />
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
   // ENHANCED: Smart join functionality with team balancing
   const joinMatch = async () => {
     if (!match || !session?.user?.id) return;
@@ -895,38 +1580,66 @@ export default function EnhancedMatchDetailsWithVisibility() {
   };
 
   // CRITICAL FIX: Score saving with explicit INTEGER type enforcement for PostgreSQL constraints
-const performScoreSave = async () => {
-  if (!match) return;
+  const performScoreSave = async () => {
+    if (!match) return;
 
-  try {
-    setSaving(true);
+    try {
+      setSaving(true);
 
-    const winnerTeam = scoreValidation.suggestedWinner || 0;
-    
-    console.log('💾 Enhanced Match Details: Saving scores with winner:', winnerTeam);
+      const winnerTeam = scoreValidation.suggestedWinner || 0;
+      
+      console.log('💾 Enhanced Match Details: Saving scores with winner:', winnerTeam);
 
-    // CRITICAL FIX: Explicit INTEGER casting to resolve PostgreSQL constraint validation
-    // Ensures all numeric values are properly typed for INTEGER database fields
-    const updateData = {
-      team1_score_set1: Number(ensureInteger(set1Score.team1)),
-      team2_score_set1: Number(ensureInteger(set1Score.team2)),
-      team1_score_set2: Number(ensureInteger(set2Score.team1)),
-      team2_score_set2: Number(ensureInteger(set2Score.team2)),
-      team1_score_set3: showSet3 ? Number(ensureInteger(set3Score.team1)) : null,
-      team2_score_set3: showSet3 ? Number(ensureInteger(set3Score.team2)) : null,
-      winner_team: Number(ensureInteger(winnerTeam)),
-      status: "4", // String for TEXT field
-      completed_at: new Date().toISOString(),
-    };
+      /**
+       * CRITICAL DATABASE UPDATE STRUCTURE
+       * 
+       * Technical Requirements:
+       * 1. All integer fields MUST use Number() wrapper for PostgreSQL type safety
+       * 2. Validation deadline MUST be set to exactly 24 hours from completion
+       * 3. Validation status MUST be 'pending' for new score entries
+       * 4. Rating application MUST be deferred until validation period expires
+       * 
+       * PostgreSQL Constraints:
+       * - team*_score_set* fields: INTEGER NOT NULL (when populated)
+       * - winner_team: INTEGER
+       * - status: TEXT with CHECK constraint
+       * - validation_deadline: TIMESTAMP WITH TIME ZONE
+       * - validation_status: TEXT with CHECK constraint
+       */
+      
+      // STEP 1: Calculate validation deadline with timezone awareness
+      const now = new Date();
+      const validationDeadline = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      
+      // STEP 2: Construct update payload with comprehensive validation data
+      const updateData = {
+        // SCORE DATA: Explicit INTEGER casting for PostgreSQL constraints
+        team1_score_set1: Number(ensureInteger(set1Score.team1)),
+        team2_score_set1: Number(ensureInteger(set1Score.team2)),
+        team1_score_set2: Number(ensureInteger(set2Score.team1)),
+        team2_score_set2: Number(ensureInteger(set2Score.team2)),
+        team1_score_set3: showSet3 ? Number(ensureInteger(set3Score.team1)) : null,
+        team2_score_set3: showSet3 ? Number(ensureInteger(set3Score.team2)) : null,
+        winner_team: Number(ensureInteger(winnerTeam)),
+        
+        // STATUS DATA: String format for TEXT database field
+        status: "4", // COMPLETED status as string
+        completed_at: new Date().toISOString(),
+        
+        // VALIDATION DATA: Critical for reporting system
+        validation_deadline: validationDeadline.toISOString(),
+        validation_status: 'pending',
+        rating_applied: false, // CRITICAL: Defer rating application
+        report_count: 0 // Reset report count for fresh validation
+      };
 
-    console.log('🔧 Enhanced Match Details: Update data with explicit INTEGER casting:', updateData);
-    console.log('🔧 Type verification:', {
-      team1_score_set1_type: typeof updateData.team1_score_set1,
-      team1_score_set1_value: updateData.team1_score_set1,
-      winner_team_type: typeof updateData.winner_team,
-      winner_team_value: updateData.winner_team
-    });
+      console.log('🔧 Enhanced Match Details: Update payload with validation:', {
+        ...updateData,
+        validation_deadline_formatted: validationDeadline.toLocaleString(),
+        hours_until_deadline: 24
+      });
 
+      // STEP 3: Execute database update with error handling
       const { data, error } = await supabase
         .from("matches")
         .update(updateData)
@@ -938,20 +1651,44 @@ const performScoreSave = async () => {
         throw error;
       }
 
-      // Update ratings if all players present
-      if (match.player1_id && match.player2_id && match.player3_id && match.player4_id) {
-        await updatePlayerRatings(match, winnerTeam);
-      }
+      // STEP 4: Deferred rating application notice
+      console.log('📊 Rating application deferred until validation period expires');
 
+      // STEP 5: Refresh match data including validation status
       fetchMatchDetails(match.id);
       setEditingScores(false);
       
-      Vibration.vibrate([100, 50, 100, 50, 100]); // Success pattern
+      // STEP 6: Success feedback with validation information
+      Vibration.vibrate([100, 50, 100, 50, 100]); // Enhanced success pattern
 
       Alert.alert(
         "Match Completed!",
-        `Scores saved successfully. ${winnerTeam === matchState.userTeam ? 'Congratulations on your victory!' : 'Better luck next time!'}`,
-        [{ text: 'OK' }]
+        `Scores saved successfully.\n\n` +
+        `⏱️ 24-hour validation period has started.\n` +
+        `📊 Ratings will be applied after validation.\n` +
+        `⚠️ Players can report issues during this period.\n\n` +
+        `${winnerTeam === matchState.userTeam ? 'Congratulations on your victory!' : 'Better luck next time!'}`,
+        [
+          {
+            text: 'View Details',
+            onPress: () => {
+              // Trigger animation to highlight validation banner
+              Animated.sequence([
+                Animated.timing(animatedValue, {
+                  toValue: 0,
+                  duration: 0,
+                  useNativeDriver: false,
+                }),
+                Animated.timing(animatedValue, {
+                  toValue: 1,
+                  duration: 500,
+                  useNativeDriver: false,
+                })
+              ]).start();
+            }
+          },
+          { text: 'OK' }
+        ]
       );
     } catch (error) {
       console.error("❌ Enhanced Match Details: Error saving match scores:", error);
@@ -1492,7 +2229,8 @@ const performScoreSave = async () => {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* ENHANCED Status Banners with VISIBILITY INDICATORS */}
+        {renderValidationStatusBanner()}
+        
         {matchState.needsScores && (
           <Animated.View 
             style={{ opacity: animatedValue }}
@@ -2242,7 +2980,6 @@ const performScoreSave = async () => {
               </View>
               <H3>Your Performance</H3>
             </View>
-            
             <View className="flex-row justify-around">
               <View className="items-center">
                 <View className={`w-14 h-14 rounded-full items-center justify-center mb-3 ${
@@ -2498,6 +3235,92 @@ const performScoreSave = async () => {
           </View>
         </View>
 
+        {/* CRITICAL COMPONENT: Match Reports Section */}
+        {reportingInfo.hasReports && (
+          <View className="bg-card rounded-xl p-5 mb-6 border border-border/30">
+            <View className="flex-row items-center mb-4">
+              <View className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 items-center justify-center mr-3">
+                <Ionicons name="flag-outline" size={20} color="#dc2626" />
+              </View>
+              <View className="flex-1">
+                <H3>Match Reports</H3>
+                <Text className="text-sm text-muted-foreground">
+                  {reportingInfo.totalReports} report{reportingInfo.totalReports !== 1 ? 's' : ''} submitted
+                </Text>
+              </View>
+              <View className={`px-3 py-1 rounded-full ${
+                reportingInfo.isDisputed 
+                  ? 'bg-red-100 dark:bg-red-900/30' 
+                  : 'bg-amber-100 dark:bg-amber-900/30'
+              }`}>
+                <Text className={`text-xs font-bold ${
+                  reportingInfo.isDisputed 
+                    ? 'text-red-700 dark:text-red-300' 
+                    : 'text-amber-700 dark:text-amber-300'
+                }`}>
+                  {reportingInfo.isDisputed ? 'DISPUTED' : 'REPORTED'}
+                </Text>
+              </View>
+            </View>
+
+            {/* Reports List */}
+            <View className="space-y-3">
+              {reports.slice(0, 5).map((report, index) => (
+                <View key={report.id} className="p-3 bg-muted/20 rounded-lg">
+                  <View className="flex-row items-start justify-between mb-2">
+                    <View className="flex-row items-center flex-1">
+                      <View className="w-6 h-6 rounded-full bg-red-500 items-center justify-center mr-2">
+                        <Text className="text-xs font-bold text-white">{index + 1}</Text>
+                      </View>
+                      <View className="flex-1">
+                        <Text className="text-sm font-medium">
+                          {report.reason.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase())}
+                        </Text>
+                        <Text className="text-xs text-muted-foreground">
+                          By {report.reporter?.full_name || report.reporter?.email?.split('@')[0] || 'Unknown'}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text className="text-xs text-muted-foreground">
+                      {formatRelativeTime(report.created_at)}
+                    </Text>
+                  </View>
+                  
+                  {report.additional_details && (
+                    <View className="mt-2 p-2 bg-background/50 rounded">
+                      <Text className="text-xs text-muted-foreground italic">
+                        "{report.additional_details}"
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              ))}
+              
+              {reports.length > 5 && (
+                <View className="p-2 bg-muted/10 rounded-lg">
+                  <Text className="text-xs text-muted-foreground text-center">
+                    And {reports.length - 5} more report{reports.length - 5 !== 1 ? 's' : ''}...
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Dispute Status */}
+            {reportingInfo.isDisputed && (
+              <View className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                <View className="flex-row items-center mb-2">
+                  <Ionicons name="alert-circle" size={16} color="#dc2626" style={{ marginRight: 6 }} />
+                  <Text className="font-medium text-red-800 dark:text-red-300">Match Under Review</Text>
+                </View>
+                <Text className="text-sm text-red-700 dark:text-red-400">
+                  This match has been flagged for review due to multiple reports. 
+                  Ratings may be adjusted pending investigation.
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Enhanced Match Description */}
         {match.description && (
           <View className="bg-card rounded-xl p-5 mb-6 border border-border/30">
@@ -2565,40 +3388,12 @@ const performScoreSave = async () => {
         <View className="h-8" />
       </ScrollView>
 
-      {/* Enhanced Floating Action Menu */}
-      {!editingScores && (
-        <View className="absolute bottom-6 right-6">
-          {matchState.canEnterScores && (
-            <TouchableOpacity
-              onPress={() => setEditingScores(true)}
-              className="w-14 h-14 rounded-full bg-green-600 items-center justify-center shadow-lg mb-3"
-              style={{
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 8,
-                elevation: 8,
-              }}
-            >
-              <Ionicons name="create" size={24} color="white" />
-            </TouchableOpacity>
-          )}
-          
-          <TouchableOpacity
-            onPress={shareMatch}
-            className="w-12 h-12 rounded-full bg-primary items-center justify-center shadow-lg"
-            style={{
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
-              shadowRadius: 8,
-              elevation: 8,
-            }}
-          >
-            <Ionicons name="share-social" size={20} color="white" />
-          </TouchableOpacity>
-        </View>
-      )}
+
+        {renderEnhancedFloatingActionMenu()}
+
+      {/* CRITICAL MODAL: Report Match Modal */}
+      {renderReportingModal()}
     </SafeAreaView>
   );
-}
+} 
+          

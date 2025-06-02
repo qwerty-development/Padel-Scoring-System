@@ -7,7 +7,9 @@ import {
   Alert,
   RefreshControl,
   TextInput,
-  Image
+  Image,
+  Vibration,
+  Animated
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -25,7 +27,15 @@ import { PlayerSelectionModal } from '@/components/create-match/PlayerSelectionM
 import { CustomDateTimePicker } from '@/components/create-match/DateTimePicker';
 import { SetScoreInput, SetScore } from '@/components/create-match/SetScoreInput';
 
-// Enhanced Match Status Enum
+// ENHANCEMENT: Add validation status enum - create this file if it doesn't exist
+export enum ValidationStatus {
+  PENDING = 'pending',
+  VALIDATED = 'validated', 
+  DISPUTED = 'disputed',
+  EXPIRED = 'expired'
+}
+
+// ENHANCEMENT: Enhanced Match Status Enum with validation support
 export enum MatchStatus {
   PENDING = 1,           // Future match, waiting for start time
   NEEDS_CONFIRMATION = 2, // Match finished, waiting for score confirmation
@@ -33,6 +43,17 @@ export enum MatchStatus {
   COMPLETED = 4,         // Match completed with scores recorded
   RECRUITING = 5,        // Public match looking for players
 }
+
+// ENHANCEMENT: Validation configuration constants
+const VALIDATION_CONFIG = {
+  DISPUTE_WINDOW_HOURS: 24,
+  DISPUTE_THRESHOLD: 2,
+  MIN_MATCH_AGE_DAYS: 7,
+  MAX_FUTURE_DAYS: 30,
+  RATING_CALCULATION_DELAY_MS: 1000,
+  VALIDATION_WARNING_HOURS: 6,
+  QUICK_VALIDATION_HOURS: 1 // For testing/demo purposes
+};
 
 interface Profile {
   id: string;
@@ -43,6 +64,7 @@ interface Profile {
   glicko_vol: string | null;
 }
 
+// ENHANCEMENT: Enhanced MatchData interface with validation fields
 interface MatchData {
   id?: string;
   player1_id: string;
@@ -65,7 +87,124 @@ interface MatchData {
   court: string | null;
   is_public: boolean;
   description?: string;
+  // ENHANCEMENT: Validation fields
+  validation_deadline?: string;
+  validation_status?: string;
+  rating_applied?: boolean;
+  report_count?: number;
 }
+
+/**
+ * ENHANCEMENT: Validation Info Card Component
+ * Displays information about the score validation system
+ */
+interface ValidationInfoCardProps {
+  isPastMatch: boolean;
+  isDemo?: boolean;
+}
+
+const ValidationInfoCard: React.FC<ValidationInfoCardProps> = ({ isPastMatch, isDemo = false }) => {
+  // ALL HOOKS DECLARED FIRST - CRITICAL FOR REACT RULES
+  const [expanded, setExpanded] = useState(false);
+  const animatedHeight = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(animatedHeight, {
+      toValue: expanded ? 1 : 0,
+      duration: 300,
+      useNativeDriver: false
+    }).start();
+  }, [expanded, animatedHeight]);
+
+  // EARLY RETURN AFTER ALL HOOKS - SAFE PATTERN
+  if (!isPastMatch) return null;
+
+  return (
+    <View className="mb-6 p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+      <TouchableOpacity 
+        onPress={() => setExpanded(!expanded)}
+        className="flex-row items-center justify-between"
+      >
+        <View className="flex-row items-center flex-1">
+          <View className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/40 items-center justify-center mr-3">
+            <Ionicons name="shield-checkmark-outline" size={20} color="#2563eb" />
+          </View>
+          <View className="flex-1">
+            <Text className="font-semibold text-blue-800 dark:text-blue-300">
+              Score Validation System Active
+            </Text>
+            <Text className="text-sm text-blue-600 dark:text-blue-400">
+              {isDemo ? '1-hour' : '24-hour'} dispute window • Tap to learn more
+            </Text>
+          </View>
+        </View>
+        <Ionicons 
+          name={expanded ? "chevron-up" : "chevron-down"} 
+          size={20} 
+          color="#2563eb" 
+        />
+      </TouchableOpacity>
+
+      <Animated.View
+        style={{
+          maxHeight: animatedHeight.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, 500]
+          }),
+          opacity: animatedHeight,
+          overflow: 'hidden'
+        }}
+      >
+        <View className="mt-4 pt-4 border-t border-blue-200 dark:border-blue-800">
+          <Text className="text-sm text-blue-700 dark:text-blue-300 mb-3">
+            The validation system protects rating integrity:
+          </Text>
+          
+          <View className="space-y-2">
+            <View className="flex-row items-start">
+              <Text className="text-blue-600 dark:text-blue-400 mr-2">1.</Text>
+              <Text className="text-sm text-blue-700 dark:text-blue-300 flex-1">
+                After recording scores, all participants have {isDemo ? '1 hour' : '24 hours'} to dispute if incorrect
+              </Text>
+            </View>
+            
+            <View className="flex-row items-start">
+              <Text className="text-blue-600 dark:text-blue-400 mr-2">2.</Text>
+              <Text className="text-sm text-blue-700 dark:text-blue-300 flex-1">
+                Ratings are only applied after the dispute window closes
+              </Text>
+            </View>
+            
+            <View className="flex-row items-start">
+              <Text className="text-blue-600 dark:text-blue-400 mr-2">3.</Text>
+              <Text className="text-sm text-blue-700 dark:text-blue-300 flex-1">
+                If 2+ players report issues, the match is disputed and ratings are not applied
+              </Text>
+            </View>
+            
+            <View className="flex-row items-start">
+              <Text className="text-blue-600 dark:text-blue-400 mr-2">4.</Text>
+              <Text className="text-sm text-blue-700 dark:text-blue-300 flex-1">
+                Match creator can delete within 24 hours if mistakes were made
+              </Text>
+            </View>
+          </View>
+
+          {isDemo && (
+            <View className="mt-3 p-3 rounded-lg bg-amber-100 dark:bg-amber-900/30">
+              <View className="flex-row items-center">
+                <Ionicons name="information-circle-outline" size={16} color="#d97706" style={{ marginRight: 6 }} />
+                <Text className="text-xs text-amber-700 dark:text-amber-400">
+                  Demo Mode: Using 1-hour validation for testing
+                </Text>
+              </View>
+            </View>
+          )}
+        </View>
+      </Animated.View>
+    </View>
+  );
+};
 
 /**
  * Advanced Match Player Avatar Component
@@ -420,18 +559,23 @@ function TeamPlayerRow({ player, team, showRating = false }: TeamPlayerRowProps)
           <Text className="font-medium" numberOfLines={1}>
             {player.isCurrentUser ? 'You' : player.name}
           </Text>
-          
         </View>
-        
-        
       </View>
-  
     </View>
   );
 }
 
 export default function CreateMatchScreen() {
+  // ========================================
+  // CRITICAL: ALL HOOKS DECLARED FIRST
+  // MAINTAINS PROPER REACT HOOKS ORDERING
+  // ========================================
+  
+  // 1. ROUTING HOOKS
   const { friendId } = useLocalSearchParams();
+  const { profile, session } = useAuth();
+  
+  // 2. CORE STATE HOOKS
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -441,25 +585,29 @@ export default function CreateMatchScreen() {
   const [selectedPlayers, setSelectedPlayers] = useState<Friend[]>([]);
   const [showPlayerModal, setShowPlayerModal] = useState(false);
   
-  // Enhanced Date and time state
+  // 3. DATE AND TIME STATE
   const [matchDate, setMatchDate] = useState(new Date());
   const [matchStartTime, setMatchStartTime] = useState(() => {
     const now = new Date();
-    now.setMinutes(Math.ceil(now.getMinutes() / 15) * 15, 0, 0); // Round to next 15 minutes
+    now.setMinutes(Math.ceil(now.getMinutes() / 15) * 15, 0, 0);
     return now;
   });
   const [matchEndTime, setMatchEndTime] = useState(() => {
     const date = new Date();
     date.setMinutes(Math.ceil(date.getMinutes() / 15) * 15, 0, 0);
-    date.setHours(date.getHours() + 1, 30); // Default 1.5 hour matches
+    date.setHours(date.getHours() + 1, 30);
     return date;
   });
   
-  // Simplified Match Settings - Only Public/Private Toggle
+  // 4. MATCH SETTINGS STATE
   const [isPublicMatch, setIsPublicMatch] = useState(false);
   const [matchDescription, setMatchDescription] = useState('');
   
-  // References for score inputs to enable auto-focus
+  // 5. ENHANCEMENT: VALIDATION STATE
+  const [useQuickValidation, setUseQuickValidation] = useState(false);
+  const [showValidationInfo, setShowValidationInfo] = useState(true);
+  
+  // 6. REF HOOKS
   const team1Set1Ref = useRef<TextInput>(null);
   const team2Set1Ref = useRef<TextInput>(null);
   const team1Set2Ref = useRef<TextInput>(null);
@@ -467,7 +615,7 @@ export default function CreateMatchScreen() {
   const team1Set3Ref = useRef<TextInput>(null);
   const team2Set3Ref = useRef<TextInput>(null);
   
-  // Score state
+  // 7. SCORE STATE
   const [set1Score, setSet1Score] = useState<SetScore>({ team1: 0, team2: 0 });
   const [set2Score, setSet2Score] = useState<SetScore>({ team1: 0, team2: 0 });
   const [set3Score, setSet3Score] = useState<SetScore>({ team1: 0, team2: 0 });
@@ -476,13 +624,11 @@ export default function CreateMatchScreen() {
   const [isSet3Valid, setIsSet3Valid] = useState(false);
   const [showSet3, setShowSet3] = useState(false);
 
-  // Location state
+  // 8. LOCATION STATE
   const [region, setRegion] = useState('');
   const [court, setCourt] = useState('');
-  
-  const { profile, session } = useAuth();
 
-  // Enhanced match type determination with buffer time
+  // 9. COMPUTED VALUES WITH USEMEMO
   const isPastMatch = useMemo(() => {
     const combinedStartTime = new Date(
       matchDate.getFullYear(),
@@ -492,11 +638,10 @@ export default function CreateMatchScreen() {
       matchStartTime.getMinutes()
     );
     const now = new Date();
-    const bufferTime = 15 * 60 * 1000; // 15 minutes buffer
+    const bufferTime = 15 * 60 * 1000;
     return combinedStartTime.getTime() <= (now.getTime() + bufferTime);
   }, [matchDate, matchStartTime]);
 
-  // Determine if this is a valid future match (at least 15 minutes from now)
   const isFutureMatch = useMemo(() => {
     const combinedStartTime = new Date(
       matchDate.getFullYear(),
@@ -506,16 +651,14 @@ export default function CreateMatchScreen() {
       matchStartTime.getMinutes()
     );
     const now = new Date();
-    const minFutureTime = 15 * 60 * 1000; // 15 minutes minimum
+    const minFutureTime = 15 * 60 * 1000;
     return combinedStartTime.getTime() > (now.getTime() + minFutureTime);
   }, [matchDate, matchStartTime]);
 
-  // Enhanced team composition analysis with avatar support
   const teamComposition = useMemo(() => {
-    const totalPlayers = 1 + selectedFriends.length; // Including current user
+    const totalPlayers = 1 + selectedFriends.length;
     const availableSlots = 4 - totalPlayers;
     
-    // Assign players to teams with full avatar information
     const team1Players = [
       { 
         id: session?.user?.id || '', 
@@ -546,9 +689,9 @@ export default function CreateMatchScreen() {
       };
       
       if (index === 0) {
-        team1Players.push(playerInfo); // Second player goes to team 1
+        team1Players.push(playerInfo);
       } else {
-        team2Players.push(playerInfo); // Remaining players go to team 2
+        team2Players.push(playerInfo);
       }
     });
 
@@ -559,56 +702,11 @@ export default function CreateMatchScreen() {
       team2Players,
       isComplete: totalPlayers === 4,
       isValidForPast: totalPlayers === 4,
-      isValidForFuture: totalPlayers >= 1 // At least current user
+      isValidForFuture: totalPlayers >= 1
     };
   }, [selectedFriends, selectedPlayers, session?.user?.id, profile]);
 
-  // Effect to show/hide set 3 based on set 1 and 2 results
-  useEffect(() => {
-    if (!isPastMatch) {
-      setShowSet3(false);
-      return;
-    }
-
-    // Only show set 3 if there's a tie (1-1) in sets
-    const team1WonSet1 = set1Score.team1 > set1Score.team2;
-    const team1WonSet2 = set2Score.team1 > set2Score.team2;
-    
-    const isTied = (team1WonSet1 && !team1WonSet2) || (!team1WonSet1 && team1WonSet2);
-    
-    setShowSet3(isTied && isSet1Valid && isSet2Valid);
-    
-    // Reset set 3 score if we're hiding it
-    if (!isTied) {
-      setSet3Score({ team1: 0, team2: 0 });
-    }
-  }, [set1Score, set2Score, isSet1Valid, isSet2Valid, isPastMatch]);
-
-  // Load selected player details
-  useEffect(() => {
-    if (selectedFriends.length > 0) {
-      const selected = friends.filter(friend => selectedFriends.includes(friend.id));
-      setSelectedPlayers(selected);
-    } else {
-      setSelectedPlayers([]);
-    }
-  }, [selectedFriends, friends]);
-
-  // Auto-adjust end time when start time changes
-  useEffect(() => {
-    const startTime = new Date(matchStartTime);
-    const newEndTime = new Date(startTime);
-    newEndTime.setHours(newEndTime.getHours() + 1, 30); // Default 1.5 hours
-    setMatchEndTime(newEndTime);
-  }, [matchStartTime]);
-
-  // Auto-disable public match option for past matches
-  useEffect(() => {
-    if (isPastMatch && isPublicMatch) {
-      setIsPublicMatch(false);
-    }
-  }, [isPastMatch, isPublicMatch]);
-
+  // 10. CALLBACK HOOKS
   const fetchFriends = useCallback(async () => {
     try {
       if (!profile?.friends_list || !Array.isArray(profile.friends_list) || profile.friends_list.length === 0) {
@@ -628,6 +726,13 @@ export default function CreateMatchScreen() {
     }
   }, [profile]);
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchFriends();
+    setRefreshing(false);
+  }, [fetchFriends]);
+
+  // 11. EFFECT HOOKS
   useEffect(() => {
     if (session?.user?.id) {
       setLoading(true);
@@ -635,11 +740,50 @@ export default function CreateMatchScreen() {
     }
   }, [session, fetchFriends]);
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await fetchFriends();
-    setRefreshing(false);
-  }, [fetchFriends]);
+  useEffect(() => {
+    if (!isPastMatch) {
+      setShowSet3(false);
+      return;
+    }
+
+    const team1WonSet1 = set1Score.team1 > set1Score.team2;
+    const team1WonSet2 = set2Score.team1 > set2Score.team2;
+    
+    const isTied = (team1WonSet1 && !team1WonSet2) || (!team1WonSet1 && team1WonSet2);
+    
+    setShowSet3(isTied && isSet1Valid && isSet2Valid);
+    
+    if (!isTied) {
+      setSet3Score({ team1: 0, team2: 0 });
+    }
+  }, [set1Score, set2Score, isSet1Valid, isSet2Valid, isPastMatch]);
+
+  useEffect(() => {
+    if (selectedFriends.length > 0) {
+      const selected = friends.filter(friend => selectedFriends.includes(friend.id));
+      setSelectedPlayers(selected);
+    } else {
+      setSelectedPlayers([]);
+    }
+  }, [selectedFriends, friends]);
+
+  useEffect(() => {
+    const startTime = new Date(matchStartTime);
+    const newEndTime = new Date(startTime);
+    newEndTime.setHours(newEndTime.getHours() + 1, 30);
+    setMatchEndTime(newEndTime);
+  }, [matchStartTime]);
+
+  useEffect(() => {
+    if (isPastMatch && isPublicMatch) {
+      setIsPublicMatch(false);
+    }
+  }, [isPastMatch, isPublicMatch]);
+
+  // ========================================
+  // ALL HOOKS DECLARED ABOVE THIS LINE
+  // BUSINESS LOGIC FUNCTIONS BELOW
+  // ========================================
 
   // Enhanced navigation between score inputs
   const handleTeam1Set1Change = (text: string) => {
@@ -676,7 +820,6 @@ export default function CreateMatchScreen() {
     let team1Sets = 0;
     let team2Sets = 0;
     
-    // Count sets won by each team
     if (set1Score.team1 > set1Score.team2) team1Sets++;
     else if (set1Score.team2 > set1Score.team1) team2Sets++;
     
@@ -688,17 +831,15 @@ export default function CreateMatchScreen() {
       else if (set3Score.team2 > set3Score.team1) team2Sets++;
     }
     
-    // Determine winner
     if (team1Sets > team2Sets) return 1;
     if (team2Sets > team1Sets) return 2;
-    return 0; // Tie (should not happen in a valid padel match)
+    return 0;
   };
 
-  // Enhanced validation with detailed error messages
+  // ENHANCEMENT: Enhanced validation with comprehensive error checking
   const validateMatch = (): { isValid: boolean; errors: string[] } => {
     const errors: string[] = [];
     
-    // Time validation
     const combinedStartTime = new Date(
       matchDate.getFullYear(),
       matchDate.getMonth(),
@@ -720,8 +861,8 @@ export default function CreateMatchScreen() {
     }
 
     const matchDuration = combinedEndTime.getTime() - combinedStartTime.getTime();
-    const minDuration = 30 * 60 * 1000; // 30 minutes
-    const maxDuration = 4 * 60 * 60 * 1000; // 4 hours
+    const minDuration = 30 * 60 * 1000;
+    const maxDuration = 4 * 60 * 60 * 1000;
     
     if (matchDuration < minDuration) {
       errors.push('Match duration must be at least 30 minutes');
@@ -732,7 +873,6 @@ export default function CreateMatchScreen() {
     }
 
     if (isPastMatch) {
-      // Past match validation
       if (!teamComposition.isValidForPast) {
         errors.push('Past matches require exactly 4 players (you + 3 friends)');
       }
@@ -745,20 +885,17 @@ export default function CreateMatchScreen() {
         errors.push('Please enter a valid score for the third set');
       }
 
-      // Check if match is too far in the past (more than 7 days)
       const now = new Date();
       const daysDiff = (now.getTime() - combinedStartTime.getTime()) / (1000 * 60 * 60 * 24);
-      if (daysDiff > 7) {
-        errors.push('Cannot record matches older than 7 days');
+      if (daysDiff > VALIDATION_CONFIG.MIN_MATCH_AGE_DAYS) {
+        errors.push(`Cannot record matches older than ${VALIDATION_CONFIG.MIN_MATCH_AGE_DAYS} days`);
       }
 
-      // Past matches cannot be public
       if (isPublicMatch) {
         errors.push('Past matches cannot be made public');
       }
       
     } else {
-      // Future match validation
       if (!isFutureMatch) {
         errors.push('Future matches must be scheduled at least 15 minutes from now');
       }
@@ -767,15 +904,13 @@ export default function CreateMatchScreen() {
         errors.push('You must be part of the match');
       }
 
-      // Check if match is too far in the future (more than 30 days)
       const now = new Date();
       const daysDiff = (combinedStartTime.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-      if (daysDiff > 30) {
-        errors.push('Cannot schedule matches more than 30 days in advance');
+      if (daysDiff > VALIDATION_CONFIG.MAX_FUTURE_DAYS) {
+        errors.push(`Cannot schedule matches more than ${VALIDATION_CONFIG.MAX_FUTURE_DAYS} days in advance`);
       }
     }
 
-    // Location validation for public matches
     if (isPublicMatch && !region.trim()) {
       errors.push('Public matches require a location to be specified');
     }
@@ -786,6 +921,7 @@ export default function CreateMatchScreen() {
     };
   };
 
+  // ENHANCEMENT: Enhanced createMatch function with validation system
   const createMatch = async () => {
     try {
       const validation = validateMatch();
@@ -818,7 +954,7 @@ export default function CreateMatchScreen() {
       );
 
       if (isPastMatch) {
-        // Past match - create with scores and update ratings
+        // ENHANCEMENT: Past match with validation system
         const winnerTeam = determineWinnerTeam();
         
         const playerIds = [session?.user?.id, ...selectedFriends].filter(id => id != null) as string[];
@@ -826,45 +962,16 @@ export default function CreateMatchScreen() {
           throw new Error('Could not form a team of 4 players');
         }
 
-        // Fetch all players' Glicko ratings
-        const { data: playersData, error: playersError } = await supabase
-          .from('profiles')
-          .select('id, glicko_rating, glicko_rd, glicko_vol')
-          .in('id', playerIds);
-
-        if (playersError) throw playersError;
-
-        if (!playersData || playersData.length !== 4) {
-          throw new Error('Could not fetch all player ratings');
-        }
-
-        // Map player IDs to their profiles
-        const playerProfiles = playerIds.map(id => 
-          playersData.find(p => p.id === id)
-        ).filter(Boolean);
-
-        if (playerProfiles.length !== 4) {
-          throw new Error('Could not match all player IDs from fetched data');
-        }
-
-        // Create Glicko rating objects
-        const glickoRatings = playerProfiles.map(profile => ({
-          rating: parseFloat(profile!.glicko_rating || '1500'),
-          rd: parseFloat(profile!.glicko_rd || '350'),
-          vol: parseFloat(profile!.glicko_vol || '0.06')
-        }));
-
-        // Calculate new ratings
-        const newRatings = calculateMatchRatings(
-          glickoRatings[0],
-          glickoRatings[1],
-          glickoRatings[2],
-          glickoRatings[3],
-          winnerTeam === 1 ? 1 : 0,
-          winnerTeam === 2 ? 1 : 0
+        // ENHANCEMENT: Set validation deadline
+        const now = new Date();
+        const validationDeadline = new Date(now.getTime() + 
+          (useQuickValidation 
+            ? VALIDATION_CONFIG.QUICK_VALIDATION_HOURS 
+            : VALIDATION_CONFIG.DISPUTE_WINDOW_HOURS
+          ) * 60 * 60 * 1000
         );
 
-        // Prepare match data for Supabase
+        // ENHANCEMENT: Prepare match data with validation fields
         const matchData: MatchData = {
           player1_id: session?.user?.id as string,
           player2_id: selectedFriends[0] || null,
@@ -883,11 +990,23 @@ export default function CreateMatchScreen() {
           end_time: combinedEndTime.toISOString(),
           region: region.trim() || null,
           court: court.trim() || null,
-          is_public: false, // Past matches are always private
-          description: matchDescription.trim() || null
+          is_public: false,
+          description: matchDescription.trim() || null,
+          // ENHANCEMENT: Validation fields
+          validation_deadline: validationDeadline.toISOString(),
+          validation_status: ValidationStatus.PENDING,
+          rating_applied: false,
+          report_count: 0
         };
 
-        // Insert match into Supabase
+        console.log('🎯 Creating past match with validation:', {
+          validation_deadline: matchData.validation_deadline,
+          validation_status: matchData.validation_status,
+          hours_until_deadline: useQuickValidation 
+            ? VALIDATION_CONFIG.QUICK_VALIDATION_HOURS 
+            : VALIDATION_CONFIG.DISPUTE_WINDOW_HOURS
+        });
+
         const { data: matchResult, error: matchError } = await supabase
           .from('matches')
           .insert(matchData)
@@ -896,27 +1015,33 @@ export default function CreateMatchScreen() {
 
         if (matchError) throw matchError;
 
-        // Update player ratings
-        const updatePromises = playerProfiles.map((profile, index) => 
-          supabase.from('profiles').update({
-            glicko_rating: Math.round(Object.values(newRatings)[index].rating).toString(),
-            glicko_rd: Math.round(Object.values(newRatings)[index].rd).toString(),
-            glicko_vol: Object.values(newRatings)[index].vol.toFixed(6)
-          }).eq('id', profile!.id)
-        );
-
-        await Promise.all(updatePromises);
-
-        // Show success message with rating change
-        const userRatingChange = Math.round(newRatings.player1.rating - glickoRatings[0].rating);
+        // ENHANCEMENT: Show validation-aware success message
+        const validationHours = useQuickValidation 
+          ? VALIDATION_CONFIG.QUICK_VALIDATION_HOURS 
+          : VALIDATION_CONFIG.DISPUTE_WINDOW_HOURS;
+          
         Alert.alert(
-          'Match Recorded Successfully!', 
-          `Match created and ratings updated.\nYour rating changed by ${userRatingChange > 0 ? '+' : ''}${userRatingChange} points.`,
-          [{ text: 'OK', onPress: () => router.push('/(protected)/(tabs)') }]
+          '✅ Match Created Successfully!', 
+          `Match has been recorded.\n\n⏰ Validation Period: ${validationHours} hour${validationHours > 1 ? 's' : ''}\n\nAll players can dispute incorrect scores during this period. Ratings will be applied after validation.\n\n💡 You can delete this match within 24 hours if needed.`,
+          [
+            { 
+              text: 'View Match', 
+              onPress: () => router.push({
+                pathname: '/(protected)/(screens)/match-details',
+                params: { matchId: matchResult.id }
+              })
+            },
+            { 
+              text: 'OK', 
+              onPress: () => router.push('/(protected)/(tabs)')
+            }
+          ]
         );
         
+        Vibration.vibrate([100, 50, 100]);
+        
       } else {
-        // Future match - create for scheduling
+        // Future match - no validation needed
         const matchData: MatchData = {
           player1_id: session?.user?.id as string,
           player2_id: selectedFriends[0] || null,
@@ -939,7 +1064,6 @@ export default function CreateMatchScreen() {
           description: matchDescription.trim() || null
         };
 
-        // Insert match into Supabase
         const { data: matchResult, error: matchError } = await supabase
           .from('matches')
           .insert(matchData)
@@ -948,7 +1072,6 @@ export default function CreateMatchScreen() {
 
         if (matchError) throw matchError;
 
-        // Show appropriate success message
         let statusMessage = '';
         if (teamComposition.isComplete) {
           statusMessage = isPublicMatch 
@@ -965,6 +1088,8 @@ export default function CreateMatchScreen() {
           statusMessage,
           [{ text: 'OK', onPress: () => router.push('/(protected)/(tabs)') }]
         );
+        
+        Vibration.vibrate(100);
       }
       
     } catch (error) {
@@ -974,12 +1099,13 @@ export default function CreateMatchScreen() {
         `Failed to create match: ${(error as Error).message}`,
         [{ text: 'OK' }]
       );
+      Vibration.vibrate(300);
     } finally {
       setLoading(false);
     }
   };
 
-  // Enhanced player section with premium avatar visualization
+  // Enhanced player section with validation awareness
   const renderPlayerSection = () => (
     <View className={`mb-6 p-5 rounded-2xl border border-border/30 ${
       isPastMatch 
@@ -993,7 +1119,6 @@ export default function CreateMatchScreen() {
       elevation: 4,
     }}>
       
-      {/* Enhanced Header */}
       <View className="flex-row items-center justify-between mb-4">
         <View>
           <H3>Team Composition</H3>
@@ -1016,7 +1141,7 @@ export default function CreateMatchScreen() {
         </View>
       </View>
       
-      {/* Context Information */}
+      {/* ENHANCEMENT: Updated context information with validation details */}
       <View className="mb-6 p-4 rounded-xl bg-white/60 dark:bg-white/5 border border-white/50">
         <View className="flex-row items-center mb-2">
           <Ionicons 
@@ -1030,12 +1155,12 @@ export default function CreateMatchScreen() {
         </View>
         <Text className="text-xs text-muted-foreground leading-relaxed">
           {isPastMatch 
-            ? 'Past matches require exactly 4 players for accurate rating calculations. All player ratings will be updated based on the match results.'
-            : 'Future matches can be created with 1-4 players. Missing positions can be filled later by inviting friends or making the match public.'}
+            ? 'Past matches require exactly 4 players. Scores will enter a validation period before ratings are applied.'
+            : 'Future matches can be created with 1-4 players. Missing positions can be filled later.'}
         </Text>
       </View>
       
-      {/* Enhanced Team Visualization */}
+      {/* Team visualization - unchanged from working version */}
       <View className="bg-white/80 dark:bg-white/10 rounded-2xl p-5 mb-6 border border-white/50" style={{
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
@@ -1044,7 +1169,6 @@ export default function CreateMatchScreen() {
         elevation: 2,
       }}>
         <View className="flex-row justify-between">
-          {/* Team 1 - Enhanced */}
           <View className="flex-1 mr-3">
             <View className="flex-row items-center mb-4">
               <View className="w-8 h-8 rounded-xl bg-primary items-center justify-center mr-3 shadow-sm">
@@ -1058,7 +1182,6 @@ export default function CreateMatchScreen() {
               </View>
             </View>
             
-            {/* Team 1 Players */}
             <View className="space-y-2">
               {teamComposition.team1Players.map((player, index) => (
                 <TeamPlayerRow
@@ -1069,7 +1192,6 @@ export default function CreateMatchScreen() {
                 />
               ))}
               
-              {/* Empty Slots */}
               {Array(2 - teamComposition.team1Players.length).fill(0).map((_, i) => (
                 <View key={`team1-empty-${i}`} className="flex-row items-center mb-2 p-2 w-32 rounded-lg border-2 border-dashed border-primary/30 bg-primary/5">
                   <MatchPlayerAvatar
@@ -1092,14 +1214,12 @@ export default function CreateMatchScreen() {
             </View>
           </View>
           
-          {/* VS Divider - Enhanced */}
           <View className="items-center justify-center px-4">
             <View className="w-12 h-12 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 items-center justify-center shadow-md">
               <Text className="text-lg font-black text-slate-600 dark:text-slate-300">VS</Text>
             </View>
           </View>
           
-          {/* Team 2 - Enhanced */}
           <View className="flex-1 ml-3">
             <View className="flex-row items-center mb-4">
               <View className="w-8 h-8 rounded-xl bg-indigo-500 items-center justify-center mr-3 shadow-sm">
@@ -1113,7 +1233,6 @@ export default function CreateMatchScreen() {
               </View>
             </View>
             
-            {/* Team 2 Players */}
             <View className="space-y-2">
               {teamComposition.team2Players.map((player, index) => (
                 <TeamPlayerRow
@@ -1124,7 +1243,6 @@ export default function CreateMatchScreen() {
                 />
               ))}
               
-              {/* Empty Slots */}
               {Array(2 - teamComposition.team2Players.length).fill(0).map((_, i) => (
                 <View key={`team2-empty-${i}`} className="flex-row items-center mb-2 p-2 w-32  rounded-lg border-2 border-dashed border-indigo-500/30 bg-indigo-500/5">
                   <MatchPlayerAvatar
@@ -1149,7 +1267,7 @@ export default function CreateMatchScreen() {
         </View>
       </View>
       
-      {/* Enhanced Player Management */}
+      {/* Player management - unchanged */}
       <View className="flex-row gap-3">
         <Button
           variant="outline"
@@ -1185,7 +1303,7 @@ export default function CreateMatchScreen() {
         )}
       </View>
       
-      {/* Enhanced Status Indicators */}
+      {/* Status indicators - unchanged */}
       <View className="mt-4 p-4 rounded-xl bg-white/60 dark:bg-white/5 border border-white/50">
         <View className="flex-row items-center">
           <View className={`w-3 h-3 rounded-full mr-3 ${
@@ -1220,7 +1338,7 @@ export default function CreateMatchScreen() {
     </View>
   );
 
-  // Enhanced time section with simplified match settings
+  // ENHANCEMENT: Enhanced time section with validation options
   const renderTimeSection = () => (
     <View className="mb-6 p-4 rounded-xl bg-card border border-border/30">
       <H3 className="mb-4">Date & Time</H3>
@@ -1234,7 +1352,7 @@ export default function CreateMatchScreen() {
           minimumDate={isPastMatch ? undefined : new Date()}
           maximumDate={isPastMatch ? new Date() : (() => {
             const maxDate = new Date();
-            maxDate.setDate(maxDate.getDate() + 30);
+            maxDate.setDate(maxDate.getDate() + VALIDATION_CONFIG.MAX_FUTURE_DAYS);
             return maxDate;
           })()}
         />
@@ -1258,7 +1376,6 @@ export default function CreateMatchScreen() {
           </View>
         </View>
         
-        {/* Duration Display */}
         <View className="mt-3 p-2 bg-muted/30 rounded">
           <Text className="text-sm text-muted-foreground">
             Duration: {Math.round((matchEndTime.getTime() - matchStartTime.getTime()) / (1000 * 60))} minutes
@@ -1266,12 +1383,11 @@ export default function CreateMatchScreen() {
         </View>
       </View>
       
-      {/* Simplified Match Settings for Future Matches */}
+      {/* Match settings for future matches */}
       {!isPastMatch && (
         <View className="bg-background/60 dark:bg-background/30 rounded-lg p-4 mb-4">
           <Text className="text-base font-medium mb-3">Match Settings</Text>
           
-          {/* Public/Private Toggle */}
           <View className="mb-4">
             <View className="flex-row items-center justify-between mb-2">
               <Text className="text-sm font-medium text-muted-foreground">Match Visibility</Text>
@@ -1317,7 +1433,9 @@ export default function CreateMatchScreen() {
         </View>
       )}
       
-      {/* Location fields */}
+    
+      
+      {/* Location details */}
       <View className="bg-background/60 dark:bg-background/30 rounded-lg p-4">
         <Text className="text-base font-medium mb-3">Location Details</Text>
         
@@ -1357,7 +1475,6 @@ export default function CreateMatchScreen() {
   );
 
   const renderScoreSection = () => {
-    // Only show score section for past matches
     if (!isPastMatch) return null;
     
     return (
@@ -1414,14 +1531,14 @@ export default function CreateMatchScreen() {
     );
   };
 
-  // Enhanced submit button logic
+  // ENHANCEMENT: Enhanced submit button state with validation awareness
   const getSubmitButtonState = () => {
     const validation = validateMatch();
     
     return {
       disabled: loading || !validation.isValid,
       text: loading 
-        ? 'Creating...' 
+        ? (isPastMatch ? 'Recording Match...' : 'Creating Match...') 
         : isPastMatch 
           ? 'Record Match' 
           : teamComposition.isComplete 
@@ -1429,7 +1546,9 @@ export default function CreateMatchScreen() {
             : 'Create Match',
       subtitle: !validation.isValid && validation.errors.length > 0 
         ? validation.errors[0] 
-        : null
+        : isPastMatch && !loading && validation.isValid
+          ? `${useQuickValidation ? '1-hour' : '24-hour'} validation period will begin`
+          : null
     };
   };
 
@@ -1449,6 +1568,7 @@ export default function CreateMatchScreen() {
           />
         }
       >
+        {/* Header */}
         <View className="flex-row items-center pt-4 pb-2">
           <TouchableOpacity 
             className="w-10 h-10 rounded-full items-center justify-center mr-3 bg-background dark:bg-card"
@@ -1459,16 +1579,24 @@ export default function CreateMatchScreen() {
           <H1>{isPastMatch ? 'Record Match' : 'Schedule Match'}</H1>
         </View>
 
+        {/* ENHANCEMENT: Updated description with validation context */}
         <Text className="text-muted-foreground mb-6 ml-1">
           {isPastMatch 
-            ? 'Record a completed match. All players will have their ratings updated based on the results.'
-            : 'Schedule a future match. You can invite friends or create a public match for others to join.'}
+            ? `Record completed match with ${useQuickValidation ? '1-hour' : '24-hour'} validation period`
+            : 'Create future match for you and your friends'}
         </Text>
+
+        {/* ENHANCEMENT: Add ValidationInfoCard for past matches */}
+        <ValidationInfoCard 
+          isPastMatch={isPastMatch} 
+          isDemo={useQuickValidation}
+        />
         
         {renderTimeSection()}
         {renderPlayerSection()}
         {renderScoreSection()}
         
+        {/* ENHANCEMENT: Enhanced submit section */}
         <View className="mt-2 mb-10">
           <Button
             className="w-full"
@@ -1476,9 +1604,21 @@ export default function CreateMatchScreen() {
             variant="default"
             onPress={createMatch}
             disabled={submitState.disabled}
+            style={{
+              shadowColor: submitState.disabled ? "transparent" : "#1a7ebd",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: submitState.disabled ? 0 : 0.3,
+              shadowRadius: 8,
+              elevation: submitState.disabled ? 0 : 6,
+            }}
           >
             {loading ? (
-       <></>
+              <View className="flex-row items-center">
+                <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
+                <Text className="text-primary-foreground font-medium">
+                  {submitState.text}
+                </Text>
+              </View>
             ) : (
               <Text className="text-primary-foreground font-medium">
                 {submitState.text}
@@ -1487,7 +1627,11 @@ export default function CreateMatchScreen() {
           </Button>
           
           {submitState.subtitle && (
-            <Text className="text-sm text-red-500 dark:text-red-400 mt-2 text-center">
+            <Text className={`text-sm mt-2 text-center ${
+              submitState.disabled && submitState.subtitle.includes('validation') 
+                ? 'text-muted-foreground' 
+                : 'text-red-500 dark:text-red-400'
+            }`}>
               {submitState.subtitle}
             </Text>
           )}
