@@ -1006,17 +1006,17 @@ export default function CreateMatchScreen() {
       );
 
       if (isPastMatch) {
-        // CRITICAL MODIFICATION: Past match with deferred rating system
+        // SIMPLIFIED PAST MATCH PROCESSING WITH POSTGRESQL CRON INTEGRATION
         const winnerTeam = determineWinnerTeam();
-
+  
         const playerIds = [session?.user?.id, ...selectedFriends].filter(
           (id) => id != null,
         ) as string[];
         if (playerIds.length !== 4) {
           throw new Error("Could not form a team of 4 players");
         }
-
-        // STEP 1: Calculate validation deadline based on configuration
+  
+        // STEP 1: Calculate validation deadline
         const now = new Date();
         const validationHours = useQuickValidation
           ? VALIDATION_CONFIG.QUICK_VALIDATION_HOURS
@@ -1024,8 +1024,8 @@ export default function CreateMatchScreen() {
         const validationDeadline = new Date(
           now.getTime() + validationHours * 60 * 60 * 1000,
         );
-
-        // STEP 2: Prepare match data with validation fields
+  
+        // STEP 2: Create match with validation metadata (SIMPLIFIED)
         const matchData: MatchData = {
           player1_id: session?.user?.id as string,
           player2_id: selectedFriends[0] || null,
@@ -1046,105 +1046,62 @@ export default function CreateMatchScreen() {
           court: court.trim() || null,
           is_public: false,
           description: matchDescription.trim() || null,
-          // CRITICAL: Validation fields for deferred rating system
+          // VALIDATION FIELDS: Let PostgreSQL cron job handle rating calculations
           validation_deadline: validationDeadline.toISOString(),
           validation_status: "pending",
           rating_applied: false,
           report_count: 0,
         };
-
-        console.log("🎯 Creating past match with deferred rating validation:", {
+  
+        console.log("🎯 Creating past match with PostgreSQL cron validation:", {
           validation_deadline: matchData.validation_deadline,
           validation_status: matchData.validation_status,
           rating_applied: matchData.rating_applied,
           hours_until_deadline: validationHours,
+          processing_method: "postgresql_cron_job"
         });
-
-        // STEP 3: Create match record in database
+  
+        // STEP 3: Insert match record (PostgreSQL cron will handle rating calculation)
         const { data: matchResult, error: matchError } = await supabase
           .from("matches")
           .insert(matchData)
           .select()
           .single();
-
+  
         if (matchError) throw matchError;
-
-        console.log(
-          "✅ Match record created successfully, initiating deferred rating calculation",
+  
+        console.log("✅ Match created successfully. PostgreSQL cron job will process ratings after validation period.");
+  
+        // STEP 4: Enhanced success feedback with PostgreSQL cron integration
+        const validationHoursDisplay = useQuickValidation ? "1 hour" : "24 hours";
+  
+        Alert.alert(
+          "✅ Match Created Successfully!",
+          `Match has been recorded with automatic validation system.\n\n` +
+          `⏰ Validation Period: ${validationHoursDisplay}\n\n` +
+          `🤖 Rating Processing: Automated server processing\n` +
+          `📊 Ratings will be calculated and applied automatically after validation period expires.\n\n` +
+          `📢 All players can report issues during validation period.\n` +
+          `💡 You can delete this match within 24 hours if needed.\n\n` +
+          `🎯 Server automation will handle rating calculations every 30 minutes.`,
+          [
+            {
+              text: "View Match Details",
+              onPress: () =>
+                router.push({
+                  pathname: "/(protected)/(screens)/match-details",
+                  params: { matchId: matchResult.id },
+                }),
+            },
+            {
+              text: "OK",
+              onPress: () => router.push("/(protected)/(tabs)"),
+            },
+          ],
         );
-
-        // STEP 4: CRITICAL INTEGRATION - Calculate and store ratings for future application
-        const ratingResult =
-          await EnhancedRatingService.calculateAndStoreMatchRatings(
-            matchResult.id,
-            winnerTeam,
-            validationDeadline,
-          );
-
-        if (!ratingResult.success) {
-          console.error("❌ Rating calculation failed:", ratingResult.error);
-
-          // IMPORTANT: Match is saved, but rating calculation failed
-          // This is a non-fatal error - show warning but don't block completion
-          Alert.alert(
-            "⚠️ Match Saved with Rating Warning",
-            `Match scores saved successfully, but rating calculation encountered an issue:\n\n${ratingResult.message}\n\nRatings will be recalculated during validation processing.`,
-            [
-              {
-                text: "View Match Details",
-                onPress: () =>
-                  router.push({
-                    pathname: "/(protected)/(screens)/match-details",
-                    params: { matchId: matchResult.id },
-                  }),
-              },
-              { text: "OK" },
-            ],
-          );
-        } else {
-          console.log(
-            "✅ Ratings calculated and queued for validation period expiration",
-          );
-
-          // STEP 5: Enhanced success feedback with validation context
-          const validationHoursDisplay = useQuickValidation
-            ? "1 hour"
-            : "24 hours";
-          const ratingChangeSummary = ratingResult.rating_changes
-            ? ratingResult.rating_changes
-                .map(
-                  (change) =>
-                    `Player: ${Math.round(change.rating_before)} → ${Math.round(change.rating_after)}`,
-                )
-                .join("\n")
-            : "Rating changes calculated";
-
-          Alert.alert(
-            "✅ Match Created Successfully!",
-            `Match has been recorded with deferred rating system.\n\n` +
-              `⏰ Validation Period: ${validationHoursDisplay}\n\n` +
-              `📊 Rating Preview:\n${ratingChangeSummary}\n\n` +
-              `⚠️ Ratings will be applied after validation period expires.\n` +
-              `📢 All players can report issues during validation period.\n\n` +
-              `💡 You can delete this match within 24 hours if needed.`,
-            [
-              {
-                text: "View Match Details",
-                onPress: () =>
-                  router.push({
-                    pathname: "/(protected)/(screens)/match-details",
-                    params: { matchId: matchResult.id },
-                  }),
-              },
-              {
-                text: "OK",
-                onPress: () => router.push("/(protected)/(tabs)"),
-              },
-            ],
-          );
-        }
-
+  
         Vibration.vibrate([100, 50, 100]);
+  
       } else {
         // Future match - no validation needed (unchanged logic)
         const matchData: MatchData = {
@@ -1751,7 +1708,7 @@ export default function CreateMatchScreen() {
         {/* ENHANCEMENT: Updated description with validation context */}
         <Text className="text-muted-foreground mb-6 ml-1">
           {isPastMatch
-            ? `Record completed match with ${useQuickValidation ? "1-hour" : "24-hour"} validation period`
+            ? `Record completed match`
             : "Create future match for you and your friends"}
         </Text>
 
