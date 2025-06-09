@@ -27,7 +27,7 @@ import { SafeAreaView } from "@/components/safe-area-view";
 import { useAuth } from "@/context/supabase-provider";
 import { supabase } from "@/config/supabase";
 import { Friend } from "@/types";
-import { EnhancedRatingService } from "@/services/enhanced-rating.service";
+
 import { PlayerSelectionModal } from "@/components/create-match/PlayerSelectionModal";
 import { CustomDateTimePicker } from "@/components/create-match/DateTimePicker";
 import {
