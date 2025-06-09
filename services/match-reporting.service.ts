@@ -207,105 +207,119 @@ export class MatchReportingService {
     };
   }
 
-  /**
-   * Handle a match that has been disputed
-   * Reverses ratings and marks match as cancelled
-   * @param matchId - ID of the disputed match
-   */
-  static async handleDisputedMatch(matchId: string): Promise<void> {
-    try {
-      // 1. Get match details with player ratings
-      const { data: match, error: matchError } = await supabase
-        .from('matches')
-        .select(`
-          *,
-          player1:profiles!player1_id(id, glicko_rating, glicko_rd, glicko_vol),
-          player2:profiles!player2_id(id, glicko_rating, glicko_rd, glicko_vol),
-          player3:profiles!player3_id(id, glicko_rating, glicko_rd, glicko_vol),
-          player4:profiles!player4_id(id, glicko_rating, glicko_rd, glicko_vol)
-        `)
-        .eq('id', matchId)
-        .single();
 
-      if (matchError || !match) {
-        console.error('Error fetching disputed match:', matchError);
-        return;
-      }
+static async handleDisputedMatch(matchId: string): Promise<void> {
+  try {
+    console.log(`🔄 [DISPUTE] Starting dispute handling for match: ${matchId}`);
 
-      // 2. Only proceed if ratings were applied
-      if (!match.rating_applied) {
-        console.log(`Ratings not yet applied for match ${matchId}, no reversal needed.`);
-        // Still mark as cancelled if disputed, but ratings were never applied
-        const { error: updateError } = await supabase
-          .from('matches')
-          .update({
-            validation_status: 'cancelled',
-            // rating_applied is already false
-          })
-          .eq('id', matchId);
-        if (updateError) {
-          console.error('Error updating disputed match (no ratings applied):', updateError);
-        }
-        return;
-      }
+    // STEP 4.1.1.1.1: Validate match exists and check current status
+    const { data: match, error: matchError } = await supabase
+      .from('matches')
+      .select('validation_status, rating_applied, report_count, disputed_at')
+      .eq('id', matchId)
+      .single();
 
-      // 3. Implement rating reversal logic
-      // This assumes a 'match_rating_changes' table exists with columns:
-      // player_id, match_id, rating_before, rd_before, vol_before
-      const { data: ratingChanges, error: changesError } = await supabase
-        .from('match_rating_changes')
-        .select('player_id, rating_before, rd_before, vol_before')
-        .eq('match_id', matchId);
+    if (matchError || !match) {
+      console.error(`❌ [DISPUTE] Failed to fetch match for dispute handling:`, matchError);
+      throw new Error(`Match not found: ${matchError?.message || 'Unknown error'}`);
+    }
 
-      if (changesError) {
-        console.error(`Error fetching rating changes for match ${matchId}:`, changesError);
-        // Potentially proceed to mark as cancelled but log the failure to revert ratings
-        // For now, we'll stop to avoid partial processing if critical data is missing.
-        return;
-      }
+    console.log(`📊 [DISPUTE] Match status before dispute handling:`, {
+      validation_status: match.validation_status,
+      rating_applied: match.rating_applied,
+      report_count: match.report_count,
+      disputed_at: match.disputed_at
+    });
 
-      if (!ratingChanges || ratingChanges.length === 0) {
-        console.warn(`No rating changes found for match ${matchId}, cannot reverse ratings. Proceeding to mark as cancelled.`);
-      } else {
-        // Revert ratings for each player involved
-        for (const change of ratingChanges) {
-          const { error: playerUpdateError } = await supabase
-            .from('profiles')
-            .update({
-              glicko_rating: change.rating_before,
-              glicko_rd: change.rd_before,
-              glicko_vol: change.vol_before,
-            })
-            .eq('id', change.player_id);
+    // STEP 4.1.1.1.2: Check if dispute handling is necessary
+    if (match.validation_status === 'cancelled' || match.validation_status === 'disputed') {
+      console.log(`ℹ️ [DISPUTE] Match already in terminal state: ${match.validation_status}`);
+      return;
+    }
 
-          if (playerUpdateError) {
-            console.error(`Error reverting ratings for player ${change.player_id} in match ${matchId}:`, playerUpdateError);
-            // Decide on error handling: continue, or stop and log?
-            // For now, log and continue to ensure match status is updated.
-          }
-        }
-        console.log(`Ratings successfully reverted for match ${matchId}.`);
-      }
+    // STEP 4.1.1.1.3: Mark match as disputed first (for immediate UI feedback)
+    const { error: statusUpdateError } = await supabase
+      .from('matches')
+      .update({
+        validation_status: 'disputed',
+        disputed_at: new Date().toISOString()
+      })
+      .eq('id', matchId);
+
+    if (statusUpdateError) {
+      console.error(`❌ [DISPUTE] Failed to mark match as disputed:`, statusUpdateError);
+      throw new Error(`Status update failed: ${statusUpdateError.message}`);
+    }
+
+    console.log(`🚨 [DISPUTE] Match marked as disputed at ${new Date().toISOString()}`);
+
+    // STEP 4.1.1.1.4: Handle rating reversal if ratings were applied
+    if (match.rating_applied) {
+      console.log(`🔄 [DISPUTE] Ratings were applied, initiating reversal process`);
       
-      // 4. Update match status to cancelled and mark ratings as not applied
-      const { error: updateError } = await supabase
+      // Use the enhanced rating service for atomic rating reversal
+      const { EnhancedRatingService } = await import('@/services/enhanced-rating.service');
+      const revertResult = await EnhancedRatingService.revertDisputedMatchRatings(matchId);
+
+      if (!revertResult.success) {
+        console.error(`❌ [DISPUTE] Rating reversal failed:`, revertResult.error);
+        
+        // Log the failure but don't throw - match is already marked as disputed
+        console.warn(`⚠️ [DISPUTE] Continuing with dispute handling despite rating reversal failure`);
+      } else {
+        console.log(`✅ [DISPUTE] Rating reversal completed successfully: ${revertResult.message}`);
+      }
+    } else {
+      console.log(`ℹ️ [DISPUTE] No ratings to revert - ratings were not yet applied`);
+      
+      // Ensure rating_applied is explicitly set to false for disputed matches
+      const { error: ratingStatusError } = await supabase
         .from('matches')
-        .update({
-          validation_status: 'cancelled',
-          rating_applied: false // Mark that ratings are no longer (or were not successfully) applied
-        })
+        .update({ rating_applied: false })
         .eq('id', matchId);
 
-      if (updateError) {
-        console.error('Error updating disputed match status after attempting rating reversal:', updateError);
-      } else {
-        console.log(`Match ${matchId} marked as cancelled and rating_applied set to false due to disputes.`);
+      if (ratingStatusError) {
+        console.warn(`⚠️ [DISPUTE] Failed to update rating_applied status:`, ratingStatusError);
       }
-
-    } catch (error) {
-      console.error('Error in handleDisputedMatch:', error);
     }
+
+    // STEP 4.1.1.1.5: Final status update to ensure consistency
+    const { error: finalUpdateError } = await supabase
+      .from('matches')
+      .update({
+        validation_status: 'cancelled', // Final state for disputed matches
+        rating_applied: false           // Ensure ratings are marked as not applied
+      })
+      .eq('id', matchId);
+
+    if (finalUpdateError) {
+      console.error(`❌ [DISPUTE] Failed to finalize dispute status:`, finalUpdateError);
+      throw new Error(`Final status update failed: ${finalUpdateError.message}`);
+    }
+
+    console.log(`🎯 [DISPUTE] Dispute handling completed successfully for match: ${matchId}`);
+    console.log(`📋 [DISPUTE] Final status: validation_status='cancelled', rating_applied=false`);
+
+  } catch (error) {
+    console.error(`💥 [DISPUTE] Critical error in dispute handling for match ${matchId}:`, error);
+    
+    // Attempt to log the error in the database for admin review
+    try {
+      await supabase
+        .from('matches')
+        .update({
+          validation_status: 'disputed', // Ensure match is at least marked as disputed
+          disputed_at: new Date().toISOString()
+        })
+        .eq('id', matchId);
+    } catch (recoveryError) {
+      console.error(`💥 [DISPUTE] Failed to update match status during error recovery:`, recoveryError);
+    }
+    
+    // Re-throw for upstream error handling
+    throw error;
   }
+}
 
   /**
    * Process matches that have passed their validation deadline

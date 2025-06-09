@@ -1,5 +1,8 @@
 import "../global.css";
 import {decode, encode} from 'base-64';
+import { LogBox } from "react-native";
+
+LogBox.ignoreAllLogs();
 
 if (!global.btoa) {
     global.btoa = encode;
