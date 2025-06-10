@@ -28,7 +28,7 @@ const FEATURES = [
     title: "Match Tracking",
     description: "Record scores, track performance stats, and analyze your game progression",
     icon: "tennisball",
-    color: "#1a7ebd" // Primary yellow
+    color: "#1a7ebd" // Primary blue
   },
   {
     id: 2,
@@ -60,8 +60,9 @@ export default function WelcomeScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const buttonAnim = useRef(new Animated.Value(0)).current;
   const [currentPage, setCurrentPage] = useState(0);
-  const scrollViewRef = useRef(null);
-  const autoScrollTimer = useRef(null);
+  const [scrollViewWidth, setScrollViewWidth] = useState(SCREEN_WIDTH);
+  const [isLayoutReady, setIsLayoutReady] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
   
   const isDark = colorScheme === "dark";
   
@@ -83,30 +84,48 @@ export default function WelcomeScreen() {
   // Primary color
   const primaryColor = "#1a7ebd"; 
 
-  const startAutoScroll = () => {
-	if (autoScrollTimer.current) {
-	  clearInterval(autoScrollTimer.current);
-	}
-	
-	autoScrollTimer.current = setInterval(() => {
-	  if (scrollViewRef.current) {
-		const nextPage = currentPage < FEATURES.length - 1 ? currentPage + 1 : 0;
-		const exactOffset = nextPage * SCREEN_WIDTH;
-		
-		// Using scrollToOffset for more precise control
-		scrollViewRef.current.scrollTo({ 
-		  x: exactOffset, 
-		  animated: true 
-		});
-		
-		// Pre-emptively update the current page to ensure UI stays in sync
-		setCurrentPage(nextPage);
-	  }
-	}, 3000); // Reduced from 4000ms to 3000ms for faster transitions
+  // **FIX 1: Handle ScrollView layout and ensure proper initial positioning**
+  const handleScrollViewLayout = (event: any) => {
+    const { width } = event.nativeEvent.layout;
+    setScrollViewWidth(width);
+    
+    // **FIX 2: Ensure initial position is exactly 0 after layout**
+    if (!isLayoutReady) {
+      setIsLayoutReady(true);
+      // Force scroll to position 0 with a small delay to ensure layout is complete
+      setTimeout(() => {
+        if (scrollViewRef.current) {
+          scrollViewRef.current.scrollTo({ x: 0, y: 0, animated: false });
+        }
+      }, 50);
+    }
   };
-  
 
-  // Animation sequence on component mount with strict sequencing
+  // **FIX 3: Enhanced scroll handling with proper width calculation**
+  const handleScroll = Animated.event(
+    [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+    { 
+      useNativeDriver: false,
+      listener: (event) => {
+        const position = event.nativeEvent.contentOffset.x;
+        const page = Math.round(position / scrollViewWidth);
+        if (page !== currentPage && page >= 0 && page < FEATURES.length) {
+          setCurrentPage(page);
+        }
+      }
+    }
+  );
+
+  // **FIX 4: Updated momentum scroll end handler with proper width**
+  const handleMomentumScrollEnd = (event: any) => {
+    const position = event.nativeEvent.contentOffset.x;
+    const page = Math.round(position / scrollViewWidth);
+    if (page !== currentPage && page >= 0 && page < FEATURES.length) {
+      setCurrentPage(page);
+    }
+  };
+
+  // Animation sequence on component mount
   useEffect(() => {
     Animated.sequence([
       Animated.timing(logoScale, {
@@ -125,54 +144,14 @@ export default function WelcomeScreen() {
         useNativeDriver: true,
       }),
     ]).start();
-
-    startAutoScroll();
-
-    return () => {
-      if (autoScrollTimer.current) {
-        clearInterval(autoScrollTimer.current);
-      }
-    };
   }, []);
 
-  // Critical update for auto-scroll when current page changes
-  useEffect(() => {
-    if (autoScrollTimer.current) {
-      clearInterval(autoScrollTimer.current);
-    }
-    startAutoScroll();
-  }, [currentPage]);
-
-  // Precise scroll handling with velocity management
-  const handleScroll = Animated.event(
-    [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-    { 
-      useNativeDriver: false,
-      listener: (event) => {
-        const position = event.nativeEvent.contentOffset.x;
-        const page = Math.round(position / SCREEN_WIDTH);
-        if (page !== currentPage && page >= 0 && page < FEATURES.length) {
-          setCurrentPage(page);
-        }
-      }
-    }
-  );
-
-  // Accurate momentum scroll tracking for proper page alignment
-  const handleMomentumScrollEnd = (event) => {
-    const position = event.nativeEvent.contentOffset.x;
-    const page = Math.round(position / SCREEN_WIDTH);
-    if (page !== currentPage && page >= 0 && page < FEATURES.length) {
-      setCurrentPage(page);
-    }
-  };
-
-  // Precise feature item renderer with exact positioning
-  const renderFeatureItem = (item, index) => {
+  // **FIX 5: Updated feature item renderer with dynamic width**
+  const renderFeatureItem = (item: any, index: number) => {
     const inputRange = [
-      (index - 1) * SCREEN_WIDTH,
-      index * SCREEN_WIDTH,
-      (index + 1) * SCREEN_WIDTH,
+      (index - 1) * scrollViewWidth,
+      index * scrollViewWidth,
+      (index + 1) * scrollViewWidth,
     ];
     
     const opacity = scrollX.interpolate({
@@ -190,7 +169,7 @@ export default function WelcomeScreen() {
     return (
       <View 
         style={{
-          width: SCREEN_WIDTH,
+          width: scrollViewWidth, // **FIX 6: Use actual ScrollView width**
           alignItems: 'center',
           justifyContent: 'center',
         }}
@@ -202,6 +181,7 @@ export default function WelcomeScreen() {
             { 
               opacity,
               transform: [{ scale }],
+              width: scrollViewWidth * 0.85, // **FIX 7: Scale based on actual width**
             }
           ]}
         >
@@ -217,16 +197,16 @@ export default function WelcomeScreen() {
     );
   };
 
-  // Render pagination indicators with exact synchronization
+  // **FIX 8: Updated pagination with dynamic width**
   const renderPagination = () => {
     return (
       <View style={styles.paginationContainer}>
         {FEATURES.map((_, index) => {
           const opacity = scrollX.interpolate({
             inputRange: [
-              (index - 1) * SCREEN_WIDTH,
-              index * SCREEN_WIDTH,
-              (index + 1) * SCREEN_WIDTH,
+              (index - 1) * scrollViewWidth,
+              index * scrollViewWidth,
+              (index + 1) * scrollViewWidth,
             ],
             outputRange: [0.3, 1, 0.3],
             extrapolate: "clamp",
@@ -234,9 +214,9 @@ export default function WelcomeScreen() {
           
           const scale = scrollX.interpolate({
             inputRange: [
-              (index - 1) * SCREEN_WIDTH,
-              index * SCREEN_WIDTH,
-              (index + 1) * SCREEN_WIDTH,
+              (index - 1) * scrollViewWidth,
+              index * scrollViewWidth,
+              (index + 1) * scrollViewWidth,
             ],
             outputRange: [1, 1.3, 1],
             extrapolate: "clamp",
@@ -306,7 +286,7 @@ export default function WelcomeScreen() {
             </Animated.View>
           </View>
 
-          {/* Optimized Feature Carousel */}
+          {/* **FIX 9: Enhanced Feature Carousel with proper initialization** */}
           <Animated.View
             style={[
               styles.carouselContainer,
@@ -322,12 +302,15 @@ export default function WelcomeScreen() {
               showsHorizontalScrollIndicator={false}
               onScroll={handleScroll}
               onMomentumScrollEnd={handleMomentumScrollEnd}
+              onLayout={handleScrollViewLayout} // **FIX 10: Add layout handler**
               scrollEventThrottle={16}
               decelerationRate="fast"
-              snapToInterval={SCREEN_WIDTH}
+              snapToInterval={scrollViewWidth} // **FIX 11: Use actual width**
               snapToAlignment="center"
               contentInsetAdjustmentBehavior="never"
               automaticallyAdjustContentInsets={false}
+              contentOffset={{ x: 0, y: 0 }} // **FIX 12: Explicit initial position**
+              bounces={false} // **FIX 13: Disable bouncing for more precise control**
             >
               {FEATURES.map((item, index) => renderFeatureItem(item, index))}
             </ScrollView>
@@ -385,7 +368,7 @@ export default function WelcomeScreen() {
   );
 }
 
-// Precise style specifications with exact measurements
+// **FIX 14: Updated styles with removed fixed width for featureItem**
 const styles = StyleSheet.create({
   backgroundImage: {
     flex: 1,
@@ -432,7 +415,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderRadius: 16,
-    width: SCREEN_WIDTH * 0.85,
+    // **FIX 15: Removed fixed width - now set dynamically in render**
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
@@ -473,17 +456,22 @@ const styles = StyleSheet.create({
   },
   signUpButton: {
     marginBottom: 16,
-    height: 56,
-    borderRadius: 28,
+    height: 64,
+    borderRadius: 32,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
   },
   signInButton: {
-    height: 56,
-    borderRadius: 28,
+    height: 64,
+    borderRadius: 32,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
   },
   buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    height: '100%',
   },
   buttonIcon: {
     marginRight: 8,
@@ -491,9 +479,16 @@ const styles = StyleSheet.create({
   signUpText: {
     fontSize: 18,
     fontWeight: '600',
+    lineHeight: 24,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   signInText: {
     fontSize: 18,
+    fontWeight: '500',
+    lineHeight: 24,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   versionText: {
     textAlign: 'center',
