@@ -1,6 +1,13 @@
 import "../global.css";
 import {decode, encode} from 'base-64';
 import { LogBox } from "react-native";
+import * as Updates from "expo-updates";
+import { useEffect, useRef } from "react";
+import { Stack } from "expo-router";
+import { AppState } from "react-native";
+import { AuthProvider } from "@/context/supabase-provider";
+import { useColorScheme } from "@/lib/useColorScheme";
+import { colors } from "@/constants/colors";
 
 LogBox.ignoreAllLogs();
 
@@ -11,14 +18,6 @@ if (!global.btoa) {
 if (!global.atob) {
     global.atob = decode;
 }
-
-import * as Updates from "expo-updates";
-import { useEffect, useRef } from "react";
-import { Stack } from "expo-router";
-import { AppState } from "react-native";
-import { AuthProvider } from "@/context/supabase-provider";
-import { useColorScheme } from "@/lib/useColorScheme";
-import { colors } from "@/constants/colors";
 
 export default function AppLayout() {
   const { colorScheme } = useColorScheme();
@@ -88,7 +87,6 @@ export default function AppLayout() {
   return (
     <AuthProvider>
       <Stack screenOptions={{ headerShown: false, gestureEnabled: false }}>
-        {/* Stack screens remain unchanged */}
         <Stack.Screen name="(protected)" />
         <Stack.Screen name="welcome" />
         <Stack.Screen

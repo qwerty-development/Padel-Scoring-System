@@ -40,7 +40,7 @@ export default function TabsLayout() {
           ),
         }}
       />
-            <Tabs.Screen
+      <Tabs.Screen
         name="browse"
         options={{
           title: "Browse",
