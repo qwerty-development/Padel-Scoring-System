@@ -2308,7 +2308,17 @@ export default function CreateMatchWizard() {
                 <Ionicons name="calendar-outline" size={16} color="#1a7ebd" />
                 <Text className="ml-2 font-medium">Date & Time</Text>
               </View>
-              
+              <Text className="text-sm text-muted-foreground">
+                {startDateTime.toLocaleDateString()} • {startDateTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {endDateTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </Text>
+              <Text className="text-xs text-muted-foreground mt-1">
+                Duration: {Math.round((endDateTime.getTime() - startDateTime.getTime()) / (1000 * 60))} minutes
+              </Text>
+              {endDateTime.getDate() !== startDateTime.getDate() && (
+                <Text className="text-xs text-muted-foreground mt-1">
+                  Match ends the next day
+                </Text>
+              )}
             </View>
 
             {/* Players */}

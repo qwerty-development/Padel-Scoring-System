@@ -67,28 +67,17 @@ export function CustomDateTimePicker({
     }
 
     if (selectedDate) {
-      // Round to nearest 30 minutes for time mode
-      let processedDate = selectedDate;
-      if (mode === "time") {
-        processedDate = roundToNearestThirtyMinutes(selectedDate);
-      }
-      
-      setTempDate(processedDate);
+      setTempDate(selectedDate);
 
       // On Android, update immediately
       if (Platform.OS === "android") {
-        onChange(processedDate);
+        onChange(selectedDate);
       }
     }
   };
 
   const confirmIOSDate = () => {
-    // Round to nearest 30 minutes for time mode before confirming
-    let finalDate = tempDate;
-    if (mode === "time") {
-      finalDate = roundToNearestThirtyMinutes(tempDate);
-    }
-    onChange(finalDate);
+    onChange(tempDate);
     setShowPicker(false);
   };
 
@@ -135,7 +124,7 @@ export function CustomDateTimePicker({
           <Text className="text-foreground font-medium">{getFormattedValue()}</Text>
           {mode === "time" && (
             <Text className="text-xs text-muted-foreground mt-1">
-              Rounded to nearest 30 minutes
+              Tap to select time
             </Text>
           )}
         </View>
@@ -157,7 +146,7 @@ export function CustomDateTimePicker({
           onChange={handleChange}
           minimumDate={minimumDate}
           maximumDate={maximumDate}
-          minuteInterval={mode === "time" ? 30 : undefined}
+          is24Hour={false}
         />
       )}
 
@@ -180,7 +169,7 @@ export function CustomDateTimePicker({
                       <Text className="font-semibold text-lg">{label}</Text>
                       {mode === "time" && (
                         <Text className="text-xs text-muted-foreground">
-                          30-minute intervals
+                          Select time
                         </Text>
                       )}
                     </View>
@@ -202,7 +191,7 @@ export function CustomDateTimePicker({
                     minimumDate={minimumDate}
                     maximumDate={maximumDate}
                     textColor={colorScheme === "dark" ? "#fff" : "#000"}
-                    minuteInterval={mode === "time" ? 30 : undefined}
+                    is24Hour={false}
                   />
                   
                   {/* Additional padding for better iOS experience */}
