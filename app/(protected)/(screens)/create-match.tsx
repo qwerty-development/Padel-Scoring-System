@@ -827,15 +827,17 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
   completedSteps,
   stepConfig,
 }) => {
+  const currentIndex = stepConfig.findIndex(step => step.id === currentStep) + 1;
+  
   return (
     <View className="px-6 py-4 bg-white/80 dark:bg-gray-900/80 border-b border-gray-200 dark:border-gray-700">
       {/* Step counter */}
       <View className="flex-row items-center justify-between mb-3">
         <Text className="text-sm font-medium text-gray-600 dark:text-gray-400">
-          Step {currentStep} of {totalSteps}
+          Step {currentIndex} of {totalSteps}
         </Text>
         <Text className="text-sm text-gray-500 dark:text-gray-500">
-          {Math.round((currentStep / totalSteps) * 100)}% Complete
+          {Math.round((currentIndex / totalSteps) * 100)}% Complete
         </Text>
       </View>
 
@@ -844,7 +846,7 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
         <View
           className="h-full bg-primary rounded-full transition-all duration-300"
           style={{
-            width: `${(currentStep / totalSteps) * 100}%`,
+            width: `${(currentIndex / totalSteps) * 100}%`,
           }}
         />
       </View>
@@ -859,7 +861,8 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
         {stepConfig.map((step, index) => {
           const isCompleted = completedSteps.has(step.id);
           const isCurrent = step.id === currentStep;
-          const isPassed = step.id < currentStep;
+          const currentIdx = stepConfig.findIndex(s => s.id === currentStep);
+          const isPassed = index < currentIdx;
 
           return (
             <View key={step.id} className="flex-row items-center">
@@ -1283,26 +1286,34 @@ export default function CreateMatchWizard() {
   // ========================================
 
   const goToNextStep = useCallback(() => {
-    if (currentStep < totalSteps) {
+    const currentIndex = stepConfig.findIndex(step => step.id === currentStep);
+    const nextIndex = currentIndex + 1;
+    
+    if (nextIndex < stepConfig.length) {
       setSlideDirection("forward");
       setCompletedSteps(prev => new Set(prev).add(currentStep));
-      setCurrentStep((prev) => Math.min(prev + 1, totalSteps));
+      setCurrentStep(stepConfig[nextIndex].id);
     }
-  }, [currentStep, totalSteps]);
-
+  }, [currentStep, stepConfig]);
+  
   const goToPreviousStep = useCallback(() => {
-    if (currentStep > 1) {
+    const currentIndex = stepConfig.findIndex(step => step.id === currentStep);
+    const prevIndex = currentIndex - 1;
+    
+    if (prevIndex >= 0) {
       setSlideDirection("backward");
-      setCurrentStep((prev) => Math.max(prev - 1, 1));
+      setCurrentStep(stepConfig[prevIndex].id);
     }
-  }, [currentStep]);
-
+  }, [currentStep, stepConfig]);
+  
   const goToStep = useCallback((step: WizardStep) => {
     if (step !== currentStep) {
-      setSlideDirection(step > currentStep ? "forward" : "backward");
+      const currentIndex = stepConfig.findIndex(s => s.id === currentStep);
+      const targetIndex = stepConfig.findIndex(s => s.id === step);
+      setSlideDirection(targetIndex > currentIndex ? "forward" : "backward");
       setCurrentStep(step);
     }
-  }, [currentStep]);
+  }, [currentStep, stepConfig]);
 
   // ========================================
   // STEP VALIDATION FUNCTIONS
@@ -2292,7 +2303,7 @@ export default function CreateMatchWizard() {
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
       >
-        <View className="mb-6">
+        <View className="mb-6 mt-3">
           <H2 className="mb-2">Review Match</H2>
           <Text className="text-muted-foreground mb-6">
             Review all details before {isPastMatch ? "recording" : "scheduling"} your match
@@ -2425,6 +2436,19 @@ export default function CreateMatchWizard() {
                 )}
               </View>
             )}
+
+            {/* Validation Mode for past matches */}
+            {isPastMatch && (
+              <View className="p-4 bg-background/60 rounded-lg">
+                <View className="flex-row items-center mb-2">
+                  <Ionicons name="shield-checkmark-outline" size={16} color="#1a7ebd" />
+                  <Text className="ml-2 font-medium">Validation Mode</Text>
+                </View>
+                <Text className="text-sm text-muted-foreground">
+                  {useQuickValidation ? "Demo Mode: 1-hour validation" : "Standard: 24-hour validation"}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Validation Warning for Past Matches */}
@@ -2442,6 +2466,31 @@ export default function CreateMatchWizard() {
               </Text>
             </View>
           )}
+
+          {/* Action Summary */}
+          <View className="p-4 rounded-xl bg-primary/10 border border-primary/30">
+            <View className="flex-row items-center mb-2">
+              <Ionicons name="information-circle-outline" size={20} color="#1a7ebd" />
+              <Text className="ml-2 font-semibold text-primary">
+                What happens next?
+              </Text>
+            </View>
+            {isPastMatch ? (
+              <View className="space-y-1">
+                <Text className="text-sm text-primary/80">• Match will be recorded immediately</Text>
+                <Text className="text-sm text-primary/80">• All players will be notified</Text>
+                <Text className="text-sm text-primary/80">• {useQuickValidation ? "1-hour" : "24-hour"} validation period starts</Text>
+                <Text className="text-sm text-primary/80">• Ratings update after validation</Text>
+              </View>
+            ) : (
+              <View className="space-y-1">
+                <Text className="text-sm text-primary/80">• Match will be scheduled</Text>
+                {isPublicMatch && <Text className="text-sm text-primary/80">• Visible to all players in the area</Text>}
+                {!teamComposition.isComplete && <Text className="text-sm text-primary/80">• Open for players to join</Text>}
+                <Text className="text-sm text-primary/80">• Players will receive notifications</Text>
+              </View>
+            )}
+          </View>
         </View>
       </ScrollView>
     </SlideContainer>
@@ -2454,12 +2503,14 @@ export default function CreateMatchWizard() {
   const renderNavigationControls = () => {
     const currentStepValidation = validateCurrentStep();
     const canProceed = currentStepValidation.isValid;
-
+    const currentIndex = stepConfig.findIndex(step => step.id === currentStep);
+    const isLastStep = currentIndex === stepConfig.length - 1;
+  
     return (
       <View className="px-6 py-4 bg-white/80 dark:bg-gray-900/80 border-t border-gray-200 dark:border-gray-700">
         <View className="flex-row gap-3">
           {/* Previous Button */}
-          {currentStep > 1 && (
+          {currentIndex > 0 && (
             <Button
               variant="outline"
               className="flex-1"
@@ -2471,18 +2522,18 @@ export default function CreateMatchWizard() {
               </View>
             </Button>
           )}
-
+  
           {/* Next/Submit Button */}
-          {currentStep < totalSteps ? (
+          {!isLastStep ? (
             <Button
               variant="default"
-              className={`${currentStep === 1 ? "flex-1" : "flex-[2]"}`}
+              className={`${currentIndex === 0 ? "flex-1" : "flex-[2]"}`}
               onPress={goToNextStep}
               disabled={!canProceed}
             >
               <View className="flex-row items-center">
                 <Text className="mr-1 font-medium text-primary-foreground">
-                  {stepConfig.find(s => s.id === currentStep + 1)?.title || "Next"}
+                  {stepConfig[currentIndex + 1]?.title || "Next"}
                 </Text>
                 <Ionicons name="chevron-forward" size={16} color="white" />
               </View>
@@ -2513,7 +2564,7 @@ export default function CreateMatchWizard() {
             </Button>
           )}
         </View>
-
+  
         {/* Validation Errors */}
         {!currentStepValidation.isValid && currentStepValidation.errors.length > 0 && (
           <View className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
