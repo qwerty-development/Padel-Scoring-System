@@ -327,7 +327,7 @@ function PlayerAvatar({
   );
 }
 
-export default function EnhancedMatchDetailsWithVisibility() {
+export default function RefactoredMatchDetails() {
   const { matchId, mode } = useLocalSearchParams();
   const { colorScheme } = useColorScheme();
   const [match, setMatch] = useState<MatchDetail | null>(null);
@@ -352,6 +352,14 @@ export default function EnhancedMatchDetailsWithVisibility() {
     suggestedWinner: null
   });
 
+  // NEW: MODIFIED Collapsible state management - Performance starts collapsed
+  const [performanceExpanded, setPerformanceExpanded] = useState(false);
+  const [infoExpanded, setInfoExpanded] = useState(false);
+
+  // NEW: Expandable FAB state management
+  const [fabExpanded, setFabExpanded] = useState(false);
+  const [fabAnimValue] = useState(new Animated.Value(0));
+
   // ENHANCED: UI state management
   const [showAdvancedStats, setShowAdvancedStats] = useState(false);
   const [animatedValue] = useState(new Animated.Value(0));
@@ -359,155 +367,155 @@ export default function EnhancedMatchDetailsWithVisibility() {
   // CRITICAL: Match reporting state management
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportReason, setReportReason] = useState<ReportReason>(ReportReason.INCORRECT_SCORE);
-  const [reportDetails, setReportDetails] = useState('')
+  const [reportDetails, setReportDetails] = useState('');
   
-    // REQUIREMENT 1: Enhanced match state calculation with comprehensive analysis
-    const matchState = useMemo((): MatchState => {
-      if (!match || !session?.user?.id) {
-        return {
-          isFuture: false,
-          isPast: false,
-          needsScores: false,
-          hasScores: false,
-          canJoin: false,
-          userParticipating: false,
-          userTeam: null,
-          team1Sets: 0,
-          team2Sets: 0,
-          winnerTeam: 0,
-          userWon: null,
-          canCancel: false,
-          hoursFromCompletion: 0,
-          isCreator: false,
-          canEnterScores: false,
-          canViewScores: true,
-          matchPhase: 'upcoming',
-          timeStatus: 'early',
-        };
-      }
-  
-      console.log('🔍 Enhanced Match Details: Calculating comprehensive match state for:', match.id);
-  
-      // ENHANCED: Advanced time-based analysis
-      const now = new Date();
-      const startTime = new Date(match.start_time);
-      const endTime = match.end_time ? new Date(match.end_time) : null;
-      const completedTime = match.completed_at ? new Date(match.completed_at) : null;
-      
-      const isFuture = startTime > now;
-      const isPast = endTime ? endTime < now : startTime < now;
-      const hasScores = match.team1_score_set1 !== null && match.team2_score_set1 !== null;
-      
-      // FIXED: Use proper integer comparison for status
-      const statusInt = ensureInteger(match.status);
-      const needsScores = isPast && !hasScores && statusInt !== MatchStatus.CANCELLED;
-  
-      // ENHANCED: Time categorization for better UX
-      const minutesToStart = (startTime.getTime() - now.getTime()) / (1000 * 60);
-      const hoursFromCompletion = completedTime 
-        ? (now.getTime() - completedTime.getTime()) / (1000 * 60 * 60)
-        : endTime && !isFuture 
-          ? (now.getTime() - endTime.getTime()) / (1000 * 60 * 60)
-          : 0;
-  
-      const timeStatus: MatchState['timeStatus'] = 
-        minutesToStart > 1440 ? 'early' :    // More than 24 hours
-        minutesToStart > 60 ? 'soon' :        // 1-24 hours
-        minutesToStart > -60 ? 'now' :        // Within 1 hour
-        hoursFromCompletion < 24 ? 'recent' : // Last 24 hours
-        'old';                                // More than 24 hours ago
-  
-      const matchPhase: MatchState['matchPhase'] = 
-        statusInt === MatchStatus.CANCELLED ? 'cancelled' :
-        hasScores ? 'completed' :
-        isPast ? 'active' :
-        'upcoming';
-  
-      // ENHANCED: Advanced permission system
-      const userId = session.user.id;
-      const isCreator = userId === match.player1_id;
-      
-      const canCancel = isCreator && 
-                       statusInt !== MatchStatus.CANCELLED &&
-                       (isFuture || hoursFromCompletion < 24);
-  
-      const canEnterScores = isCreator && needsScores;
-      const canViewScores = hasScores || matchState?.userParticipating || isCreator;
-  
-      // ENHANCED: User participation analysis
-      const isPlayer1 = match.player1_id === userId;
-      const isPlayer2 = match.player2_id === userId;
-      const isPlayer3 = match.player3_id === userId;
-      const isPlayer4 = match.player4_id === userId;
-      
-      const userParticipating = isPlayer1 || isPlayer2 || isPlayer3 || isPlayer4;
-      const userTeam: 1 | 2 | null = 
-        (isPlayer1 || isPlayer2) ? 1 : 
-        (isPlayer3 || isPlayer4) ? 2 : null;
-  
-      const hasOpenSlots = !match.player2_id || !match.player3_id || !match.player4_id;
-      const canJoin = isFuture && !userParticipating && hasOpenSlots;
-  
-      // ENHANCED: Advanced score analysis with better winner determination
-      let team1Sets = 0, team2Sets = 0, winnerTeam = 0;
-      
-      if (hasScores) {
-        // Set 1 analysis
-        const t1s1 = ensureIntegerOrNull(match.team1_score_set1) || 0;
-        const t2s1 = ensureIntegerOrNull(match.team2_score_set1) || 0;
-        if (t1s1 > t2s1) team1Sets++;
-        else if (t2s1 > t1s1) team2Sets++;
-        
-        // Set 2 analysis
-        const t1s2 = ensureIntegerOrNull(match.team1_score_set2);
-        const t2s2 = ensureIntegerOrNull(match.team2_score_set2);
-        if (t1s2 !== null && t2s2 !== null) {
-          if (t1s2 > t2s2) team1Sets++;
-          else if (t2s2 > t1s2) team2Sets++;
-        }
-        
-        // Set 3 analysis
-        const t1s3 = ensureIntegerOrNull(match.team1_score_set3);
-        const t2s3 = ensureIntegerOrNull(match.team2_score_set3);
-        if (t1s3 !== null && t2s3 !== null) {
-          if (t1s3 > t2s3) team1Sets++;
-          else if (t2s3 > t1s3) team2Sets++;
-        }
-        
-        // Winner determination with database fallback
-        winnerTeam = ensureIntegerOrNull(match.winner_team) || 
-                    (team1Sets > team2Sets ? 1 : team2Sets > team1Sets ? 2 : 0);
-      }
-  
-      const userWon: boolean | null = userParticipating && winnerTeam > 0 
-        ? userTeam === winnerTeam 
-        : null;
-  
-      const finalState: MatchState = {
-        isFuture,
-        isPast,
-        needsScores,
-        hasScores,
-        canJoin,
-        userParticipating,
-        userTeam,
-        team1Sets,
-        team2Sets,
-        winnerTeam,
-        userWon,
-        canCancel,
-        hoursFromCompletion,
-        isCreator,
-        canEnterScores,
-        canViewScores,
-        matchPhase,
-        timeStatus,
+  // REQUIREMENT 1: Enhanced match state calculation with comprehensive analysis
+  const matchState = useMemo((): MatchState => {
+    if (!match || !session?.user?.id) {
+      return {
+        isFuture: false,
+        isPast: false,
+        needsScores: false,
+        hasScores: false,
+        canJoin: false,
+        userParticipating: false,
+        userTeam: null,
+        team1Sets: 0,
+        team2Sets: 0,
+        winnerTeam: 0,
+        userWon: null,
+        canCancel: false,
+        hoursFromCompletion: 0,
+        isCreator: false,
+        canEnterScores: false,
+        canViewScores: true,
+        matchPhase: 'upcoming',
+        timeStatus: 'early',
       };
-  
-      console.log('✅ Enhanced Match Details: Comprehensive final state:', finalState);
-      return finalState;
-    }, [match, session?.user?.id]);;
-  
+    }
+
+    console.log('🔍 Enhanced Match Details: Calculating comprehensive match state for:', match.id);
+
+    // ENHANCED: Advanced time-based analysis
+    const now = new Date();
+    const startTime = new Date(match.start_time);
+    const endTime = match.end_time ? new Date(match.end_time) : null;
+    const completedTime = match.completed_at ? new Date(match.completed_at) : null;
+    
+    const isFuture = startTime > now;
+    const isPast = endTime ? endTime < now : startTime < now;
+    const hasScores = match.team1_score_set1 !== null && match.team2_score_set1 !== null;
+    
+    // FIXED: Use proper integer comparison for status
+    const statusInt = ensureInteger(match.status);
+    const needsScores = isPast && !hasScores && statusInt !== MatchStatus.CANCELLED;
+
+    // ENHANCED: Time categorization for better UX
+    const minutesToStart = (startTime.getTime() - now.getTime()) / (1000 * 60);
+    const hoursFromCompletion = completedTime 
+      ? (now.getTime() - completedTime.getTime()) / (1000 * 60 * 60)
+      : endTime && !isFuture 
+        ? (now.getTime() - endTime.getTime()) / (1000 * 60 * 60)
+        : 0;
+
+    const timeStatus: MatchState['timeStatus'] = 
+      minutesToStart > 1440 ? 'early' :    // More than 24 hours
+      minutesToStart > 60 ? 'soon' :        // 1-24 hours
+      minutesToStart > -60 ? 'now' :        // Within 1 hour
+      hoursFromCompletion < 24 ? 'recent' : // Last 24 hours
+      'old';                                // More than 24 hours ago
+
+    const matchPhase: MatchState['matchPhase'] = 
+      statusInt === MatchStatus.CANCELLED ? 'cancelled' :
+      hasScores ? 'completed' :
+      isPast ? 'active' :
+      'upcoming';
+
+    // ENHANCED: Advanced permission system
+    const userId = session.user.id;
+    const isCreator = userId === match.player1_id;
+    
+    const canCancel = isCreator && 
+                     statusInt !== MatchStatus.CANCELLED &&
+                     (isFuture || hoursFromCompletion < 24);
+
+    const canEnterScores = isCreator && needsScores;
+    const canViewScores = hasScores || matchState?.userParticipating || isCreator;
+
+    // ENHANCED: User participation analysis
+    const isPlayer1 = match.player1_id === userId;
+    const isPlayer2 = match.player2_id === userId;
+    const isPlayer3 = match.player3_id === userId;
+    const isPlayer4 = match.player4_id === userId;
+    
+    const userParticipating = isPlayer1 || isPlayer2 || isPlayer3 || isPlayer4;
+    const userTeam: 1 | 2 | null = 
+      (isPlayer1 || isPlayer2) ? 1 : 
+      (isPlayer3 || isPlayer4) ? 2 : null;
+
+    const hasOpenSlots = !match.player2_id || !match.player3_id || !match.player4_id;
+    const canJoin = isFuture && !userParticipating && hasOpenSlots;
+
+    // ENHANCED: Advanced score analysis with better winner determination
+    let team1Sets = 0, team2Sets = 0, winnerTeam = 0;
+    
+    if (hasScores) {
+      // Set 1 analysis
+      const t1s1 = ensureIntegerOrNull(match.team1_score_set1) || 0;
+      const t2s1 = ensureIntegerOrNull(match.team2_score_set1) || 0;
+      if (t1s1 > t2s1) team1Sets++;
+      else if (t2s1 > t1s1) team2Sets++;
+      
+      // Set 2 analysis
+      const t1s2 = ensureIntegerOrNull(match.team1_score_set2);
+      const t2s2 = ensureIntegerOrNull(match.team2_score_set2);
+      if (t1s2 !== null && t2s2 !== null) {
+        if (t1s2 > t2s2) team1Sets++;
+        else if (t2s2 > t1s2) team2Sets++;
+      }
+      
+      // Set 3 analysis
+      const t1s3 = ensureIntegerOrNull(match.team1_score_set3);
+      const t2s3 = ensureIntegerOrNull(match.team2_score_set3);
+      if (t1s3 !== null && t2s3 !== null) {
+        if (t1s3 > t2s3) team1Sets++;
+        else if (t2s3 > t1s3) team2Sets++;
+      }
+      
+      // Winner determination with database fallback
+      winnerTeam = ensureIntegerOrNull(match.winner_team) || 
+                  (team1Sets > team2Sets ? 1 : team2Sets > team1Sets ? 2 : 0);
+    }
+
+    const userWon: boolean | null = userParticipating && winnerTeam > 0 
+      ? userTeam === winnerTeam 
+      : null;
+
+    const finalState: MatchState = {
+      isFuture,
+      isPast,
+      needsScores,
+      hasScores,
+      canJoin,
+      userParticipating,
+      userTeam,
+      team1Sets,
+      team2Sets,
+      winnerTeam,
+      userWon,
+      canCancel,
+      hoursFromCompletion,
+      isCreator,
+      canEnterScores,
+      canViewScores,
+      matchPhase,
+      timeStatus,
+    };
+
+    console.log('✅ Enhanced Match Details: Comprehensive final state:', finalState);
+    return finalState;
+  }, [match, session?.user?.id]);
+
   const {
     reports = [],
     canReport = { can_report: false, reason: 'Loading...' },
@@ -527,12 +535,12 @@ export default function EnhancedMatchDetailsWithVisibility() {
     isSubmitting = false,
     refresh: refreshReports
   } = useMatchReporting(matchId as string) || {};
-  
+
   const shouldShowReportButton = useMemo(() => {
     console.log('🔍 [REPORT BUTTON] Evaluation starting...', {
       timestamp: new Date().toISOString()
     });
-  
+
     // VALIDATION GATE 1: Essential data presence
     if (!match || !session?.user?.id) {
       console.log('❌ [REPORT BUTTON] Missing essential data', {
@@ -541,7 +549,7 @@ export default function EnhancedMatchDetailsWithVisibility() {
       });
       return false;
     }
-  
+
     // VALIDATION GATE 2: Match must have recorded scores
     if (!matchState.hasScores) {
       console.log('❌ [REPORT BUTTON] No scores recorded', {
@@ -551,7 +559,7 @@ export default function EnhancedMatchDetailsWithVisibility() {
       });
       return false;
     }
-  
+
     // VALIDATION GATE 3: User must be match participant
     if (!matchState.userParticipating) {
       console.log('❌ [REPORT BUTTON] User not participating', {
@@ -564,7 +572,7 @@ export default function EnhancedMatchDetailsWithVisibility() {
       });
       return false;
     }
-  
+
     // VALIDATION GATE 4: Match must be completed (have completion timestamp)
     if (!match.completed_at) {
       console.log('❌ [REPORT BUTTON] Match not completed', {
@@ -573,7 +581,7 @@ export default function EnhancedMatchDetailsWithVisibility() {
       });
       return false;
     }
-  
+
     // VALIDATION GATE 5: Must be within 24-hour reporting window
     const completedTime = new Date(match.completed_at);
     const currentTime = new Date();
@@ -581,7 +589,7 @@ export default function EnhancedMatchDetailsWithVisibility() {
     const reportingDeadline = new Date(completedTime.getTime() + (reportingWindowHours * 60 * 60 * 1000));
     const isWithinReportingWindow = currentTime < reportingDeadline;
     const hoursRemaining = Math.max(0, (reportingDeadline.getTime() - currentTime.getTime()) / (1000 * 60 * 60));
-  
+
     if (!isWithinReportingWindow) {
       console.log('❌ [REPORT BUTTON] Outside reporting window', {
         completedAt: completedTime.toISOString(),
@@ -592,7 +600,7 @@ export default function EnhancedMatchDetailsWithVisibility() {
       });
       return false;
     }
-  
+
     // VALIDATION GATE 6: User must not have already reported
     const userAlreadyReported = reports.some(report => report.reporter_id === session.user.id);
     
@@ -604,7 +612,7 @@ export default function EnhancedMatchDetailsWithVisibility() {
       });
       return false;
     }
-  
+
     // VALIDATION GATE 7: Match must not be in disputed status
     if (reportingInfo.isDisputed) {
       console.log('❌ [REPORT BUTTON] Match already disputed', {
@@ -613,14 +621,14 @@ export default function EnhancedMatchDetailsWithVisibility() {
       });
       return false;
     }
-  
+
     // ALL VALIDATIONS PASSED
     console.log('✅ [REPORT BUTTON] All validations passed', {
       hoursRemaining: Math.round(hoursRemaining * 100) / 100,
       reportingDeadline: reportingDeadline.toISOString(),
       userCanReport: true
     });
-  
+
     return true;
   }, [
     match,
@@ -630,6 +638,1696 @@ export default function EnhancedMatchDetailsWithVisibility() {
     reports,
     reportingInfo.isDisputed
   ]);
+
+  // NEW: FAB Animation Control
+  const toggleFAB = () => {
+    const toValue = fabExpanded ? 0 : 1;
+    setFabExpanded(!fabExpanded);
+    
+    Animated.spring(fabAnimValue, {
+      toValue,
+      useNativeDriver: true,
+      tension: 100,
+      friction: 8
+    }).start();
+    
+    // Light haptic feedback
+    Vibration.vibrate(50);
+  };
+
+  // ENHANCED: Real-time score validation
+  const validateCurrentScores = useCallback((): ScoreEntryState => {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    
+    if (!isSet1Valid) {
+      errors.push("Set 1 scores are invalid");
+    }
+    
+    if (!isSet2Valid) {
+      errors.push("Set 2 scores are invalid");
+    }
+    
+    if (showSet3 && !isSet3Valid) {
+      errors.push("Set 3 scores are invalid");
+    }
+    
+    // Advanced validation logic
+    if (isSet1Valid && isSet2Valid) {
+      const team1WonSet1 = set1Score.team1 > set1Score.team2;
+      const team1WonSet2 = set2Score.team1 > set2Score.team2;
+      
+      if ((team1WonSet1 && team1WonSet2) || (!team1WonSet1 && !team1WonSet2)) {
+        if (showSet3) {
+          warnings.push("Match appears to be decided in 2 sets, but Set 3 is being entered");
+        } else {
+          warnings.push("Match was decided in 2 sets");
+        }
+      }
+    }
+    
+    // Determine suggested winner
+    let suggestedWinner: number | null = null;
+    if (isSet1Valid && isSet2Valid) {
+      let team1Sets = 0, team2Sets = 0;
+      
+      if (set1Score.team1 > set1Score.team2) team1Sets++;
+      else team2Sets++;
+      
+      if (set2Score.team1 > set2Score.team2) team1Sets++;
+      else team2Sets++;
+      
+      if (showSet3 && isSet3Valid) {
+        if (set3Score.team1 > set3Score.team2) team1Sets++;
+        else team2Sets++;
+      }
+      
+      suggestedWinner = team1Sets > team2Sets ? 1 : team2Sets > team1Sets ? 2 : null;
+    }
+    
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings,
+      suggestedWinner
+    };
+  }, [set1Score, set2Score, set3Score, isSet1Valid, isSet2Valid, isSet3Valid, showSet3]);
+
+  // ENHANCED: Component lifecycle with better error handling
+  useEffect(() => {
+    if (matchId) {
+      fetchMatchDetails(matchId as string);
+    }
+  }, [matchId]);
+
+  // ENHANCED: Real-time score validation
+  useEffect(() => {
+    if (editingScores) {
+      setScoreValidation(validateCurrentScores());
+    }
+  }, [editingScores, validateCurrentScores]);
+
+  // ENHANCED: Score state initialization with validation
+  useEffect(() => {
+    if (match && matchState.hasScores) {
+      console.log('🔄 Enhanced Match Details: Initializing score state from match data');
+      
+      setSet1Score({
+        team1: ensureInteger(match.team1_score_set1),
+        team2: ensureInteger(match.team2_score_set1),
+      });
+      setSet2Score({
+        team1: ensureInteger(match.team1_score_set2),
+        team2: ensureInteger(match.team2_score_set2),
+      });
+
+      if (match.team1_score_set3 !== null && match.team2_score_set3 !== null) {
+        setSet3Score({
+          team1: ensureInteger(match.team1_score_set3),
+          team2: ensureInteger(match.team2_score_set3),
+        });
+        setShowSet3(true);
+      }
+
+      setIsSet1Valid(true);
+      setIsSet2Valid(true);
+      if (match.team1_score_set3 !== null && match.team2_score_set3 !== null) {
+        setIsSet3Valid(true);
+      }
+    }
+  }, [match, matchState.hasScores]);
+
+  // ENHANCED: Set 3 visibility with smart logic
+  useEffect(() => {
+    if (!editingScores) return;
+
+    const team1WonSet1 = set1Score.team1 > set1Score.team2;
+    const team1WonSet2 = set2Score.team1 > set2Score.team2;
+    const isTied = (team1WonSet1 && !team1WonSet2) || (!team1WonSet1 && team1WonSet2);
+
+    setShowSet3(isTied && isSet1Valid && isSet2Valid);
+
+    if (!isTied) {
+      setSet3Score({ team1: 0, team2: 0 });
+      setIsSet3Valid(false);
+    }
+  }, [set1Score, set2Score, isSet1Valid, isSet2Valid, editingScores]);
+
+  // ENHANCED: Advanced data fetching with retry mechanism AND AVATAR SUPPORT
+  const fetchMatchDetails = async (id: string, retryCount = 0) => {
+    try {
+      if (!refreshing) {
+        setLoading(true);
+      }
+
+      console.log('📡 Enhanced Match Details: Fetching match data for ID:', id);
+
+      const { data, error } = await supabase
+        .from("matches")
+        .select(
+          `
+          *,
+          player1:profiles!player1_id(id, full_name, email, glicko_rating, glicko_rd, glicko_vol, avatar_url),
+          player2:profiles!player2_id(id, full_name, email, glicko_rating, glicko_rd, glicko_vol, avatar_url),
+          player3:profiles!player3_id(id, full_name, email, glicko_rating, glicko_rd, glicko_vol, avatar_url),
+          player4:profiles!player4_id(id, full_name, email, glicko_rating, glicko_rd, glicko_vol, avatar_url)
+        `
+        )
+        .eq("id", id)
+        .single();
+
+      if (error) {
+        console.error('❌ Enhanced Match Details: Fetch error:', error);
+        
+        // Retry mechanism for network issues
+        if (retryCount < 2 && (error.code === 'PGRST301' || error.message.includes('network'))) {
+          console.log('🔄 Retrying fetch...', retryCount + 1);
+          setTimeout(() => fetchMatchDetails(id, retryCount + 1), 1000 * (retryCount + 1));
+          return;
+        }
+        
+        throw error;
+      }
+
+      console.log('📊 Enhanced Match Details: Match data received:', {
+        id: data.id,
+        status: data.status,
+        statusType: typeof data.status,
+        hasScores: data.team1_score_set1 !== null,
+        startTime: data.start_time,
+        isPublic: data.is_public
+      });
+
+      setMatch(data);
+    } catch (error) {
+      console.error("💥 Enhanced Match Details: Error fetching match details:", error);
+      
+      if (retryCount === 0) {
+        Alert.alert(
+          "Error Loading Match",
+          "Failed to load match details. Would you like to retry?",
+          [
+            { text: "Cancel", onPress: () => router.back() },
+            { text: "Retry", onPress: () => fetchMatchDetails(id, 0) }
+          ]
+        );
+      }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  // ENHANCED: Optimized refresh with visual feedback
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    Vibration.vibrate(50); // Haptic feedback
+    if (matchId) {
+      fetchMatchDetails(matchId as string);
+    }
+  }, [matchId]);
+
+  // NEW: EXPANDABLE FAB MENU WITH ANIMATION
+  const renderExpandableFAB = () => {
+    if (editingScores) return null;
+
+    // Collect available action buttons
+    const actionButtons = [];
+
+    // Report button
+    if (shouldShowReportButton) {
+      actionButtons.push({
+        key: 'report',
+        icon: 'flag',
+        color: '#dc2626',
+        action: () => {
+          setFabExpanded(false);
+          fabAnimValue.setValue(0);
+          setShowReportModal(true);
+        },
+        label: 'Report'
+      });
+    }
+
+    // Edit button 
+    if (matchState.isCreator && !isStatusEqual(match?.status, MatchStatus.CANCELLED)) {
+      actionButtons.push({
+        key: 'edit',
+        icon: 'pencil',
+        color: '#7c3aed',
+        action: () => {
+          setFabExpanded(false);
+          fabAnimValue.setValue(0);
+          
+          const now = new Date();
+          const startTime = new Date(match!.start_time);
+          const minutesUntilStart = (startTime.getTime() - now.getTime()) / (1000 * 60);
+          
+          if (matchState.hoursFromCompletion > 24) {
+            Alert.alert(
+              "Cannot Edit",
+              "This match is locked and cannot be edited after 24 hours.",
+              [{ text: "OK" }]
+            );
+            return;
+          }
+          
+          router.push({
+            pathname: '/(protected)/(screens)/edit-match',
+            params: { matchId: match!.id }
+          });
+        },
+        label: 'Edit'
+      });
+    }
+
+    // Score Entry button
+    if (matchState.canEnterScores) {
+      actionButtons.push({
+        key: 'score',
+        icon: 'create',
+        color: '#059669',
+        action: () => {
+          setFabExpanded(false);
+          fabAnimValue.setValue(0);
+          setEditingScores(true);
+        },
+        label: 'Score'
+      });
+    }
+
+    // Delete button
+    if (matchState.canCancel) {
+      actionButtons.push({
+        key: 'delete',
+        icon: 'trash',
+        color: '#b91c1c',
+        action: () => {
+          setFabExpanded(false);
+          fabAnimValue.setValue(0);
+          cancelMatch();
+        },
+        label: 'Delete'
+      });
+    }
+
+    return (
+      <View className="absolute bottom-6 right-6">
+        {/* Secondary Action Buttons */}
+        {actionButtons.map((button, index) => {
+          const translateY = fabAnimValue.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, -(60 * (index + 1))]
+          });
+
+          const scale = fabAnimValue.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, 1]
+          });
+
+          const opacity = fabAnimValue.interpolate({
+            inputRange: [0, 0.5, 1],
+            outputRange: [0, 0.5, 1]
+          });
+
+          return (
+            <Animated.View
+              key={button.key}
+              style={{
+                position: 'absolute',
+                bottom: 0,
+                right: 0,
+                transform: [{ translateY }, { scale }],
+                opacity,
+              }}
+            >
+              <TouchableOpacity
+                onPress={button.action}
+                className="w-12 h-12 rounded-full items-center justify-center shadow-lg"
+                style={{
+                  backgroundColor: button.color,
+                  shadowColor: button.color,
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 8,
+                  elevation: 8,
+                }}
+              >
+                <Ionicons name={button.icon as any} size={20} color="white" />
+              </TouchableOpacity>
+            </Animated.View>
+          );
+        })}
+
+        {/* Main FAB Button */}
+        <Animated.View
+          style={{
+            transform: [{
+              rotate: fabAnimValue.interpolate({
+                inputRange: [0, 1],
+                outputRange: ['0deg', '45deg']
+              })
+            }]
+          }}
+        >
+          <TouchableOpacity
+            onPress={toggleFAB}
+            className="w-14 h-14 rounded-full bg-primary items-center justify-center shadow-lg"
+            style={{
+              shadowColor: "#1a7ebd",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 8,
+              elevation: 8,
+            }}
+          >
+            <Ionicons 
+              name={fabExpanded ? "close" : "ellipsis-horizontal"} 
+              size={24} 
+              color="white" 
+            />
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* Share Button (Always Present) */}
+        <Animated.View
+          style={{
+            position: 'absolute',
+            bottom: -60,
+            right: 14,
+            transform: [{
+              scale: fabAnimValue.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1, 0.9]
+              })
+            }],
+            opacity: fabAnimValue.interpolate({
+              inputRange: [0, 1],
+              outputRange: [1, 0.7]
+            })
+          }}
+        >
+          <TouchableOpacity
+            onPress={() => {
+              setFabExpanded(false);
+              fabAnimValue.setValue(0);
+              shareMatch();
+            }}
+            className="w-12 h-12 rounded-full bg-blue-600 items-center justify-center shadow-lg"
+            style={{
+              shadowColor: "#2563eb",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 8,
+              elevation: 8,
+            }}
+          >
+            <Ionicons name="share-social" size={20} color="white" />
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    );
+  };
+
+  // ENHANCED: Smart join functionality with team balancing
+  const joinMatch = async () => {
+    if (!match || !session?.user?.id) return;
+
+    const availablePositions = [];
+    if (!match.player2_id) availablePositions.push("player2_id");
+    if (!match.player3_id) availablePositions.push("player3_id");
+    if (!match.player4_id) availablePositions.push("player4_id");
+
+    if (availablePositions.length === 0) {
+      Alert.alert("Match Full", "This match is already full");
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      // Smart team assignment based on skill levels
+      let targetPosition = availablePositions[0];
+      
+      if (availablePositions.length > 1) {
+        const userRating = profile?.glicko_rating ? parseFloat(profile.glicko_rating) : 1500;
+        
+        // Calculate team averages for better balance
+        const team1Players = [match.player1, match.player2].filter(Boolean);
+        const team2Players = [match.player3, match.player4].filter(Boolean);
+        
+        const team1Avg = team1Players.length > 0 
+          ? team1Players.reduce((sum, p) => sum + parseFloat(p.glicko_rating || '1500'), 0) / team1Players.length
+          : 1500;
+        
+        const team2Avg = team2Players.length > 0 
+          ? team2Players.reduce((sum, p) => sum + parseFloat(p.glicko_rating || '1500'), 0) / team2Players.length
+          : 1500;
+
+        // Join the team that would result in better balance
+        const team1Balance = Math.abs((team1Avg + userRating) / (team1Players.length + 1) - team2Avg);
+        const team2Balance = Math.abs((team2Avg + userRating) / (team2Players.length + 1) - team1Avg);
+        
+        if (team1Balance < team2Balance && availablePositions.includes("player2_id")) {
+          targetPosition = "player2_id";
+        } else if (availablePositions.includes("player3_id")) {
+          targetPosition = "player3_id";
+        }
+      }
+
+      console.log('🎯 Enhanced Match Details: Joining match at position:', targetPosition);
+
+      const { data, error } = await supabase
+        .from("matches")
+        .update({ [targetPosition]: session.user.id })
+        .eq("id", match.id)
+        .select();
+
+      if (error) throw error;
+
+      fetchMatchDetails(match.id);
+      Vibration.vibrate([100, 50, 100]); // Success haptic pattern
+
+      Alert.alert(
+        "Successfully Joined!",
+        "You have joined the match. Good luck!",
+        [
+          {
+            text: "View Details",
+            onPress: () => {
+              // Auto-scroll to teams section
+              Animated.timing(animatedValue, {
+                toValue: 1,
+                duration: 500,
+                useNativeDriver: false,
+              }).start();
+            }
+          },
+          { text: "OK" }
+        ]
+      );
+    } catch (error) {
+      console.error("❌ Enhanced Match Details: Error joining match:", error);
+      Vibration.vibrate(200); // Error haptic
+      Alert.alert("Error", "Failed to join the match. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // FIXED: Enhanced score saving with proper integer handling
+  const saveMatchScores = async () => {
+    if (!match || !session?.user?.id) return;
+
+    if (!matchState.isCreator) {
+      Alert.alert("Permission Denied", "Only the match creator can enter scores.");
+      return;
+    }
+
+    const validation = validateCurrentScores();
+    if (!validation.isValid) {
+      Alert.alert(
+        "Invalid Scores", 
+        `Please fix the following issues:\n${validation.errors.join('\n')}`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    // Show warnings if any
+    if (validation.warnings.length > 0) {
+      Alert.alert(
+        "Score Validation Warning",
+        `${validation.warnings.join('\n')}\n\nDo you want to continue?`,
+        [
+          { text: "Review", style: "cancel" },
+          { text: "Continue", onPress: () => performScoreSave() }
+        ]
+      );
+      return;
+    }
+
+    await performScoreSave();
+  };
+
+  // CRITICAL FIX: Score saving with explicit INTEGER type enforcement for PostgreSQL constraints
+  const performScoreSave = async () => {
+    if (!match) return;
+
+    try {
+      setSaving(true);
+
+      const winnerTeam = scoreValidation.suggestedWinner || 0;
+      
+      console.log('💾 Enhanced Match Details: Saving scores with winner:', winnerTeam);
+
+      // STEP 1: Calculate validation deadline with timezone awareness
+      const now = new Date();
+      const validationDeadline = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      
+      // STEP 2: Construct update payload with comprehensive validation data
+      const updateData = {
+        // SCORE DATA: Explicit INTEGER casting for PostgreSQL constraints
+        team1_score_set1: Number(ensureInteger(set1Score.team1)),
+        team2_score_set1: Number(ensureInteger(set1Score.team2)),
+        team1_score_set2: Number(ensureInteger(set2Score.team1)),
+        team2_score_set2: Number(ensureInteger(set2Score.team2)),
+        team1_score_set3: showSet3 ? Number(ensureInteger(set3Score.team1)) : null,
+        team2_score_set3: showSet3 ? Number(ensureInteger(set3Score.team2)) : null,
+        winner_team: Number(ensureInteger(winnerTeam)),
+        
+        // STATUS DATA: String format for TEXT database field
+        status: "4", // COMPLETED status as string
+        completed_at: new Date().toISOString(),
+        
+        // VALIDATION DATA: Critical for reporting system
+        validation_deadline: validationDeadline.toISOString(),
+        validation_status: 'pending',
+        rating_applied: false, // CRITICAL: Defer rating application
+        report_count: 0 // Reset report count for fresh validation
+      };
+
+      console.log('🔧 Enhanced Match Details: Update payload with validation:', {
+        ...updateData,
+        validation_deadline_formatted: validationDeadline.toLocaleString(),
+        hours_until_deadline: 24
+      });
+
+      // STEP 3: Execute database update with error handling
+      const { data, error } = await supabase
+        .from("matches")
+        .update(updateData)
+        .eq("id", match.id)
+        .select();
+
+      if (error) {
+        console.error('❌ Enhanced Match Details: Database update error:', error);
+        throw error;
+      }
+
+      // STEP 4: Deferred rating application notice
+      console.log('📊 Rating application deferred until validation period expires');
+
+      // STEP 5: Refresh match data including validation status
+      fetchMatchDetails(match.id);
+      setEditingScores(false);
+      
+      // STEP 6: Success feedback with validation information
+      Vibration.vibrate([100, 50, 100, 50, 100]); // Enhanced success pattern
+
+      Alert.alert(
+        "Match Completed!",
+        `Scores saved successfully.\n\n` +
+        `⏱️ 24-hour validation period has started.\n` +
+        `📊 Ratings will be applied after validation.\n` +
+        `⚠️ Players can report issues during this period.\n\n` +
+        `${winnerTeam === matchState.userTeam ? 'Congratulations on your victory!' : 'Better luck next time!'}`,
+        [
+          {
+            text: 'View Details',
+            onPress: () => {
+              // Trigger animation to highlight validation banner
+              Animated.sequence([
+                Animated.timing(animatedValue, {
+                  toValue: 0,
+                  duration: 0,
+                  useNativeDriver: false,
+                }),
+                Animated.timing(animatedValue, {
+                  toValue: 1,
+                  duration: 500,
+                  useNativeDriver: false,
+                })
+              ]).start();
+            }
+          },
+          { text: 'OK' }
+        ]
+      );
+    } catch (error) {
+      console.error("❌ Enhanced Match Details: Error saving match scores:", error);
+      Vibration.vibrate(300); // Error haptic
+      Alert.alert(
+        "Error Saving Scores",
+        `Failed to save match scores: ${error.message || 'Unknown error'}`,
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ENHANCED: Advanced match cancellation with confirmation
+  const cancelMatch = async () => {
+    if (!match || !session?.user?.id || !matchState.canCancel) return;
+
+    if (!matchState.isCreator) {
+      Alert.alert("Permission Denied", "Only the match creator can delete matches.");
+      return;
+    }
+
+    const timeInfo = getCancellationTimeInfo();
+    
+    Alert.alert(
+      "Delete Match",
+      `Are you sure you want to permanently delete this match?\n\n${timeInfo}\n\nThis action cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setSaving(true);
+              Vibration.vibrate(100);
+
+              const { error } = await supabase
+                .from("matches")
+                .delete()
+                .eq("id", match.id);
+                
+              if (error) throw error;
+              
+              Vibration.vibrate([100, 50, 100]);
+              
+              Alert.alert(
+                "Match Deleted", 
+                "The match has been permanently removed.",
+                [
+                  { 
+                    text: "OK", 
+                    onPress: () => router.replace("/(protected)/(tabs)")
+                  }
+                ]
+              );
+            } catch (error) {
+              console.error("❌ Enhanced Match Details: Error deleting match:", error);
+              Vibration.vibrate(300);
+              Alert.alert("Error", "Failed to delete match");
+            } finally {
+              setSaving(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // ENHANCED: Advanced sharing with multiple formats AND VISIBILITY CONTEXT
+  const shareMatch = async () => {
+    if (!match) return;
+
+    try {
+      const playerNames = [
+        match.player1?.full_name || "Player 1",
+        match.player2?.full_name || "Player 2", 
+        match.player3?.full_name || "Player 3",
+        match.player4?.full_name || "Player 4"
+      ];
+
+      // ENHANCEMENT: Include visibility context in shared message
+      const visibilityText = match.is_public ? '🌍 Public Match' : '🔒 Private Match';
+      
+      let message = '';
+      
+      if (matchState.isFuture) {
+        message = `🎾 Padel Match Invitation\n${visibilityText}\n\n` +
+                 `📅 ${formatDate(match.start_time)} at ${formatTime(match.start_time)}\n` +
+                 `📍 ${match.region || 'TBD'}${match.court ? `, Court ${match.court}` : ''}\n\n` +
+                 `Team 1: ${playerNames[0]} & ${playerNames[1]}\n` +
+                 `Team 2: ${playerNames[2]} & ${playerNames[3]}\n\n`;
+        
+        // ENHANCEMENT: Add visibility-specific context
+        if (match.is_public) {
+          message += `This is a public match - anyone can discover and join! 🌟\n\n`;
+        }
+        
+        message += `Join us for some padel! 🏆`;
+      } else {
+        message = `🏆 Padel Match Result\n${visibilityText}\n\n` +
+                 `📊 Final Score: ${matchState.team1Sets}-${matchState.team2Sets}\n` +
+                 `🏅 Winner: Team ${matchState.winnerTeam}\n\n` +
+                 `Team 1: ${playerNames[0]} & ${playerNames[1]}\n` +
+                 `Team 2: ${playerNames[2]} & ${playerNames[3]}\n\n`;
+        
+        if (match.team1_score_set1 !== null) {
+          message += `Set Details:\n`;
+          message += `Set 1: ${match.team1_score_set1}-${match.team2_score_set1}\n`;
+          if (match.team1_score_set2 !== null) {
+            message += `Set 2: ${match.team1_score_set2}-${match.team2_score_set2}\n`;
+          }
+          if (match.team1_score_set3 !== null) {
+            message += `Set 3: ${match.team1_score_set3}-${match.team2_score_set3}\n`;
+          }
+        }
+      }
+
+      await Share.share({
+        message,
+        title: matchState.isFuture ? "Padel Match Invitation" : "Padel Match Result",
+      });
+    } catch (error) {
+      console.error("❌ Enhanced Match Details: Error sharing match:", error);
+    }
+  };
+
+  // ENHANCED: Utility functions with better formatting
+  const formatDate = (dateString: string | null): string => {
+    if (!dateString) return "N/A";
+    return format(new Date(dateString), "MMMM d, yyyy");
+  };
+
+  const formatTime = (dateString: string | null): string => {
+    if (!dateString) return "N/A";
+    return format(new Date(dateString), "h:mm a");
+  };
+
+  const formatRelativeTime = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return "Today";
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays === -1) return "Tomorrow";
+    if (diffDays < 7 && diffDays > 0) return `${diffDays} days ago`;
+    if (diffDays > -7 && diffDays < 0) return `In ${Math.abs(diffDays)} days`;
+    
+    return formatDate(dateString);
+  };
+
+  // CRITICAL FIX: Enhanced status determination with proper TEXT field handling
+  const getStatusText = () => {
+    if (matchState.isFuture) {
+      return { text: "Upcoming", color: "text-blue-500" };
+    }
+
+    if (matchState.needsScores) {
+      return { text: "Needs Scores", color: "text-amber-500" };
+    }
+
+    // CRITICAL FIX: Use safe status comparison for TEXT database field
+    if (isStatusEqual(match?.status, MatchStatus.PENDING)) {
+      return { text: "Pending", color: "text-blue-500" };
+    }
+    if (isStatusEqual(match?.status, MatchStatus.NEEDS_CONFIRMATION)) {
+      return { text: "Needs Confirmation", color: "text-yellow-500" };
+    }
+    if (isStatusEqual(match?.status, MatchStatus.CANCELLED)) {
+      return { text: "Cancelled", color: "text-gray-500" };
+    }
+    if (isStatusEqual(match?.status, MatchStatus.COMPLETED)) {
+      return { text: "Completed", color: "text-green-500" };
+    }
+    
+    return { text: "Unknown", color: "text-muted-foreground" };
+  };
+
+  const getCancellationTimeInfo = (): string => {
+    if (!matchState.canCancel) return '';
+    
+    if (matchState.isFuture) {
+      return 'Can delete until match starts';
+    } else {
+      const hoursRemaining = 24 - matchState.hoursFromCompletion;
+      if (hoursRemaining > 1) {
+        return `Can delete for ${Math.floor(hoursRemaining)} more hours`;
+      } else {
+        const minutesRemaining = Math.floor(hoursRemaining * 60);
+        return `Can delete for ${minutesRemaining} more minutes`;
+      }
+    }
+  };
+
+  const getMatchDuration = (startTimeStr: string, endTimeStr: string): string => {
+    const startTime = new Date(startTimeStr);
+    const endTime = new Date(endTimeStr);
+    const durationMs = endTime.getTime() - startTime.getTime();
+    const minutes = Math.floor(durationMs / (1000 * 60));
+
+    if (minutes < 60) {
+      return `${minutes} min`;
+    } else {
+      const hours = Math.floor(minutes / 60);
+      const remainingMinutes = minutes % 60;
+      return `${hours}h ${remainingMinutes}m`;
+    }
+  };
+
+  const calculateSetsPlayed = () => {
+    if (!match) return 'N/A';
+    let setsPlayed = 0;
+    if (match.team1_score_set1 !== null && match.team2_score_set1 !== null) setsPlayed++;
+    if (match.team1_score_set2 !== null && match.team2_score_set2 !== null) setsPlayed++;
+    if (match.team1_score_set3 !== null && match.team2_score_set3 !== null) setsPlayed++;
+    return setsPlayed || 'N/A';
+  };
+
+  // CRITICAL FIX: Match status display with proper TEXT field handling
+  const getMatchStatus = (status: string | number) => {
+    const statusNum = statusFromString(status);
+    switch (statusNum) {
+      case MatchStatus.PENDING: return 'Pending';
+      case MatchStatus.NEEDS_CONFIRMATION: return 'Needs Confirmation';
+      case MatchStatus.CANCELLED: return 'Cancelled';
+      case MatchStatus.COMPLETED: return 'Completed';
+      case MatchStatus.NEEDS_SCORES: return 'Needs Scores';
+      case MatchStatus.RECRUITING: return 'Recruiting';
+      default: return 'Unknown';
+    }
+  };
+
+  // ENHANCEMENT: Visibility Badge Component for Match Visibility Indicator
+  const renderVisibilityBadge = (isPublic: boolean, size: 'small' | 'medium' = 'small') => {
+    const iconSize = size === 'medium' ? 16 : 12;
+    const textClass = size === 'medium' ? 'text-sm' : 'text-xs';
+    const paddingClass = size === 'medium' ? 'px-3 py-2' : 'px-2 py-1';
+    
+    return (
+      <View className={`flex-row items-center ${paddingClass} rounded-full ${
+        isPublic 
+          ? 'bg-blue-100 dark:bg-blue-900/30' 
+          : 'bg-gray-100 dark:bg-gray-800/50'
+      }`}>
+        <Ionicons 
+          name={isPublic ? 'globe-outline' : 'lock-closed-outline'} 
+          size={iconSize} 
+          color={isPublic ? '#2563eb' : '#6b7280'} 
+          style={{ marginRight: 4 }}
+        />
+        <Text className={`${textClass} font-medium ${
+          isPublic 
+            ? 'text-blue-700 dark:text-blue-300' 
+            : 'text-gray-600 dark:text-gray-400'
+        }`}>
+          {isPublic ? 'Public' : 'Private'}
+        </Text>
+      </View>
+    );
+  };
+
+  // ENHANCED: Set score rendering with better visual hierarchy
+  const renderSetScore = (setNumber: number, team1Score: number | null, team2Score: number | null) => {
+    if (team1Score === null || team2Score === null) return null;
+
+    const team1Won = team1Score > team2Score;
+    const team2Won = team2Score > team1Score;
+
+    return (
+      <View className="flex-row items-center justify-between mb-2 p-2 rounded-lg bg-muted/20">
+        <Text className="text-muted-foreground w-12 font-medium text-sm">Set {setNumber}</Text>
+        <View className="flex-row items-center flex-1 justify-center">
+          <Text
+            className={`text-lg font-bold ${
+              team1Won ? "text-primary" : "text-muted-foreground"
+            }`}
+          >
+            {team1Score}
+          </Text>
+          <Text className="text-lg mx-3 text-muted-foreground">-</Text>
+          <Text
+            className={`text-lg font-bold ${
+              team2Won ? "text-indigo-600" : "text-muted-foreground"
+            }`}
+          >
+            {team2Score}
+          </Text>
+        </View>
+        {(team1Won || team2Won) && (
+          <View className="w-12 items-end">
+            <View className={`px-1.5 py-0.5 rounded-full ${
+              team1Won ? 'bg-primary/20' : 'bg-indigo-100 dark:bg-indigo-900/30'
+            }`}>
+              <Text className={`text-xs font-bold ${
+                team1Won ? 'text-primary' : 'text-indigo-600'
+              }`}>
+                {team1Won ? "T1" : "T2"}
+              </Text>
+            </View>
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  // ENHANCED: Score editing section with real-time validation
+  const renderScoreEditSection = () => {
+    if (!matchState.isCreator) {
+      return (
+        <View className="bg-card rounded-xl p-6 mb-6 border border-amber-200 dark:border-amber-800">
+          <View className="flex-row items-center mb-4">
+            <Ionicons name="lock-closed-outline" size={24} color="#d97706" style={{ marginRight: 8 }} />
+            <H3>Score Entry Restricted</H3>
+          </View>
+          <Text className="text-muted-foreground mb-4">
+            Only the match creator ({match?.player1?.full_name || match?.player1?.email}) can enter scores for this match.
+          </Text>
+          <Button
+            variant="outline"
+            onPress={() => setEditingScores(false)}
+            className="w-full"
+          >
+            <Text>Close</Text>
+          </Button>
+        </View>
+      );
+    }
+
+    return (
+      <View className="bg-card rounded-xl p-6 mb-6 border border-border/30">
+        <View className="flex-row justify-between items-center mb-4">
+          <H3>Edit Match Score</H3>
+          <TouchableOpacity
+            onPress={() => setEditingScores(false)}
+            className="p-2"
+          >
+            <Ionicons name="close" size={20} color="#888" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Real-time validation display */}
+        {scoreValidation.errors.length > 0 && (
+          <View className="bg-red-50 dark:bg-red-900/30 p-3 rounded-lg mb-4">
+            <Text className="text-red-800 dark:text-red-300 font-medium mb-1">Validation Errors:</Text>
+            {scoreValidation.errors.map((error, index) => (
+              <Text key={index} className="text-red-700 dark:text-red-400 text-sm">• {error}</Text>
+            ))}
+          </View>
+        )}
+
+        {scoreValidation.warnings.length > 0 && (
+          <View className="bg-amber-50 dark:bg-amber-900/30 p-3 rounded-lg mb-4">
+            <Text className="text-amber-800 dark:text-amber-300 font-medium mb-1">Warnings:</Text>
+            {scoreValidation.warnings.map((warning, index) => (
+              <Text key={index} className="text-amber-700 dark:text-amber-400 text-sm">• {warning}</Text>
+            ))}
+          </View>
+        )}
+
+        <SetScoreInput
+          setNumber={1}
+          value={set1Score}
+          onChange={setSet1Score}
+          onValidate={setIsSet1Valid}
+        />
+
+        <SetScoreInput
+          setNumber={2}
+          value={set2Score}
+          onChange={setSet2Score}
+          onValidate={setIsSet2Valid}
+        />
+
+        {showSet3 && (
+          <SetScoreInput
+            setNumber={3}
+            value={set3Score}
+            onChange={setSet3Score}
+            onValidate={setIsSet3Valid}
+          />
+        )}
+
+        {scoreValidation.isValid && scoreValidation.suggestedWinner && (
+          <View className="mt-4 p-4 rounded-lg bg-primary/10 border border-primary/20">
+            <View className="flex-row items-center justify-center">
+              <Ionicons name="trophy-outline" size={20} color="#1a7ebd" style={{ marginRight: 8 }} />
+              <Text className="text-lg font-semibold text-primary">
+                Winner: Team {scoreValidation.suggestedWinner}
+              </Text>
+            </View>
+            {matchState.userTeam === scoreValidation.suggestedWinner && (
+              <Text className="text-center text-green-600 dark:text-green-400 mt-1 font-medium">
+                🎉 Congratulations! Your team won!
+              </Text>
+            )}
+          </View>
+        )}
+
+        <Button
+          className="w-full mt-6"
+          variant="default"
+          onPress={saveMatchScores}
+          disabled={saving || !scoreValidation.isValid}
+        >
+          {saving ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text className="text-primary-foreground font-medium">
+              Save Scores {scoreValidation.suggestedWinner && `(Team ${scoreValidation.suggestedWinner} Wins)`}
+            </Text>
+          )}
+        </Button>
+      </View>
+    );
+  };
+
+  // NEW: UNIFIED AND CONDENSED MATCH OVERVIEW COMPONENT
+  const renderCondensedMatchOverview = () => {
+    const userId = session?.user?.id;
+    const isUserPlayer = (playerId: string | undefined) => playerId === userId;
+
+    return (
+      <View className="bg-card rounded-xl p-4 mb-4 border border-border/30">
+        <View className="flex-row items-center justify-between mb-4">
+          <H3>Match Overview</H3>
+          <View className="flex-row gap-2">
+            {renderVisibilityBadge(match!.is_public)}
+            {matchState.isCreator && (
+              <View className="bg-primary/10 px-3 py-1 rounded-full">
+                <Text className="text-xs text-primary font-medium">Creator</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* CONDENSED Score Display */}
+        {matchState.hasScores && (
+          <View className="items-center mb-4">
+            <View className="flex-row items-center justify-center mb-2">
+              <Text className="text-3xl font-bold text-primary">
+                {matchState.team1Sets}
+              </Text>
+              <Text className="text-xl mx-3 text-muted-foreground">-</Text>
+              <Text className="text-3xl font-bold text-indigo-600">
+                {matchState.team2Sets}
+              </Text>
+            </View>
+            
+            {matchState.userParticipating && (
+              <View className={`px-3 py-1 rounded-full ${
+                matchState.userWon === true
+                  ? "bg-green-100 dark:bg-green-900/30"
+                  : matchState.userWon === false
+                    ? "bg-red-100 dark:bg-red-900/30"
+                    : "bg-yellow-100 dark:bg-yellow-900/30"
+              }`}>
+                <Text
+                  className={`font-bold text-sm ${
+                    matchState.userWon === true
+                      ? "text-green-800 dark:text-green-300"
+                      : matchState.userWon === false
+                        ? "text-red-800 dark:text-red-300"
+                        : "text-yellow-800 dark:text-yellow-300"
+                  }`}
+                >
+                  {matchState.userWon === true ? "🏆 Victory!" : 
+                   matchState.userWon === false ? "😔 Defeat" : "🤝 Draw"}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* CONDENSED Court Visualization WITH INLINE DETAILS */}
+        <View className="aspect-[4/3] w-full bg-gradient-to-b from-green-100 to-green-200 dark:from-green-900/40 dark:to-green-800/40 rounded-lg border-2 border-green-400 dark:border-green-700 overflow-hidden">
+          {/* Team 1 Side - CONDENSED */}
+          <View className="h-[45%] border-b border-dashed border-white dark:border-gray-400 relative">
+            <View className="absolute top-1 left-1 right-1 flex-row justify-between items-center">
+              <View className="bg-primary/90 px-2 py-0.5 rounded-full">
+                <Text className="text-xs font-bold text-white">Team 1</Text>
+              </View>
+              {matchState.winnerTeam === 1 && (
+                <View className="bg-yellow-500 px-2 py-0.5 rounded-full flex-row items-center">
+                  <Ionicons name="trophy" size={10} color="white" />
+                  <Text className="text-xs font-bold text-white ml-1">WIN</Text>
+                </View>
+              )}
+            </View>
+
+            <View className="flex-1 flex-row px-2 pb-1">
+              {/* Player 1 - CONDENSED WITH INLINE RATING */}
+              <View className="flex-1 items-center justify-center">
+                <PlayerAvatar
+                  player={match!.player1}
+                  size="md"
+                  isCurrentUser={isUserPlayer(match!.player1?.id)}
+                  isCreator={matchState.isCreator}
+                  teamColor="primary"
+                  showBorder={true}
+                />
+                <View className="bg-white dark:bg-gray-800 rounded p-1 mt-1 min-w-[80px] items-center">
+                  <Text className="text-xs font-medium text-center" numberOfLines={1}>
+                    {match!.player1?.full_name?.split(' ')[0] ||
+                      match!.player1?.email?.split("@")[0] ||
+                      "Player 1"}
+                  </Text>
+                  {/* INLINE RATING */}
+                  {match!.player1?.glicko_rating && (
+                    <Text className="text-xs text-primary font-bold">
+                      {Math.round(parseFloat(match!.player1.glicko_rating))}
+                    </Text>
+                  )}
+                  {isUserPlayer(match!.player1?.id) && (
+                    <Text className="text-xs text-yellow-600 font-bold">You</Text>
+                  )}
+                </View>
+              </View>
+
+              {/* Player 2 - CONDENSED WITH INLINE RATING */}
+              <View className="flex-1 items-center justify-center">
+                <PlayerAvatar
+                  player={match!.player2}
+                  size="md"
+                  isCurrentUser={isUserPlayer(match!.player2?.id)}
+                  teamColor="primary"
+                  showBorder={true}
+                />
+                <View className="bg-white dark:bg-gray-800 rounded p-1 mt-1 min-w-[80px] items-center">
+                  <Text className="text-xs font-medium text-center" numberOfLines={1}>
+                    {match!.player2?.full_name?.split(' ')[0] ||
+                      match!.player2?.email?.split("@")[0] ||
+                      "Open"}
+                  </Text>
+                  {/* INLINE RATING */}
+                  {match!.player2?.glicko_rating && (
+                    <Text className="text-xs text-primary font-bold">
+                      {Math.round(parseFloat(match!.player2.glicko_rating))}
+                    </Text>
+                  )}
+                  {isUserPlayer(match!.player2?.id) && (
+                    <Text className="text-xs text-yellow-600 font-bold">You</Text>
+                  )}
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* CONDENSED Court Net */}
+          <View className="h-[10%] bg-gray-300 dark:bg-gray-600 flex-row items-center justify-center">
+            <View className="h-[1px] w-full bg-gray-500 dark:bg-gray-400"></View>
+            <View className="absolute w-3 h-3 bg-gray-400 dark:bg-gray-500 rounded-full"></View>
+          </View>
+
+          {/* Team 2 Side - CONDENSED */}
+          <View className="h-[45%] relative">
+            <View className="flex-1 flex-row px-2 pt-1">
+              {/* Player 3 - CONDENSED WITH INLINE RATING */}
+              <View className="flex-1 items-center justify-center">
+                <View className="bg-white dark:bg-gray-800 rounded p-1 mb-1 min-w-[80px] items-center">
+                  <Text className="text-xs font-medium text-center" numberOfLines={1}>
+                    {match!.player3?.full_name?.split(' ')[0] ||
+                      match!.player3?.email?.split("@")[0] ||
+                      "Open"}
+                  </Text>
+                  {/* INLINE RATING */}
+                  {match!.player3?.glicko_rating && (
+                    <Text className="text-xs text-indigo-600 font-bold">
+                      {Math.round(parseFloat(match!.player3.glicko_rating))}
+                    </Text>
+                  )}
+                  {isUserPlayer(match!.player3?.id) && (
+                    <Text className="text-xs text-yellow-600 font-bold">You</Text>
+                  )}
+                </View>
+                <PlayerAvatar
+                  player={match!.player3}
+                  size="md"
+                  isCurrentUser={isUserPlayer(match!.player3?.id)}
+                  teamColor="secondary"
+                  showBorder={true}
+                />
+              </View>
+
+              {/* Player 4 - CONDENSED WITH INLINE RATING */}
+              <View className="flex-1 items-center justify-center">
+                <View className="bg-white dark:bg-gray-800 rounded p-1 mb-1 min-w-[80px] items-center">
+                  <Text className="text-xs font-medium text-center" numberOfLines={1}>
+                    {match!.player4?.full_name?.split(' ')[0] ||
+                      match!.player4?.email?.split("@")[0] ||
+                      "Open"}
+                  </Text>
+                  {/* INLINE RATING */}
+                  {match!.player4?.glicko_rating && (
+                    <Text className="text-xs text-indigo-600 font-bold">
+                      {Math.round(parseFloat(match!.player4.glicko_rating))}
+                    </Text>
+                  )}
+                  {isUserPlayer(match!.player4?.id) && (
+                    <Text className="text-xs text-yellow-600 font-bold">You</Text>
+                  )}
+                </View>
+                <PlayerAvatar
+                  player={match!.player4}
+                  size="md"
+                  isCurrentUser={isUserPlayer(match!.player4?.id)}
+                  teamColor="secondary"
+                  showBorder={true}
+                />
+              </View>
+            </View>
+
+            <View className="absolute bottom-1 left-1 right-1 flex-row justify-between items-center">
+              <View className="bg-indigo-500/90 px-2 py-0.5 rounded-full">
+                <Text className="text-xs font-bold text-white">Team 2</Text>
+              </View>
+              {matchState.winnerTeam === 2 && (
+                <View className="bg-yellow-500 px-2 py-0.5 rounded-full flex-row items-center">
+                  <Ionicons name="trophy" size={10} color="white" />
+                  <Text className="text-xs font-bold text-white ml-1">WIN</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+
+        {/* CONDENSED Join Match Button */}
+        {matchState.canJoin && (
+          <View className="mt-3">
+            <Button
+              onPress={joinMatch}
+              disabled={saving}
+              className="w-full"
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text className="text-white font-medium">
+                  Join Match ({[match!.player1_id, match!.player2_id, match!.player3_id, match!.player4_id].filter(Boolean).length}/4)
+                </Text>
+              )}
+            </Button>
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  // MODIFIED: COLLAPSIBLE PERFORMANCE & INFO COMPONENT - PERFORMANCE STARTS COLLAPSED
+  const renderCollapsiblePerformanceInfo = () => {
+    const isDark = colorScheme === 'dark';
+
+    return (
+      <View className="bg-card rounded-xl border border-border/30 mb-4">
+        {/* Performance Section - MODIFIED: Starts collapsed */}
+        {matchState.userParticipating && matchState.hasScores && (
+          <View>
+            <TouchableOpacity
+              className="flex-row items-center justify-between p-4 border-b border-border/30"
+              onPress={() => setPerformanceExpanded(!performanceExpanded)}
+            >
+              <View className="flex-row items-center">
+                <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mr-3">
+                  <Ionicons name="person-outline" size={20} color="#1a7ebd" />
+                </View>
+                <View>
+                  <Text className="font-medium">Your Performance</Text>
+                  <Text className="text-xs text-muted-foreground">
+                    {matchState.userWon === true ? 'Victory!' : matchState.userWon === false ? 'Defeat' : 'Draw'}
+                  </Text>
+                </View>
+              </View>
+              <Ionicons 
+                name={performanceExpanded ? "chevron-up" : "chevron-down"} 
+                size={20} 
+                color="#888" 
+              />
+            </TouchableOpacity>
+
+            {performanceExpanded && (
+              <View className="p-4">
+                {/* RELOCATED: Set Breakdown */}
+                {matchState.hasScores && (
+                  <View className="mb-4">
+                    <Text className="font-medium mb-3">Set Breakdown</Text>
+                    {renderSetScore(1, match!.team1_score_set1, match!.team2_score_set1)}
+                    {renderSetScore(2, match!.team1_score_set2, match!.team2_score_set2)}
+                    {match!.team1_score_set3 !== null &&
+                      match!.team2_score_set3 !== null &&
+                      renderSetScore(3, match!.team1_score_set3, match!.team2_score_set3)}
+                  </View>
+                )}
+
+                <View className="flex-row justify-around mb-4">
+                  <View className="items-center">
+                    <View className={`w-14 h-14 rounded-full items-center justify-center mb-3 ${
+                      matchState.userWon === true ? 'bg-green-100 dark:bg-green-900/30' : 
+                      matchState.userWon === false ? 'bg-red-100 dark:bg-red-900/30' : 'bg-yellow-100 dark:bg-yellow-900/30'
+                    }`}>
+                      <Ionicons 
+                        name={matchState.userWon === true ? "trophy" : matchState.userWon === false ? "sad" : "remove"} 
+                        size={28} 
+                        color={matchState.userWon === true ? "#059669" : matchState.userWon === false ? "#dc2626" : "#d97706"} 
+                      />
+                    </View>
+                    <Text className="text-sm font-medium">Result</Text>
+                    <Text className={`text-xs ${
+                      matchState.userWon === true ? 'text-green-600 dark:text-green-400' : 
+                      matchState.userWon === false ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'
+                    }`}>
+                      {matchState.userWon === true ? 'Victory' : matchState.userWon === false ? 'Defeat' : 'Draw'}
+                    </Text>
+                  </View>
+                  
+                  <View className="items-center">
+                    <View className="w-14 h-14 rounded-full bg-primary/10 items-center justify-center mb-3">
+                      <Text className="text-xl font-bold text-primary">
+                        {matchState.userTeam === 1 ? matchState.team1Sets : matchState.team2Sets}
+                      </Text>
+                    </View>
+                    <Text className="text-sm font-medium">Sets Won</Text>
+                    <Text className="text-xs text-muted-foreground">Your Team</Text>
+                  </View>
+                  
+                  <View className="items-center">
+                    <View className="w-14 h-14 rounded-full bg-muted/30 items-center justify-center mb-3">
+                      <Text className="text-xl font-bold">
+                        {matchState.userTeam === 1 ? matchState.team2Sets : matchState.team1Sets}
+                      </Text>
+                    </View>
+                    <Text className="text-sm font-medium">Sets Lost</Text>
+                    <Text className="text-xs text-muted-foreground">Opponents</Text>
+                  </View>
+                </View>
+
+                {/* Performance Insights */}
+                <View className="pt-4 border-t border-border/30">
+                  <Text className="text-sm font-medium mb-3">Match Insights</Text>
+                  <View className="space-y-2">
+                    <View className="flex-row items-center">
+                      <Ionicons 
+                        name={matchState.userWon ? "trending-up" : "trending-down"} 
+                        size={16} 
+                        color={matchState.userWon ? "#059669" : "#dc2626"} 
+                        style={{ marginRight: 8 }}
+                      />
+                      <Text className="text-sm text-muted-foreground flex-1">
+                        {matchState.userWon 
+                          ? `Great job! You dominated this match with a ${Math.abs(matchState.team1Sets - matchState.team2Sets)}-set margin.`
+                          : `Keep practicing! The margin was ${Math.abs(matchState.team1Sets - matchState.team2Sets)} set${Math.abs(matchState.team1Sets - matchState.team2Sets) !== 1 ? 's' : ''}.`
+                        }
+                      </Text>
+                    </View>
+                    
+                    {match!.start_time && match!.end_time && (
+                      <View className="flex-row items-center">
+                        <Ionicons name="time" size={16} color="#888" style={{ marginRight: 8 }} />
+                        <Text className="text-sm text-muted-foreground">
+                          Match duration: {getMatchDuration(match!.start_time, match!.end_time)}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Match Information Section */}
+        <View>
+          <TouchableOpacity
+            className="flex-row items-center justify-between p-4"
+            onPress={() => setInfoExpanded(!infoExpanded)}
+          >
+            <View className="flex-row items-center">
+              <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mr-3">
+                <Ionicons name="information-circle" size={20} color="#1a7ebd" />
+              </View>
+              <View>
+                <Text className="font-medium">Match Information</Text>
+                <Text className="text-xs text-muted-foreground">
+                  {formatRelativeTime(match!.start_time)} • {getMatchStatus(match!.status)}
+                </Text>
+              </View>
+            </View>
+            <Ionicons 
+              name={infoExpanded ? "chevron-up" : "chevron-down"} 
+              size={20} 
+              color="#888" 
+            />
+          </TouchableOpacity>
+
+          {infoExpanded && (
+            <View className="px-4 pb-4">
+              {/* Enhanced Timeline */}
+              <View className="ml-4 mb-6">
+                <View className="flex-row mb-4">
+                  <View className="mr-4 items-center">
+                    <View className="w-4 h-4 rounded-full bg-green-500 shadow-sm" />
+                    <View className="w-0.5 h-full bg-border absolute mt-4" />
+                  </View>
+                  <View className="flex-1">
+                    <View className="flex-row items-center mb-1">
+                      <Ionicons name="create-outline" size={16} color={isDark ? '#aaa' : '#666'} style={{marginRight: 8}} />
+                      <Text className="font-medium">Created</Text>
+                    </View>
+                    <Text className="text-muted-foreground">
+                      {formatRelativeTime(match!.created_at)} at {formatTime(match!.created_at)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View className="flex-row mb-4">
+                  <View className="mr-4 items-center">
+                    <View className="w-4 h-4 rounded-full bg-blue-500 shadow-sm" />
+                    <View className="w-0.5 h-full bg-border absolute mt-4" />
+                  </View>
+                  <View className="flex-1">
+                    <View className="flex-row items-center mb-2">
+                      <Ionicons name="time-outline" size={16} color={isDark ? '#aaa' : '#666'} style={{marginRight: 8}} />
+                      <Text className="font-medium">Match Details</Text>
+                    </View>
+                    <View className="bg-primary/5 dark:bg-primary/10 py-2 px-3 rounded-lg">
+                      <Text className="text-primary font-medium">
+                        Duration: {match!.start_time && match!.end_time
+                          ? getMatchDuration(match!.start_time, match!.end_time)
+                          : "Not specified"}
+                      </Text>
+                      <Text className="text-xs text-primary/70 mt-1">
+                        Status: {getMatchStatus(match!.status)}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {match!.completed_at && (
+                  <View className="flex-row">
+                    <View className="mr-4 items-center">
+                      <View className="w-4 h-4 rounded-full bg-amber-500 shadow-sm" />
+                    </View>
+                    <View className="flex-1">
+                      <View className="flex-row items-center mb-1">
+                        <Ionicons name="checkmark-done-outline" size={16} color={isDark ? '#aaa' : '#666'} style={{marginRight: 8}} />
+                        <Text className="font-medium">Completed</Text>
+                      </View>
+                      <Text className="text-muted-foreground">
+                        {formatRelativeTime(match!.completed_at)} at {formatTime(match!.completed_at)}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+              </View>
+
+              {/* Quick Stats */}
+              {(matchState.hasScores || ensureInteger(match!.status) === 4) && (
+                <View className="pt-4 border-t border-border/30">
+                  <Text className="font-medium mb-4">Quick Stats</Text>
+                  <View className="grid grid-cols-3 gap-4">
+                    <View className="items-center p-3 bg-muted/20 rounded-lg">
+                      <Ionicons name="tennisball-outline" size={20} color={isDark ? '#aaa' : '#666'} />
+                      <Text className="text-lg font-bold mt-1">{calculateSetsPlayed()}</Text>
+                      <Text className="text-xs text-muted-foreground text-center">Sets Played</Text>
+                    </View>
+
+                    <View className="items-center p-3 bg-muted/20 rounded-lg">
+                      <Ionicons name="trophy-outline" size={20} color={isDark ? '#aaa' : '#666'} />
+                      <Text className="text-lg font-bold mt-1 text-primary">
+                        {matchState.winnerTeam ? `T${matchState.winnerTeam}` : "N/A"}
+                      </Text>
+                      <Text className="text-xs text-muted-foreground text-center">Winner</Text>
+                    </View>
+                    
+                    <View className="items-center p-3 bg-muted/20 rounded-lg">
+                      <Ionicons name="people-outline" size={20} color={isDark ? '#aaa' : '#666'} />
+                      <Text className="text-lg font-bold mt-1">
+                        {[match!.player1_id, match!.player2_id, match!.player3_id, match!.player4_id].filter(Boolean).length}
+                      </Text>
+                      <Text className="text-xs text-muted-foreground text-center">Players</Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderValidationStatusBanner = () => {
+    // GUARD CLAUSE 1: No banner for matches without scores
+    if (!match || !matchState.hasScores) return null;
+
+    // GUARD CLAUSE 2: No banner for matches without validation data
+    if (!match.validation_deadline) return null;
+
+    const validationInfo = reportingInfo.validationWindow;
+    
+    // CRITICAL: Determine banner configuration based on validation state
+    const getBannerConfig = () => {
+      // STATE 1: Match is disputed
+      if (reportingInfo.isDisputed) {
+        return {
+          bgColor: 'bg-red-100 dark:bg-red-900/30',
+          borderColor: 'border-red-500',
+          iconName: 'alert-circle' as const,
+          iconColor: '#dc2626',
+          title: 'Match Under Dispute',
+          description: `This match has been reported by ${reportingInfo.totalReports} players and is under review.`,
+          showTimer: false,
+          showReportButton: false
+        };
+      }
+
+      // STATE 2: Validation window is open
+      if (validationInfo?.is_open) {
+        return {
+          bgColor: validationInfo.hours_remaining > 12 
+            ? 'bg-green-100 dark:bg-green-900/30' 
+            : validationInfo.hours_remaining > 6
+              ? 'bg-amber-100 dark:bg-amber-900/30'
+              : 'bg-red-100 dark:bg-red-900/30',
+          borderColor: validationInfo.hours_remaining > 12 
+            ? 'border-green-500' 
+            : validationInfo.hours_remaining > 6
+              ? 'border-amber-500'
+              : 'border-red-500',
+          iconName: 'time-outline' as const,
+          iconColor: validationInfo.status_color,
+          title: 'Score Validation Period',
+          description: reportingInfo.userHasReported
+            ? 'You have reported this match. Waiting for validation period to end.'
+            : 'Report incorrect scores within the validation window.',
+          showTimer: true,
+          showReportButton: reportingInfo.userCanReport && !reportingInfo.userHasReported
+        };
+      }
+
+      // STATE 3: Validation completed
+      if (match.validation_status === 'validated') {
+        return {
+          bgColor: 'bg-green-100 dark:bg-green-900/30',
+          borderColor: 'border-green-500',
+          iconName: 'checkmark-circle' as const,
+          iconColor: '#059669',
+          title: 'Scores Validated',
+          description: 'Match scores have been validated and ratings applied.',
+          showTimer: false,
+          showReportButton: false
+        };
+      }
+
+      // STATE 4: Validation expired without dispute
+      return {
+        bgColor: 'bg-gray-100 dark:bg-gray-800/30',
+        borderColor: 'border-gray-400',
+        iconName: 'lock-closed' as const,
+        iconColor: '#6b7280',
+        title: 'Validation Period Ended',
+        description: 'The reporting window has closed for this match.',
+        showTimer: false,
+        showReportButton: false
+      };
+    };
+
+    const config = getBannerConfig();
+
+    return (
+      <Animated.View 
+        style={{ 
+          opacity: animatedValue,
+          transform: [{
+            translateY: animatedValue.interpolate({
+              inputRange: [0, 1],
+              outputRange: [-10, 0]
+            })
+          }]
+        }}
+        className={`${config.bgColor} rounded-xl p-4 mb-4 border-l-4 ${config.borderColor}`}
+      >
+        <View className="flex-row items-start">
+          {/* ICON SECTION: Visual indicator of state */}
+          <View className="w-10 h-10 rounded-full bg-white dark:bg-gray-800 items-center justify-center mr-3"
+            style={{
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.1,
+              shadowRadius: 2,
+              elevation: 2,
+            }}
+          >
+            <Ionicons
+              name={config.iconName}
+              size={24}
+              color={config.iconColor}
+            />
+          </View>
+
+          {/* CONTENT SECTION: Information and actions */}
+          <View className="flex-1">
+            <View className="flex-row items-center justify-between mb-1">
+              <Text className="font-bold text-base">
+                {config.title}
+              </Text>
+              
+              {/* TIMER DISPLAY: Real-time countdown */}
+              {config.showTimer && validationInfo && (
+                <View className="px-3 py-1 rounded-full" 
+                  style={{ backgroundColor: `${validationInfo.status_color}20` }}
+                >
+                  <Text className="text-sm font-bold" 
+                    style={{ color: validationInfo.status_color }}
+                  >
+                    {validationInfo.status_text}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <Text className="text-sm text-muted-foreground mb-3">
+              {config.description}
+            </Text>
+
+            {/* REPORT STATUS: Current reporting statistics */}
+            {reportingInfo.hasReports && (
+              <View className="bg-white/50 dark:bg-black/20 p-2 rounded-lg mb-3">
+                <Text className="text-xs font-medium">
+                  Current Reports: {reportingInfo.totalReports}/{reportingInfo.disputeThreshold}
+                  {reportingInfo.userHasReported && (
+                    <Text className="text-primary"> (Including yours)</Text>
+                  )}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* DISPUTED MATCH DETAILS: Additional context for disputed matches */}
+        {reportingInfo.isDisputed && reports.length > 0 && (
+          <View className="mt-4 pt-4 border-t border-red-300 dark:border-red-800">
+            <Text className="text-sm font-medium mb-2">Reported Issues:</Text>
+            {reports.slice(0, 3).map((report, index) => (
+              <View key={report.id} className="flex-row items-center mb-1">
+                <View className="w-2 h-2 rounded-full bg-red-500 mr-2" />
+                <Text className="text-xs text-muted-foreground">
+                  {report.reason.replace(/_/g, ' ').toLowerCase()}
+                  {report.additional_details && ' - '}
+                  {report.additional_details?.slice(0, 50)}
+                  {report.additional_details && report.additional_details.length > 50 && '...'}
+                </Text>
+              </View>
+            ))}
+            {reports.length > 3 && (
+              <Text className="text-xs text-muted-foreground mt-1">
+                And {reports.length - 3} more...
+              </Text>
+            )}
+          </View>
+        )}
+      </Animated.View>
+    );
+  };
 
   const renderReportingModal = () => {
     // STEP 1: Basic visibility check
@@ -925,1236 +2623,6 @@ export default function EnhancedMatchDetailsWithVisibility() {
       </Modal>
     );
   };
-  
-
-  const renderValidationStatusBanner = () => {
-    // GUARD CLAUSE 1: No banner for matches without scores
-    if (!match || !matchState.hasScores) return null;
-
-    // GUARD CLAUSE 2: No banner for matches without validation data
-    if (!match.validation_deadline) return null;
-
-    const validationInfo = reportingInfo.validationWindow;
-    
-    // CRITICAL: Determine banner configuration based on validation state
-    const getBannerConfig = () => {
-      // STATE 1: Match is disputed
-      if (reportingInfo.isDisputed) {
-        return {
-          bgColor: 'bg-red-100 dark:bg-red-900/30',
-          borderColor: 'border-red-500',
-          iconName: 'alert-circle' as const,
-          iconColor: '#dc2626',
-          title: 'Match Under Dispute',
-          description: `This match has been reported by ${reportingInfo.totalReports} players and is under review.`,
-          showTimer: false,
-          showReportButton: false
-        };
-      }
-
-      // STATE 2: Validation window is open
-      if (validationInfo?.is_open) {
-        return {
-          bgColor: validationInfo.hours_remaining > 12 
-            ? 'bg-green-100 dark:bg-green-900/30' 
-            : validationInfo.hours_remaining > 6
-              ? 'bg-amber-100 dark:bg-amber-900/30'
-              : 'bg-red-100 dark:bg-red-900/30',
-          borderColor: validationInfo.hours_remaining > 12 
-            ? 'border-green-500' 
-            : validationInfo.hours_remaining > 6
-              ? 'border-amber-500'
-              : 'border-red-500',
-          iconName: 'time-outline' as const,
-          iconColor: validationInfo.status_color,
-          title: 'Score Validation Period',
-          description: reportingInfo.userHasReported
-            ? 'You have reported this match. Waiting for validation period to end.'
-            : 'Report incorrect scores within the validation window.',
-          showTimer: true,
-          showReportButton: reportingInfo.userCanReport && !reportingInfo.userHasReported
-        };
-      }
-
-      // STATE 3: Validation completed
-      if (match.validation_status === 'validated') {
-        return {
-          bgColor: 'bg-green-100 dark:bg-green-900/30',
-          borderColor: 'border-green-500',
-          iconName: 'checkmark-circle' as const,
-          iconColor: '#059669',
-          title: 'Scores Validated',
-          description: 'Match scores have been validated and ratings applied.',
-          showTimer: false,
-          showReportButton: false
-        };
-      }
-
-      // STATE 4: Validation expired without dispute
-      return {
-        bgColor: 'bg-gray-100 dark:bg-gray-800/30',
-        borderColor: 'border-gray-400',
-        iconName: 'lock-closed' as const,
-        iconColor: '#6b7280',
-        title: 'Validation Period Ended',
-        description: 'The reporting window has closed for this match.',
-        showTimer: false,
-        showReportButton: false
-      };
-    };
-
-    const config = getBannerConfig();
-
-    return (
-      <Animated.View 
-        style={{ 
-          opacity: animatedValue,
-          transform: [{
-            translateY: animatedValue.interpolate({
-              inputRange: [0, 1],
-              outputRange: [-10, 0]
-            })
-          }]
-        }}
-        className={`${config.bgColor} rounded-xl p-4 mb-4 border-l-4 ${config.borderColor}`}
-      >
-        <View className="flex-row items-start">
-          {/* ICON SECTION: Visual indicator of state */}
-          <View className="w-10 h-10 rounded-full bg-white dark:bg-gray-800 items-center justify-center mr-3"
-            style={{
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 1 },
-              shadowOpacity: 0.1,
-              shadowRadius: 2,
-              elevation: 2,
-            }}
-          >
-            <Ionicons
-              name={config.iconName}
-              size={24}
-              color={config.iconColor}
-            />
-          </View>
-
-          {/* CONTENT SECTION: Information and actions */}
-          <View className="flex-1">
-            <View className="flex-row items-center justify-between mb-1">
-              <Text className="font-bold text-base">
-                {config.title}
-              </Text>
-              
-              {/* TIMER DISPLAY: Real-time countdown */}
-              {config.showTimer && validationInfo && (
-                <View className="px-3 py-1 rounded-full" 
-                  style={{ backgroundColor: `${validationInfo.status_color}20` }}
-                >
-                  <Text className="text-sm font-bold" 
-                    style={{ color: validationInfo.status_color }}
-                  >
-                    {validationInfo.status_text}
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            <Text className="text-sm text-muted-foreground mb-3">
-              {config.description}
-            </Text>
-
-            {/* REPORT STATUS: Current reporting statistics */}
-            {reportingInfo.hasReports && (
-              <View className="bg-white/50 dark:bg-black/20 p-2 rounded-lg mb-3">
-                <Text className="text-xs font-medium">
-                  Current Reports: {reportingInfo.totalReports}/{reportingInfo.disputeThreshold}
-                  {reportingInfo.userHasReported && (
-                    <Text className="text-primary"> (Including yours)</Text>
-                  )}
-                </Text>
-              </View>
-            )}
-
-            {/* ACTION BUTTON: Context-sensitive CTA */}
-            {config.showReportButton && (
-              <Button
-                size="sm"
-                variant="destructive"
-                onPress={() => setShowReportModal(true)}
-                className="self-start"
-                style={{
-                  shadowColor: "#dc2626",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.2,
-                  shadowRadius: 4,
-                  elevation: 3,
-                }}
-              >
-                <Ionicons name="flag-outline" size={14} color="white" style={{ marginRight: 6 }} />
-                <Text className="text-white text-sm font-medium">Report Issue</Text>
-              </Button>
-            )}
-          </View>
-        </View>
-
-        {/* DISPUTED MATCH DETAILS: Additional context for disputed matches */}
-        {reportingInfo.isDisputed && reports.length > 0 && (
-          <View className="mt-4 pt-4 border-t border-red-300 dark:border-red-800">
-            <Text className="text-sm font-medium mb-2">Reported Issues:</Text>
-            {reports.slice(0, 3).map((report, index) => (
-              <View key={report.id} className="flex-row items-center mb-1">
-                <View className="w-2 h-2 rounded-full bg-red-500 mr-2" />
-                <Text className="text-xs text-muted-foreground">
-                  {report.reason.replace(/_/g, ' ').toLowerCase()}
-                  {report.additional_details && ' - '}
-                  {report.additional_details?.slice(0, 50)}
-                  {report.additional_details && report.additional_details.length > 50 && '...'}
-                </Text>
-              </View>
-            ))}
-            {reports.length > 3 && (
-              <Text className="text-xs text-muted-foreground mt-1">
-                And {reports.length - 3} more...
-              </Text>
-            )}
-          </View>
-        )}
-      </Animated.View>
-    );
-  };
-
-  // ENHANCEMENT: Visibility Badge Component for Match Visibility Indicator
-  const renderVisibilityBadge = (isPublic: boolean, size: 'small' | 'medium' = 'small') => {
-    const iconSize = size === 'medium' ? 16 : 12;
-    const textClass = size === 'medium' ? 'text-sm' : 'text-xs';
-    const paddingClass = size === 'medium' ? 'px-3 py-2' : 'px-2 py-1';
-    
-    return (
-      <View className={`flex-row items-center ${paddingClass} rounded-full ${
-        isPublic 
-          ? 'bg-blue-100 dark:bg-blue-900/30' 
-          : 'bg-gray-100 dark:bg-gray-800/50'
-      }`}>
-        <Ionicons 
-          name={isPublic ? 'globe-outline' : 'lock-closed-outline'} 
-          size={iconSize} 
-          color={isPublic ? '#2563eb' : '#6b7280'} 
-          style={{ marginRight: 4 }}
-        />
-        <Text className={`${textClass} font-medium ${
-          isPublic 
-            ? 'text-blue-700 dark:text-blue-300' 
-            : 'text-gray-600 dark:text-gray-400'
-        }`}>
-          {isPublic ? 'Public' : 'Private'}
-        </Text>
-      </View>
-    );
-  };
-
-  // ENHANCEMENT: Detailed visibility status component for match info section
-  const renderDetailedVisibilityInfo = (isPublic: boolean) => {
-    return (
-      <View className={`p-4 rounded-lg border ${
-        isPublic 
-          ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' 
-          : 'bg-gray-50 dark:bg-gray-800/20 border-gray-200 dark:border-gray-700'
-      }`}>
-        <View className="flex-row items-center justify-between">
-          <View className="flex-row items-center flex-1">
-            <View className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${
-              isPublic ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-gray-100 dark:bg-gray-700'
-            }`}>
-              <Ionicons 
-                name={isPublic ? 'globe' : 'lock-closed'} 
-                size={20} 
-                color={isPublic ? '#2563eb' : '#6b7280'} 
-              />
-            </View>
-            <View className="flex-1">
-              <Text className={`font-medium ${
-                isPublic ? 'text-blue-800 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'
-              }`}>
-                {isPublic ? 'Public Match' : 'Private Match'}
-              </Text>
-              <Text className={`text-sm ${
-                isPublic ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
-              }`}>
-                {isPublic 
-                  ? 'Visible to all users • Anyone can discover and join' 
-                  : 'Invitation only • Only selected players can see this match'}
-              </Text>
-            </View>
-          </View>
-          {renderVisibilityBadge(isPublic, 'medium')}
-        </View>
-        
-        {/* ENHANCEMENT: Additional context for public matches */}
-        {isPublic && (
-          <View className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
-            <View className="flex-row items-center">
-              <Ionicons name="people-outline" size={16} color="#2563eb" style={{ marginRight: 6 }} />
-              <Text className="text-sm text-blue-600 dark:text-blue-400">
-                This match is discoverable by all users and appears in public match listings
-              </Text>
-            </View>
-          </View>
-        )}
-      </View>
-    );
-  };
-
-
-
-  // ENHANCED: Real-time score validation
-  const validateCurrentScores = useCallback((): ScoreEntryState => {
-    const errors: string[] = [];
-    const warnings: string[] = [];
-    
-    if (!isSet1Valid) {
-      errors.push("Set 1 scores are invalid");
-    }
-    
-    if (!isSet2Valid) {
-      errors.push("Set 2 scores are invalid");
-    }
-    
-    if (showSet3 && !isSet3Valid) {
-      errors.push("Set 3 scores are invalid");
-    }
-    
-    // Advanced validation logic
-    if (isSet1Valid && isSet2Valid) {
-      const team1WonSet1 = set1Score.team1 > set1Score.team2;
-      const team1WonSet2 = set2Score.team1 > set2Score.team2;
-      
-      if ((team1WonSet1 && team1WonSet2) || (!team1WonSet1 && !team1WonSet2)) {
-        if (showSet3) {
-          warnings.push("Match appears to be decided in 2 sets, but Set 3 is being entered");
-        } else {
-          warnings.push("Match was decided in 2 sets");
-        }
-      }
-    }
-    
-    // Determine suggested winner
-    let suggestedWinner: number | null = null;
-    if (isSet1Valid && isSet2Valid) {
-      let team1Sets = 0, team2Sets = 0;
-      
-      if (set1Score.team1 > set1Score.team2) team1Sets++;
-      else team2Sets++;
-      
-      if (set2Score.team1 > set2Score.team2) team1Sets++;
-      else team2Sets++;
-      
-      if (showSet3 && isSet3Valid) {
-        if (set3Score.team1 > set3Score.team2) team1Sets++;
-        else team2Sets++;
-      }
-      
-      suggestedWinner = team1Sets > team2Sets ? 1 : team2Sets > team1Sets ? 2 : null;
-    }
-    
-    return {
-      isValid: errors.length === 0,
-      errors,
-      warnings,
-      suggestedWinner
-    };
-  }, [set1Score, set2Score, set3Score, isSet1Valid, isSet2Valid, isSet3Valid, showSet3]);
-
-  // ENHANCED: Component lifecycle with better error handling
-  useEffect(() => {
-    if (matchId) {
-      fetchMatchDetails(matchId as string);
-    }
-  }, [matchId]);
-
-  // ENHANCED: Real-time score validation
-  useEffect(() => {
-    if (editingScores) {
-      setScoreValidation(validateCurrentScores());
-    }
-  }, [editingScores, validateCurrentScores]);
-
-  // ENHANCED: Score state initialization with validation
-  useEffect(() => {
-    if (match && matchState.hasScores) {
-      console.log('🔄 Enhanced Match Details: Initializing score state from match data');
-      
-      setSet1Score({
-        team1: ensureInteger(match.team1_score_set1),
-        team2: ensureInteger(match.team2_score_set1),
-      });
-      setSet2Score({
-        team1: ensureInteger(match.team1_score_set2),
-        team2: ensureInteger(match.team2_score_set2),
-      });
-
-      if (match.team1_score_set3 !== null && match.team2_score_set3 !== null) {
-        setSet3Score({
-          team1: ensureInteger(match.team1_score_set3),
-          team2: ensureInteger(match.team2_score_set3),
-        });
-        setShowSet3(true);
-      }
-
-      setIsSet1Valid(true);
-      setIsSet2Valid(true);
-      if (match.team1_score_set3 !== null && match.team2_score_set3 !== null) {
-        setIsSet3Valid(true);
-      }
-    }
-  }, [match, matchState.hasScores]);
-
-  // ENHANCED: Set 3 visibility with smart logic
-  useEffect(() => {
-    if (!editingScores) return;
-
-    const team1WonSet1 = set1Score.team1 > set1Score.team2;
-    const team1WonSet2 = set2Score.team1 > set2Score.team2;
-    const isTied = (team1WonSet1 && !team1WonSet2) || (!team1WonSet1 && team1WonSet2);
-
-    setShowSet3(isTied && isSet1Valid && isSet2Valid);
-
-    if (!isTied) {
-      setSet3Score({ team1: 0, team2: 0 });
-      setIsSet3Valid(false);
-    }
-  }, [set1Score, set2Score, isSet1Valid, isSet2Valid, editingScores]);
-
-  // ENHANCED: Advanced data fetching with retry mechanism AND AVATAR SUPPORT
-  const fetchMatchDetails = async (id: string, retryCount = 0) => {
-    try {
-      if (!refreshing) {
-        setLoading(true);
-      }
-
-      console.log('📡 Enhanced Match Details: Fetching match data for ID:', id);
-
-      const { data, error } = await supabase
-        .from("matches")
-        .select(
-          `
-          *,
-          player1:profiles!player1_id(id, full_name, email, glicko_rating, glicko_rd, glicko_vol, avatar_url),
-          player2:profiles!player2_id(id, full_name, email, glicko_rating, glicko_rd, glicko_vol, avatar_url),
-          player3:profiles!player3_id(id, full_name, email, glicko_rating, glicko_rd, glicko_vol, avatar_url),
-          player4:profiles!player4_id(id, full_name, email, glicko_rating, glicko_rd, glicko_vol, avatar_url)
-        `
-        )
-        .eq("id", id)
-        .single();
-
-      if (error) {
-        console.error('❌ Enhanced Match Details: Fetch error:', error);
-        
-        // Retry mechanism for network issues
-        if (retryCount < 2 && (error.code === 'PGRST301' || error.message.includes('network'))) {
-          console.log('🔄 Retrying fetch...', retryCount + 1);
-          setTimeout(() => fetchMatchDetails(id, retryCount + 1), 1000 * (retryCount + 1));
-          return;
-        }
-        
-        throw error;
-      }
-
-      console.log('📊 Enhanced Match Details: Match data received:', {
-        id: data.id,
-        status: data.status,
-        statusType: typeof data.status,
-        hasScores: data.team1_score_set1 !== null,
-        startTime: data.start_time,
-        isPublic: data.is_public
-      });
-
-      setMatch(data);
-    } catch (error) {
-      console.error("💥 Enhanced Match Details: Error fetching match details:", error);
-      
-      if (retryCount === 0) {
-        Alert.alert(
-          "Error Loading Match",
-          "Failed to load match details. Would you like to retry?",
-          [
-            { text: "Cancel", onPress: () => router.back() },
-            { text: "Retry", onPress: () => fetchMatchDetails(id, 0) }
-          ]
-        );
-      }
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  // ENHANCED: Optimized refresh with visual feedback
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    Vibration.vibrate(50); // Haptic feedback
-    if (matchId) {
-      fetchMatchDetails(matchId as string);
-    }
-  }, [matchId]);
-
-  const renderEnhancedFloatingActionMenu = () => {
-    if (editingScores) return null;
-  
-    return (
-      <View className="absolute bottom-6 right-6">
-      
-
-  
-          {shouldShowReportButton && (
-            <TouchableOpacity
-              onPress={() => {
-                console.log('🎯 [REPORT BUTTON] Pressed - Opening modal');
-                setShowReportModal(true);
-              }}
-              className="w-14 h-14 rounded-full bg-red-600 items-center justify-center shadow-lg mb-3"
-              style={{
-                shadowColor: "#dc2626",
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 8,
-                elevation: 8,
-              }}
-            >
-              <Ionicons name="flag" size={24} color="white" />
-            </TouchableOpacity>
-          )}
-      
-
-      {matchState.canEnterScores && (
-      <TouchableOpacity
-        onPress={() => setEditingScores(true)}
-        className="w-14 h-14 rounded-full bg-green-600 items-center justify-center shadow-lg mb-3"
-        style={{
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.3,
-          shadowRadius: 8,
-          elevation: 8,
-        }}
-      >
-        <Ionicons name="create" size={24} color="white" />
-      </TouchableOpacity>
-    )}
-        
-        {/* SHARE BUTTON */}
-        <TouchableOpacity
-          onPress={shareMatch}
-          className="w-12 h-12 rounded-full bg-primary items-center justify-center shadow-lg"
-          style={{
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.3,
-            shadowRadius: 8,
-            elevation: 8,
-          }}
-        >
-          <Ionicons name="share-social" size={20} color="white" />
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
-  // ENHANCED: Smart join functionality with team balancing
-  const joinMatch = async () => {
-    if (!match || !session?.user?.id) return;
-
-    const availablePositions = [];
-    if (!match.player2_id) availablePositions.push("player2_id");
-    if (!match.player3_id) availablePositions.push("player3_id");
-    if (!match.player4_id) availablePositions.push("player4_id");
-
-    if (availablePositions.length === 0) {
-      Alert.alert("Match Full", "This match is already full");
-      return;
-    }
-
-    try {
-      setSaving(true);
-
-      // Smart team assignment based on skill levels
-      let targetPosition = availablePositions[0];
-      
-      if (availablePositions.length > 1) {
-        const userRating = profile?.glicko_rating ? parseFloat(profile.glicko_rating) : 1500;
-        
-        // Calculate team averages for better balance
-        const team1Players = [match.player1, match.player2].filter(Boolean);
-        const team2Players = [match.player3, match.player4].filter(Boolean);
-        
-        const team1Avg = team1Players.length > 0 
-          ? team1Players.reduce((sum, p) => sum + parseFloat(p.glicko_rating || '1500'), 0) / team1Players.length
-          : 1500;
-        
-        const team2Avg = team2Players.length > 0 
-          ? team2Players.reduce((sum, p) => sum + parseFloat(p.glicko_rating || '1500'), 0) / team2Players.length
-          : 1500;
-
-        // Join the team that would result in better balance
-        const team1Balance = Math.abs((team1Avg + userRating) / (team1Players.length + 1) - team2Avg);
-        const team2Balance = Math.abs((team2Avg + userRating) / (team2Players.length + 1) - team1Avg);
-        
-        if (team1Balance < team2Balance && availablePositions.includes("player2_id")) {
-          targetPosition = "player2_id";
-        } else if (availablePositions.includes("player3_id")) {
-          targetPosition = "player3_id";
-        }
-      }
-
-      console.log('🎯 Enhanced Match Details: Joining match at position:', targetPosition);
-
-      const { data, error } = await supabase
-        .from("matches")
-        .update({ [targetPosition]: session.user.id })
-        .eq("id", match.id)
-        .select();
-
-      if (error) throw error;
-
-      fetchMatchDetails(match.id);
-      Vibration.vibrate([100, 50, 100]); // Success haptic pattern
-
-      Alert.alert(
-        "Successfully Joined!",
-        "You have joined the match. Good luck!",
-        [
-          {
-            text: "View Details",
-            onPress: () => {
-              // Auto-scroll to teams section
-              Animated.timing(animatedValue, {
-                toValue: 1,
-                duration: 500,
-                useNativeDriver: false,
-              }).start();
-            }
-          },
-          { text: "OK" }
-        ]
-      );
-    } catch (error) {
-      console.error("❌ Enhanced Match Details: Error joining match:", error);
-      Vibration.vibrate(200); // Error haptic
-      Alert.alert("Error", "Failed to join the match. Please try again.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // FIXED: Enhanced score saving with proper integer handling
-  const saveMatchScores = async () => {
-    if (!match || !session?.user?.id) return;
-
-    if (!matchState.isCreator) {
-      Alert.alert("Permission Denied", "Only the match creator can enter scores.");
-      return;
-    }
-
-    const validation = validateCurrentScores();
-    if (!validation.isValid) {
-      Alert.alert(
-        "Invalid Scores", 
-        `Please fix the following issues:\n${validation.errors.join('\n')}`,
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
-    // Show warnings if any
-    if (validation.warnings.length > 0) {
-      Alert.alert(
-        "Score Validation Warning",
-        `${validation.warnings.join('\n')}\n\nDo you want to continue?`,
-        [
-          { text: "Review", style: "cancel" },
-          { text: "Continue", onPress: () => performScoreSave() }
-        ]
-      );
-      return;
-    }
-
-    await performScoreSave();
-  };
-
-  // CRITICAL FIX: Score saving with explicit INTEGER type enforcement for PostgreSQL constraints
-  const performScoreSave = async () => {
-    if (!match) return;
-
-    try {
-      setSaving(true);
-
-      const winnerTeam = scoreValidation.suggestedWinner || 0;
-      
-      console.log('💾 Enhanced Match Details: Saving scores with winner:', winnerTeam);
-
-      /**
-       * CRITICAL DATABASE UPDATE STRUCTURE
-       * 
-       * Technical Requirements:
-       * 1. All integer fields MUST use Number() wrapper for PostgreSQL type safety
-       * 2. Validation deadline MUST be set to exactly 24 hours from completion
-       * 3. Validation status MUST be 'pending' for new score entries
-       * 4. Rating application MUST be deferred until validation period expires
-       * 
-       * PostgreSQL Constraints:
-       * - team*_score_set* fields: INTEGER NOT NULL (when populated)
-       * - winner_team: INTEGER
-       * - status: TEXT with CHECK constraint
-       * - validation_deadline: TIMESTAMP WITH TIME ZONE
-       * - validation_status: TEXT with CHECK constraint
-       */
-      
-      // STEP 1: Calculate validation deadline with timezone awareness
-      const now = new Date();
-      const validationDeadline = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-      
-      // STEP 2: Construct update payload with comprehensive validation data
-      const updateData = {
-        // SCORE DATA: Explicit INTEGER casting for PostgreSQL constraints
-        team1_score_set1: Number(ensureInteger(set1Score.team1)),
-        team2_score_set1: Number(ensureInteger(set1Score.team2)),
-        team1_score_set2: Number(ensureInteger(set2Score.team1)),
-        team2_score_set2: Number(ensureInteger(set2Score.team2)),
-        team1_score_set3: showSet3 ? Number(ensureInteger(set3Score.team1)) : null,
-        team2_score_set3: showSet3 ? Number(ensureInteger(set3Score.team2)) : null,
-        winner_team: Number(ensureInteger(winnerTeam)),
-        
-        // STATUS DATA: String format for TEXT database field
-        status: "4", // COMPLETED status as string
-        completed_at: new Date().toISOString(),
-        
-        // VALIDATION DATA: Critical for reporting system
-        validation_deadline: validationDeadline.toISOString(),
-        validation_status: 'pending',
-        rating_applied: false, // CRITICAL: Defer rating application
-        report_count: 0 // Reset report count for fresh validation
-      };
-
-      console.log('🔧 Enhanced Match Details: Update payload with validation:', {
-        ...updateData,
-        validation_deadline_formatted: validationDeadline.toLocaleString(),
-        hours_until_deadline: 24
-      });
-
-      // STEP 3: Execute database update with error handling
-      const { data, error } = await supabase
-        .from("matches")
-        .update(updateData)
-        .eq("id", match.id)
-        .select();
-
-      if (error) {
-        console.error('❌ Enhanced Match Details: Database update error:', error);
-        throw error;
-      }
-
-      // STEP 4: Deferred rating application notice
-      console.log('📊 Rating application deferred until validation period expires');
-
-      // STEP 5: Refresh match data including validation status
-      fetchMatchDetails(match.id);
-      setEditingScores(false);
-      
-      // STEP 6: Success feedback with validation information
-      Vibration.vibrate([100, 50, 100, 50, 100]); // Enhanced success pattern
-
-      Alert.alert(
-        "Match Completed!",
-        `Scores saved successfully.\n\n` +
-        `⏱️ 24-hour validation period has started.\n` +
-        `📊 Ratings will be applied after validation.\n` +
-        `⚠️ Players can report issues during this period.\n\n` +
-        `${winnerTeam === matchState.userTeam ? 'Congratulations on your victory!' : 'Better luck next time!'}`,
-        [
-          {
-            text: 'View Details',
-            onPress: () => {
-              // Trigger animation to highlight validation banner
-              Animated.sequence([
-                Animated.timing(animatedValue, {
-                  toValue: 0,
-                  duration: 0,
-                  useNativeDriver: false,
-                }),
-                Animated.timing(animatedValue, {
-                  toValue: 1,
-                  duration: 500,
-                  useNativeDriver: false,
-                })
-              ]).start();
-            }
-          },
-          { text: 'OK' }
-        ]
-      );
-    } catch (error) {
-      console.error("❌ Enhanced Match Details: Error saving match scores:", error);
-      Vibration.vibrate(300); // Error haptic
-      Alert.alert(
-        "Error Saving Scores",
-        `Failed to save match scores: ${error.message || 'Unknown error'}`,
-        [{ text: 'OK' }]
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // ENHANCED: Advanced rating update system with better error handling
-  const updatePlayerRatings = async (matchData: MatchDetail, winnerTeam: number) => {
-    try {
-      console.log('📈 Enhanced Match Details: Updating player ratings for winner team:', winnerTeam);
-
-      const playerIds = [
-        matchData.player1_id,
-        matchData.player2_id,
-        matchData.player3_id,
-        matchData.player4_id,
-      ].filter(Boolean) as string[];
-
-      const { data: playersData, error: playersError } = await supabase
-        .from("profiles")
-        .select("id, glicko_rating, glicko_rd, glicko_vol")
-        .in("id", playerIds);
-
-      if (playersError) throw playersError;
-
-      if (!playersData || playersData.length !== 4) {
-        throw new Error("Could not fetch all player ratings");
-      }
-
-      // Create rating objects with better validation
-      const playerRatings = playerIds.map(id => {
-        const profile = playersData.find(p => p.id === id);
-        if (!profile) throw new Error(`Profile not found for player ${id}`);
-        
-        return {
-          id,
-          rating: parseFloat(profile.glicko_rating || "1500"),
-          rd: parseFloat(profile.glicko_rd || "350"),
-          vol: parseFloat(profile.glicko_vol || "0.06"),
-        };
-      });
-
-      // Enhanced rating calculation with skill differential
-      const team1Avg = (playerRatings[0].rating + playerRatings[1].rating) / 2;
-      const team2Avg = (playerRatings[2].rating + playerRatings[3].rating) / 2;
-      const ratingDiff = Math.abs(team1Avg - team2Avg);
-      
-      // Dynamic rating change based on skill difference and score margin
-      const baseChange = 15;
-      const diffMultiplier = Math.min(ratingDiff * 0.1, 10);
-      const scoreMargin = Math.abs(matchState.team1Sets - matchState.team2Sets);
-      const marginMultiplier = scoreMargin >= 2 ? 1.2 : 0.8;
-      
-      const adjustedChange = Math.round(baseChange + diffMultiplier * marginMultiplier);
-
-      // Apply rating changes
-      const updates = playerRatings.map((player, index) => {
-        let newRating = player.rating;
-        const isTeam1 = index < 2;
-        const won = (isTeam1 && winnerTeam === 1) || (!isTeam1 && winnerTeam === 2);
-        
-        newRating += won ? adjustedChange : -adjustedChange;
-        newRating = Math.max(100, Math.min(3000, newRating)); // Bounds checking
-
-        return supabase
-          .from("profiles")
-          .update({
-            glicko_rating: Math.round(newRating).toString(),
-            glicko_rd: Math.round(player.rd).toString(),
-            glicko_vol: player.vol.toFixed(6),
-          })
-          .eq("id", player.id);
-      });
-
-      await Promise.all(updates);
-      
-      console.log('✅ Enhanced Match Details: Player ratings updated successfully');
-    } catch (error) {
-      console.error("❌ Enhanced Match Details: Error updating player ratings:", error);
-      // Don't throw here - rating update failure shouldn't prevent score saving
-    }
-  };
-
-  // ENHANCED: Advanced match cancellation with confirmation
-  const cancelMatch = async () => {
-    if (!match || !session?.user?.id || !matchState.canCancel) return;
-
-    if (!matchState.isCreator) {
-      Alert.alert("Permission Denied", "Only the match creator can delete matches.");
-      return;
-    }
-
-    const timeInfo = getCancellationTimeInfo();
-    
-    Alert.alert(
-      "Delete Match",
-      `Are you sure you want to permanently delete this match?\n\n${timeInfo}\n\nThis action cannot be undone.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Delete", 
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setSaving(true);
-              Vibration.vibrate(100);
-
-              const { error } = await supabase
-                .from("matches")
-                .delete()
-                .eq("id", match.id);
-                
-              if (error) throw error;
-              
-              Vibration.vibrate([100, 50, 100]);
-              
-              Alert.alert(
-                "Match Deleted", 
-                "The match has been permanently removed.",
-                [
-                  { 
-                    text: "OK", 
-                    onPress: () => router.replace("/(protected)/(tabs)")
-                  }
-                ]
-              );
-            } catch (error) {
-              console.error("❌ Enhanced Match Details: Error deleting match:", error);
-              Vibration.vibrate(300);
-              Alert.alert("Error", "Failed to delete match");
-            } finally {
-              setSaving(false);
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  // ENHANCED: Advanced sharing with multiple formats AND VISIBILITY CONTEXT
-  const shareMatch = async () => {
-    if (!match) return;
-
-    try {
-      const playerNames = [
-        match.player1?.full_name || "Player 1",
-        match.player2?.full_name || "Player 2", 
-        match.player3?.full_name || "Player 3",
-        match.player4?.full_name || "Player 4"
-      ];
-
-      // ENHANCEMENT: Include visibility context in shared message
-      const visibilityText = match.is_public ? '🌍 Public Match' : '🔒 Private Match';
-      
-      let message = '';
-      
-      if (matchState.isFuture) {
-        message = `🎾 Padel Match Invitation\n${visibilityText}\n\n` +
-                 `📅 ${formatDate(match.start_time)} at ${formatTime(match.start_time)}\n` +
-                 `📍 ${match.region || 'TBD'}${match.court ? `, Court ${match.court}` : ''}\n\n` +
-                 `Team 1: ${playerNames[0]} & ${playerNames[1]}\n` +
-                 `Team 2: ${playerNames[2]} & ${playerNames[3]}\n\n`;
-        
-        // ENHANCEMENT: Add visibility-specific context
-        if (match.is_public) {
-          message += `This is a public match - anyone can discover and join! 🌟\n\n`;
-        }
-        
-        message += `Join us for some padel! 🏆`;
-      } else {
-        message = `🏆 Padel Match Result\n${visibilityText}\n\n` +
-                 `📊 Final Score: ${matchState.team1Sets}-${matchState.team2Sets}\n` +
-                 `🏅 Winner: Team ${matchState.winnerTeam}\n\n` +
-                 `Team 1: ${playerNames[0]} & ${playerNames[1]}\n` +
-                 `Team 2: ${playerNames[2]} & ${playerNames[3]}\n\n`;
-        
-        if (match.team1_score_set1 !== null) {
-          message += `Set Details:\n`;
-          message += `Set 1: ${match.team1_score_set1}-${match.team2_score_set1}\n`;
-          if (match.team1_score_set2 !== null) {
-            message += `Set 2: ${match.team1_score_set2}-${match.team2_score_set2}\n`;
-          }
-          if (match.team1_score_set3 !== null) {
-            message += `Set 3: ${match.team1_score_set3}-${match.team2_score_set3}\n`;
-          }
-        }
-      }
-
-      await Share.share({
-        message,
-        title: matchState.isFuture ? "Padel Match Invitation" : "Padel Match Result",
-      });
-    } catch (error) {
-      console.error("❌ Enhanced Match Details: Error sharing match:", error);
-    }
-  };
-
-  // ENHANCED: Utility functions with better formatting
-  const formatDate = (dateString: string | null): string => {
-    if (!dateString) return "N/A";
-    return format(new Date(dateString), "MMMM d, yyyy");
-  };
-
-  const formatTime = (dateString: string | null): string => {
-    if (!dateString) return "N/A";
-    return format(new Date(dateString), "h:mm a");
-  };
-
-  const formatRelativeTime = (dateString: string): string => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) return "Today";
-    if (diffDays === 1) return "Yesterday";
-    if (diffDays === -1) return "Tomorrow";
-    if (diffDays < 7 && diffDays > 0) return `${diffDays} days ago`;
-    if (diffDays > -7 && diffDays < 0) return `In ${Math.abs(diffDays)} days`;
-    
-    return formatDate(dateString);
-  };
-
-  // CRITICAL FIX: Enhanced status determination with proper TEXT field handling
-  const getStatusText = () => {
-    if (matchState.isFuture) {
-      return { text: "Upcoming", color: "text-blue-500" };
-    }
-
-    if (matchState.needsScores) {
-      return { text: "Needs Scores", color: "text-amber-500" };
-    }
-
-    // CRITICAL FIX: Use safe status comparison for TEXT database field
-    if (isStatusEqual(match?.status, MatchStatus.PENDING)) {
-      return { text: "Pending", color: "text-blue-500" };
-    }
-    if (isStatusEqual(match?.status, MatchStatus.NEEDS_CONFIRMATION)) {
-      return { text: "Needs Confirmation", color: "text-yellow-500" };
-    }
-    if (isStatusEqual(match?.status, MatchStatus.CANCELLED)) {
-      return { text: "Cancelled", color: "text-gray-500" };
-    }
-    if (isStatusEqual(match?.status, MatchStatus.COMPLETED)) {
-      return { text: "Completed", color: "text-green-500" };
-    }
-    
-    return { text: "Unknown", color: "text-muted-foreground" };
-  };
-
-  const getCancellationTimeInfo = (): string => {
-    if (!matchState.canCancel) return '';
-    
-    if (matchState.isFuture) {
-      return 'Can delete until match starts';
-    } else {
-      const hoursRemaining = 24 - matchState.hoursFromCompletion;
-      if (hoursRemaining > 1) {
-        return `Can delete for ${Math.floor(hoursRemaining)} more hours`;
-      } else {
-        const minutesRemaining = Math.floor(hoursRemaining * 60);
-        return `Can delete for ${minutesRemaining} more minutes`;
-      }
-    }
-  };
-
-  const getMatchDuration = (startTimeStr: string, endTimeStr: string): string => {
-    const startTime = new Date(startTimeStr);
-    const endTime = new Date(endTimeStr);
-    const durationMs = endTime.getTime() - startTime.getTime();
-    const minutes = Math.floor(durationMs / (1000 * 60));
-
-    if (minutes < 60) {
-      return `${minutes} min`;
-    } else {
-      const hours = Math.floor(minutes / 60);
-      const remainingMinutes = minutes % 60;
-      return `${hours}h ${remainingMinutes}m`;
-    }
-  };
-
-  const calculateSetsPlayed = () => {
-    if (!match) return 'N/A';
-    let setsPlayed = 0;
-    if (match.team1_score_set1 !== null && match.team2_score_set1 !== null) setsPlayed++;
-    if (match.team1_score_set2 !== null && match.team2_score_set2 !== null) setsPlayed++;
-    if (match.team1_score_set3 !== null && match.team2_score_set3 !== null) setsPlayed++;
-    return setsPlayed || 'N/A';
-  };
-
-  // CRITICAL FIX: Match status display with proper TEXT field handling
-  const getMatchStatus = (status: string | number) => {
-    const statusNum = statusFromString(status);
-    switch (statusNum) {
-      case MatchStatus.PENDING: return 'Pending';
-      case MatchStatus.NEEDS_CONFIRMATION: return 'Needs Confirmation';
-      case MatchStatus.CANCELLED: return 'Cancelled';
-      case MatchStatus.COMPLETED: return 'Completed';
-      case MatchStatus.NEEDS_SCORES: return 'Needs Scores';
-      case MatchStatus.RECRUITING: return 'Recruiting';
-      default: return 'Unknown';
-    }
-  };
-
-  // ENHANCED: Set score rendering with better visual hierarchy
-  const renderSetScore = (setNumber: number, team1Score: number | null, team2Score: number | null) => {
-    if (team1Score === null || team2Score === null) return null;
-
-    const team1Won = team1Score > team2Score;
-    const team2Won = team2Score > team1Score;
-
-    return (
-      <View className="flex-row items-center justify-between mb-3 p-3 rounded-lg bg-muted/20">
-        <Text className="text-muted-foreground w-16 font-medium">Set {setNumber}</Text>
-        <View className="flex-row items-center flex-1 justify-center">
-          <Text
-            className={`text-2xl font-bold ${
-              team1Won ? "text-primary" : "text-muted-foreground"
-            }`}
-          >
-            {team1Score}
-          </Text>
-          <Text className="text-2xl mx-4 text-muted-foreground">-</Text>
-          <Text
-            className={`text-2xl font-bold ${
-              team2Won ? "text-indigo-600" : "text-muted-foreground"
-            }`}
-          >
-            {team2Score}
-          </Text>
-        </View>
-        {(team1Won || team2Won) && (
-          <View className="w-16 items-end">
-            <View className={`px-2 py-1 rounded-full ${
-              team1Won ? 'bg-primary/20' : 'bg-indigo-100 dark:bg-indigo-900/30'
-            }`}>
-              <Text className={`text-xs font-bold ${
-                team1Won ? 'text-primary' : 'text-indigo-600'
-              }`}>
-                {team1Won ? "T1" : "T2"}
-              </Text>
-            </View>
-          </View>
-        )}
-      </View>
-    );
-  };
-
-  // ENHANCED: Score editing section with real-time validation
-  const renderScoreEditSection = () => {
-    if (!matchState.isCreator) {
-      return (
-        <View className="bg-card rounded-xl p-6 mb-6 border border-amber-200 dark:border-amber-800">
-          <View className="flex-row items-center mb-4">
-            <Ionicons name="lock-closed-outline" size={24} color="#d97706" style={{ marginRight: 8 }} />
-            <H3>Score Entry Restricted</H3>
-          </View>
-          <Text className="text-muted-foreground mb-4">
-            Only the match creator ({match?.player1?.full_name || match?.player1?.email}) can enter scores for this match.
-          </Text>
-          <Button
-            variant="outline"
-            onPress={() => setEditingScores(false)}
-            className="w-full"
-          >
-            <Text>Close</Text>
-          </Button>
-        </View>
-      );
-    }
-
-    return (
-      <View className="bg-card rounded-xl p-6 mb-6 border border-border/30">
-        <View className="flex-row justify-between items-center mb-4">
-          <H3>Edit Match Score</H3>
-          <TouchableOpacity
-            onPress={() => setEditingScores(false)}
-            className="p-2"
-          >
-            <Ionicons name="close" size={20} color="#888" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Real-time validation display */}
-        {scoreValidation.errors.length > 0 && (
-          <View className="bg-red-50 dark:bg-red-900/30 p-3 rounded-lg mb-4">
-            <Text className="text-red-800 dark:text-red-300 font-medium mb-1">Validation Errors:</Text>
-            {scoreValidation.errors.map((error, index) => (
-              <Text key={index} className="text-red-700 dark:text-red-400 text-sm">• {error}</Text>
-            ))}
-          </View>
-        )}
-
-        {scoreValidation.warnings.length > 0 && (
-          <View className="bg-amber-50 dark:bg-amber-900/30 p-3 rounded-lg mb-4">
-            <Text className="text-amber-800 dark:text-amber-300 font-medium mb-1">Warnings:</Text>
-            {scoreValidation.warnings.map((warning, index) => (
-              <Text key={index} className="text-amber-700 dark:text-amber-400 text-sm">• {warning}</Text>
-            ))}
-          </View>
-        )}
-
-        <SetScoreInput
-          setNumber={1}
-          value={set1Score}
-          onChange={setSet1Score}
-          onValidate={setIsSet1Valid}
-        />
-
-        <SetScoreInput
-          setNumber={2}
-          value={set2Score}
-          onChange={setSet2Score}
-          onValidate={setIsSet2Valid}
-        />
-
-        {showSet3 && (
-          <SetScoreInput
-            setNumber={3}
-            value={set3Score}
-            onChange={setSet3Score}
-            onValidate={setIsSet3Valid}
-          />
-        )}
-
-        {scoreValidation.isValid && scoreValidation.suggestedWinner && (
-          <View className="mt-4 p-4 rounded-lg bg-primary/10 border border-primary/20">
-            <View className="flex-row items-center justify-center">
-              <Ionicons name="trophy-outline" size={20} color="#1a7ebd" style={{ marginRight: 8 }} />
-              <Text className="text-lg font-semibold text-primary">
-                Winner: Team {scoreValidation.suggestedWinner}
-              </Text>
-            </View>
-            {matchState.userTeam === scoreValidation.suggestedWinner && (
-              <Text className="text-center text-green-600 dark:text-green-400 mt-1 font-medium">
-                🎉 Congratulations! Your team won!
-              </Text>
-            )}
-          </View>
-        )}
-
-        <Button
-          className="w-full mt-6"
-          variant="default"
-          onPress={saveMatchScores}
-          disabled={saving || !scoreValidation.isValid}
-        >
-          {saving ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Text className="text-primary-foreground font-medium">
-              Save Scores {scoreValidation.suggestedWinner && `(Team ${scoreValidation.suggestedWinner} Wins)`}
-            </Text>
-          )}
-        </Button>
-      </View>
-    );
-  };
 
   // Loading state with enhanced UI
   if (loading && !refreshing) {
@@ -2207,14 +2675,6 @@ export default function EnhancedMatchDetailsWithVisibility() {
     );
   }
 
-  const status = getStatusText();
-  const userId = session?.user?.id;
-  const isDark = colorScheme === 'dark';
-
-  const isUserPlayer = (playerId: string | undefined) => {
-    return playerId === userId;
-  };
-
   return (
     <SafeAreaView className="flex-1 bg-background">
       <ScrollView
@@ -2229,8 +2689,10 @@ export default function EnhancedMatchDetailsWithVisibility() {
         }
         showsVerticalScrollIndicator={false}
       >
+        {/* Validation Status Banner */}
         {renderValidationStatusBanner()}
         
+        {/* Status Banners */}
         {matchState.needsScores && (
           <Animated.View 
             style={{ opacity: animatedValue }}
@@ -2248,7 +2710,6 @@ export default function EnhancedMatchDetailsWithVisibility() {
                   <Text className="font-bold text-amber-800 dark:text-amber-300">
                     Match Needs Scores
                   </Text>
-                  {/* ENHANCEMENT: Add visibility indicator to status banner */}
                   {renderVisibilityBadge(match.is_public)}
                 </View>
                 <Text className="text-amber-700 dark:text-amber-400 text-sm">
@@ -2257,14 +2718,6 @@ export default function EnhancedMatchDetailsWithVisibility() {
                     : "Only the match creator can enter scores for this match."}
                 </Text>
               </View>
-              {matchState.isCreator && (
-                <TouchableOpacity
-                  onPress={() => setEditingScores(true)}
-                  className="bg-amber-500 px-4 py-2 rounded-lg"
-                >
-                  <Text className="text-white font-medium text-sm">Enter Scores</Text>
-                </TouchableOpacity>
-              )}
             </View>
           </Animated.View>
         )}
@@ -2283,12 +2736,10 @@ export default function EnhancedMatchDetailsWithVisibility() {
                   <Text className="font-bold text-blue-800 dark:text-blue-300">
                     Upcoming Match
                   </Text>
-                  {/* ENHANCEMENT: Add visibility indicator to status banner */}
                   {renderVisibilityBadge(match.is_public)}
                 </View>
                 <Text className="text-blue-700 dark:text-blue-400 text-sm">
                   {formatRelativeTime(match.start_time)} • {formatTime(match.start_time)}
-                  {/* ENHANCEMENT: Add context for public matches */}
                   {match.is_public && (
                     <>
                       {" • "}
@@ -2315,7 +2766,6 @@ export default function EnhancedMatchDetailsWithVisibility() {
                   <Text className="font-bold text-red-800 dark:text-red-300">
                     Deletion Window Active
                   </Text>
-                  {/* ENHANCEMENT: Add visibility indicator to status banner */}
                   {renderVisibilityBadge(match.is_public)}
                 </View>
                 <Text className="text-red-700 dark:text-red-400 text-sm">
@@ -2342,14 +2792,13 @@ export default function EnhancedMatchDetailsWithVisibility() {
                   {match.end_time ? ` - ${formatTime(match.end_time)}` : ""}
                 </Text>
                 
-                {/* ENHANCED Duration and Phase Info WITH VISIBILITY */}
+                {/* Enhanced Duration and Phase Info WITH VISIBILITY */}
                 <View className="flex-row items-center flex-wrap gap-2">
                   <View className="bg-primary/10 px-2 py-1 rounded-full">
                     <Text className="text-xs font-medium text-primary">
                       {matchState.matchPhase.toUpperCase()}
                     </Text>
                   </View>
-                  {/* ENHANCEMENT: Add visibility badge in header info */}
                   {renderVisibilityBadge(match.is_public)}
                   {match.start_time && match.end_time && (
                     <View className="bg-muted/50 px-2 py-1 rounded-full">
@@ -2384,856 +2833,11 @@ export default function EnhancedMatchDetailsWithVisibility() {
         {/* Score Editing Section */}
         {editingScores && renderScoreEditSection()}
 
-        {/* Enhanced Match Score Display */}
-        {!editingScores && matchState.hasScores && (
-          <View className="bg-card rounded-xl p-6 mb-6 border border-border/30">
-            <View className="flex-row items-center justify-between mb-4">
-              <H3>Match Score</H3>
-              <TouchableOpacity
-                onPress={() => setShowAdvancedStats(!showAdvancedStats)}
-                className="bg-primary/10 px-3 py-1 rounded-full"
-              >
-                <Text className="text-xs text-primary font-medium">
-                  {showAdvancedStats ? 'Hide' : 'Show'} Stats
-                </Text>
-              </TouchableOpacity>
-            </View>
+        {/* NEW: CONDENSED MATCH OVERVIEW COMPONENT */}
+        {!editingScores && renderCondensedMatchOverview()}
 
-            {/* Final score with enhanced visual design */}
-            <View className="items-center mb-6">
-              <View className="flex-row items-center justify-center mb-3">
-                <Text className="text-5xl font-bold text-primary">
-                  {matchState.team1Sets}
-                </Text>
-                <Text className="text-3xl mx-6 text-muted-foreground">-</Text>
-                <Text className="text-5xl font-bold text-indigo-600">
-                  {matchState.team2Sets}
-                </Text>
-              </View>
-              
-              {matchState.userParticipating && (
-                <View className={`px-6 py-3 rounded-full ${
-                  matchState.userWon === true
-                    ? "bg-green-100 dark:bg-green-900/30"
-                    : matchState.userWon === false
-                      ? "bg-red-100 dark:bg-red-900/30"
-                      : "bg-yellow-100 dark:bg-yellow-900/30"
-                }`}>
-                  <Text
-                    className={`font-bold text-lg ${
-                      matchState.userWon === true
-                        ? "text-green-800 dark:text-green-300"
-                        : matchState.userWon === false
-                          ? "text-red-800 dark:text-red-300"
-                          : "text-yellow-800 dark:text-yellow-300"
-                    }`}
-                  >
-                    {matchState.userWon === true ? "🏆 Victory!" : 
-                     matchState.userWon === false ? "😔 Defeat" : "🤝 Draw"}
-                  </Text>
-                </View>
-              )}
-              <Text className="text-sm text-muted-foreground mt-2">Sets</Text>
-            </View>
-
-            <View className="h-px bg-border my-4" />
-
-            {/* Set-by-set scores with enhanced design */}
-            <View className="space-y-2">
-              {renderSetScore(1, match.team1_score_set1, match.team2_score_set1)}
-              {renderSetScore(2, match.team1_score_set2, match.team2_score_set2)}
-              {match.team1_score_set3 !== null &&
-                match.team2_score_set3 !== null &&
-                renderSetScore(3, match.team1_score_set3, match.team2_score_set3)}
-            </View>
-
-            {/* Advanced Stats Toggle */}
-            {showAdvancedStats && (
-              <View className="mt-6 pt-6 border-t border-border/50">
-                <Text className="font-medium mb-4">Match Statistics</Text>
-                <View className="flex-row justify-around">
-                  <View className="items-center">
-                    <Text className="text-2xl font-bold">{calculateSetsPlayed()}</Text>
-                    <Text className="text-xs text-muted-foreground">Sets Played</Text>
-                  </View>
-                  <View className="items-center">
-                    <Text className="text-2xl font-bold">
-                      {match.start_time && match.end_time ? getMatchDuration(match.start_time, match.end_time) : 'N/A'}
-                    </Text>
-                    <Text className="text-xs text-muted-foreground">Duration</Text>
-                  </View>
-                  <View className="items-center">
-                    <Text className="text-2xl font-bold">
-                      {Math.abs(matchState.team1Sets - matchState.team2Sets)}
-                    </Text>
-                    <Text className="text-xs text-muted-foreground">Set Margin</Text>
-                  </View>
-                </View>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* ENHANCED Teams Section with Avatar Visualization */}
-        <View className="bg-card rounded-xl p-4 mb-6 border border-border/30">
-          <View className="flex-row justify-between items-center mb-4">
-            <H3>Teams</H3>
-            <View className="flex-row gap-2">
-              {matchState.isCreator && (
-                <View className="bg-primary/10 px-3 py-1 rounded-full">
-                  <Text className="text-xs text-primary font-medium">Creator</Text>
-                </View>
-              )}
-              {matchState.userParticipating && (
-                <View className="bg-green-100 dark:bg-green-900/30 px-3 py-1 rounded-full">
-                  <Text className="text-xs text-green-700 dark:text-green-300 font-medium">
-                    Team {matchState.userTeam}
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-
-          {/* ENHANCED Court Visualization WITH AVATARS */}
-          <View className="aspect-[3/4] w-full bg-gradient-to-b from-green-100 to-green-200 dark:from-green-900/40 dark:to-green-800/40 rounded-xl border-2 border-green-400 dark:border-green-700 overflow-hidden">
-            {/* Team 1 Side */}
-            <View className="h-[48%] border-b-2 border-dashed border-white dark:border-gray-400 relative">
-              <View className="absolute top-2 left-2 right-2 flex-row justify-between items-center">
-                <View className="bg-primary/90 px-3 py-1 rounded-full shadow-sm">
-                  <Text className="text-sm font-bold text-white">Team 1</Text>
-                </View>
-                {matchState.winnerTeam === 1 && (
-                  <Animated.View 
-                    className="bg-yellow-500 px-3 py-1 rounded-full flex-row items-center shadow-lg"
-                    style={{
-                      transform: [{
-                        scale: animatedValue.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [1, 1.1]
-                        })
-                      }]
-                    }}
-                  >
-                    <Ionicons name="trophy" size={14} color="white" />
-                    <Text className="text-xs font-bold text-white ml-1">WINNER</Text>
-                  </Animated.View>
-                )}
-              </View>
-
-              {/* Team 1 Players with AVATAR SUPPORT */}
-              <View className="flex-1 flex-row">
-                <View className="flex-1 items-center justify-center">
-                  <PlayerAvatar
-                    player={match.player1}
-                    size="lg"
-                    isCurrentUser={isUserPlayer(match.player1?.id)}
-                    isCreator={matchState.isCreator}
-                    teamColor="primary"
-                    showBorder={true}
-                  />
-                  <View className="bg-white dark:bg-gray-800 rounded-lg p-2 px-3 min-w-[90px] items-center shadow-sm mt-2">
-                    <Text className="text-xs font-medium text-center" numberOfLines={1}>
-                      {match.player1?.full_name ||
-                        match.player1?.email?.split("@")[0] ||
-                        "Player 1"}
-                    </Text>
-                    {isUserPlayer(match.player1?.id) && (
-                      <Text className="text-xs text-primary font-bold">
-                        You {matchState.isCreator && "(Creator)"}
-                      </Text>
-                    )}
-                  </View>
-                </View>
-
-                <View className="flex-1 items-center justify-center">
-                  <PlayerAvatar
-                    player={match.player2}
-                    size="lg"
-                    isCurrentUser={isUserPlayer(match.player2?.id)}
-                    teamColor="primary"
-                    showBorder={true}
-                  />
-                  <View className="bg-white dark:bg-gray-800 rounded-lg p-2 px-3 min-w-[90px] items-center shadow-sm mt-2">
-                    <Text className="text-xs font-medium text-center" numberOfLines={1}>
-                      {match.player2?.full_name ||
-                        match.player2?.email?.split("@")[0] ||
-                        "Open Slot"}
-                    </Text>
-                    {isUserPlayer(match.player2?.id) && (
-                      <Text className="text-xs text-primary font-bold">You</Text>
-                    )}
-                  </View>
-                </View>
-              </View>
-            </View>
-
-            {/* Enhanced Court Net */}
-            <View className="h-[4%] bg-gray-300 dark:bg-gray-600 flex-row items-center justify-center relative">
-              <View className="h-[2px] w-full bg-gray-500 dark:bg-gray-400"></View>
-              <View className="absolute w-4 h-4 bg-gray-400 dark:bg-gray-500 rounded-full"></View>
-            </View>
-
-            {/* Team 2 Side */}
-            <View className="h-[48%] relative">
-              <View className="flex-1 flex-row">
-                <View className="flex-1 items-center justify-center">
-                  <View className="bg-white dark:bg-gray-800 rounded-lg p-2 px-3 min-w-[90px] items-center mb-2 shadow-sm">
-                    <Text className="text-xs font-medium text-center" numberOfLines={1}>
-                      {match.player3?.full_name ||
-                        match.player3?.email?.split("@")[0] ||
-                        "Open Slot"}
-                    </Text>
-                    {isUserPlayer(match.player3?.id) && (
-                      <Text className="text-xs text-indigo-600 font-bold">You</Text>
-                    )}
-                  </View>
-                  <PlayerAvatar
-                    player={match.player3}
-                    size="lg"
-                    isCurrentUser={isUserPlayer(match.player3?.id)}
-                    teamColor="secondary"
-                    showBorder={true}
-                  />
-                </View>
-
-                <View className="flex-1 items-center justify-center">
-                  <View className="bg-white dark:bg-gray-800 rounded-lg p-2 px-3 min-w-[90px] items-center mb-2 shadow-sm">
-                    <Text className="text-xs font-medium text-center" numberOfLines={1}>
-                      {match.player4?.full_name ||
-                        match.player4?.email?.split("@")[0] ||
-                        "Open Slot"}
-                    </Text>
-                    {isUserPlayer(match.player4?.id) && (
-                      <Text className="text-xs text-indigo-600 font-bold">You</Text>
-                    )}
-                  </View>
-                  <PlayerAvatar
-                    player={match.player4}
-                    size="lg"
-                    isCurrentUser={isUserPlayer(match.player4?.id)}
-                    teamColor="secondary"
-                    showBorder={true}
-                  />
-                </View>
-              </View>
-
-              <View className="absolute bottom-2 left-2 right-2 flex-row justify-between items-center">
-                <View className="bg-indigo-500/90 px-3 py-1 rounded-full shadow-sm">
-                  <Text className="text-sm font-bold text-white">Team 2</Text>
-                </View>
-                {matchState.winnerTeam === 2 && (
-                  <Animated.View 
-                    className="bg-yellow-500 px-3 py-1 rounded-full flex-row items-center shadow-lg"
-                    style={{
-                      transform: [{
-                        scale: animatedValue.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [1, 1.1]
-                        })
-                      }]
-                    }}
-                  >
-                    <Ionicons name="trophy" size={14} color="white" />
-                    <Text className="text-xs font-bold text-white ml-1">WINNER</Text>
-                  </Animated.View>
-                )}
-              </View>
-            </View>
-          </View>
-
-          {/* Enhanced Court Legend */}
-          <View className="flex-row justify-center items-center mt-4 py-2 px-3 bg-background dark:bg-background/50 rounded-lg self-center">
-            <View className="flex-row items-center mr-4">
-              <View className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></View>
-              <Text className="text-xs text-muted-foreground">You</Text>
-            </View>
-            <View className="flex-row items-center">
-              <View className="w-3 h-3 bg-gray-300 dark:bg-gray-700 rounded-full mr-2"></View>
-              <Text className="text-xs text-muted-foreground">Open Slot</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* ENHANCED Match Info Section WITH DETAILED VISIBILITY INFO */}
-        <View className="bg-card rounded-xl p-5 mb-6 border border-border/30">
-          <View className="flex-row items-center mb-4">
-            <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mr-3">
-              <Ionicons name="information-circle" size={20} color="#1a7ebd" />
-            </View>
-            <H3>Match Information</H3>
-          </View>
-
-          {/* ENHANCEMENT: Detailed Visibility Information Section */}
-          <View className="mb-6">
-            <Text className="font-medium mb-3">Match Visibility</Text>
-            {renderDetailedVisibilityInfo(match.is_public)}
-          </View>
-
-          {/* Enhanced Timeline with Better Visual Design */}
-          <View className="ml-4">
-            <View className="flex-row mb-4">
-              <View className="mr-4 items-center">
-                <View className="w-4 h-4 rounded-full bg-green-500 shadow-sm" />
-                <View className="w-0.5 h-full bg-border absolute mt-4" />
-              </View>
-              <View className="flex-1">
-                <View className="flex-row items-center mb-1">
-                  <Ionicons name="create-outline" size={16} color={isDark ? '#aaa' : '#666'} style={{marginRight: 8}} />
-                  <Text className="font-medium">Created</Text>
-                </View>
-                <Text className="text-muted-foreground">
-                  {formatRelativeTime(match.created_at)} at {formatTime(match.created_at)}
-                </Text>
-              </View>
-            </View>
-
-            <View className="flex-row mb-4">
-              <View className="mr-4 items-center">
-                <View className="w-4 h-4 rounded-full bg-blue-500 shadow-sm" />
-                <View className="w-0.5 h-full bg-border absolute mt-4" />
-              </View>
-              <View className="flex-1">
-                <View className="flex-row items-center mb-2">
-                  <Ionicons name="time-outline" size={16} color={isDark ? '#aaa' : '#666'} style={{marginRight: 8}} />
-                  <Text className="font-medium">Match Details</Text>
-                </View>
-                <View className="bg-primary/5 dark:bg-primary/10 py-2 px-3 rounded-lg">
-                  <Text className="text-primary font-medium">
-                    Duration: {match.start_time && match.end_time
-                      ? getMatchDuration(match.start_time, match.end_time)
-                      : "Not specified"}
-                  </Text>
-                  <Text className="text-xs text-primary/70 mt-1">
-                    Status: {getMatchStatus(match.status)}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {match.completed_at && (
-              <View className="flex-row">
-                <View className="mr-4 items-center">
-                  <View className="w-4 h-4 rounded-full bg-amber-500 shadow-sm" />
-                </View>
-                <View className="flex-1">
-                  <View className="flex-row items-center mb-1">
-                    <Ionicons name="checkmark-done-outline" size={16} color={isDark ? '#aaa' : '#666'} style={{marginRight: 8}} />
-                    <Text className="font-medium">Completed</Text>
-                  </View>
-                  <Text className="text-muted-foreground">
-                    {formatRelativeTime(match.completed_at)} at {formatTime(match.completed_at)}
-                  </Text>
-                </View>
-              </View>
-            )}
-          </View>
-
-          {/* Enhanced Match Statistics */}
-          {(matchState.hasScores || ensureInteger(match.status) === 4) && (
-            <View className="mt-6 pt-6 border-t border-border/30">
-              <Text className="font-medium mb-4">Quick Stats</Text>
-              <View className="grid grid-cols-3 gap-4">
-                <View className="items-center p-3 bg-muted/20 rounded-lg">
-                  <Ionicons name="tennisball-outline" size={20} color={isDark ? '#aaa' : '#666'} />
-                  <Text className="text-lg font-bold mt-1">{calculateSetsPlayed()}</Text>
-                  <Text className="text-xs text-muted-foreground text-center">Sets Played</Text>
-                </View>
-
-                <View className="items-center p-3 bg-muted/20 rounded-lg">
-                  <Ionicons name="trophy-outline" size={20} color={isDark ? '#aaa' : '#666'} />
-                  <Text className="text-lg font-bold mt-1 text-primary">
-                    {matchState.winnerTeam ? `T${matchState.winnerTeam}` : "N/A"}
-                  </Text>
-                  <Text className="text-xs text-muted-foreground text-center">Winner</Text>
-                </View>
-                
-                <View className="items-center p-3 bg-muted/20 rounded-lg">
-                  <Ionicons name="people-outline" size={20} color={isDark ? '#aaa' : '#666'} />
-                  <Text className="text-lg font-bold mt-1">
-                    {[match.player1_id, match.player2_id, match.player3_id, match.player4_id].filter(Boolean).length}
-                  </Text>
-                  <Text className="text-xs text-muted-foreground text-center">Players</Text>
-                </View>
-              </View>
-            </View>
-          )}
-        </View>
-
-        {/* ENHANCED Match Actions WITH VISIBILITY CONTEXT */}
-        <View className="bg-card rounded-xl border border-border/30 p-5 mb-6">
-          <View className="flex-row items-center mb-4">
-            <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mr-3">
-              <Ionicons name="options-outline" size={20} color="#1a7ebd" />
-            </View>
-            <View className="flex-1">
-              <Text className="font-medium text-base">Match Actions</Text>
-              <Text className="text-xs text-muted-foreground">
-                {matchState.needsScores ? 
-                  `Scores needed ${matchState.isCreator ? '• You can enter them' : '• Creator only'}` :
-                  matchState.canJoin ? `Spots available to join ${match.is_public ? '• Public match' : '• Private match'}` :
-                  matchState.canCancel ? `Can be deleted • ${getCancellationTimeInfo()}` :
-                  'No actions available'
-                }
-              </Text>
-            </View>
-          </View>
-
-          {/* Enhanced Action Grid */}
-          <View className="space-y-3">
-            {/* Primary Actions Row */}
-            <View className="flex-row gap-3">
-              {/* ENHANCED Share Match Button WITH VISIBILITY CONTEXT */}
-              <TouchableOpacity 
-                className="flex-1 flex-row items-center bg-background dark:bg-background/40 border border-border rounded-xl p-4"
-                onPress={shareMatch}
-              >
-                <View className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/40 items-center justify-center mr-3">
-                  <Ionicons name="share-social-outline" size={20} color="#3b82f6" />
-                </View>
-                <View className="flex-1">
-                  <Text className="font-medium">Share</Text>
-                  <Text className="text-xs text-muted-foreground">
-                    {matchState.isFuture 
-                      ? (match.is_public ? 'Public invitation' : 'Private invitation')
-                      : (match.is_public ? 'Public result' : 'Private result')
-                    }
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              {/* ENHANCED Join Match Button WITH VISIBILITY CONTEXT */}
-              {matchState.canJoin && (
-                <TouchableOpacity 
-                  className="flex-1 flex-row items-center bg-primary border border-primary rounded-xl p-4" 
-                  onPress={joinMatch}
-                  disabled={saving}
-                >
-                  {saving ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <>
-                      <View className="w-10 h-10 rounded-full bg-white/20 items-center justify-center mr-3">
-                        <Ionicons name="add" size={22} color="#fff" />
-                      </View>
-                      <View className="flex-1">
-                        <Text className="font-medium text-white">Join Match</Text>
-                        <Text className="text-xs text-white/80">
-                          {[match.player1_id, match.player2_id, match.player3_id, match.player4_id].filter(Boolean).length}/4 players
-                          {match.is_public && ' • Public'}
-                        </Text>
-                      </View>
-                    </>
-                  )}
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Score Entry Action */}
-            {matchState.canEnterScores && !editingScores && (
-              <TouchableOpacity 
-                className="flex-row items-center bg-green-600 border border-green-600 rounded-xl p-4" 
-                onPress={() => setEditingScores(true)}
-              >
-                <View className="w-10 h-10 rounded-full bg-white/20 items-center justify-center mr-3">
-                  <Ionicons name="create-outline" size={20} color="#fff" />
-                </View>
-                <View className="flex-1">
-                  <Text className="font-medium text-white">Enter Match Scores</Text>
-                  <Text className="text-xs text-white/80">Creator privilege</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#fff" />
-              </TouchableOpacity>
-            )}
-
-                          {/* Edit Match Action - NEW FEATURE */}
-                          {matchState.isCreator && !isStatusEqual(match.status, MatchStatus.CANCELLED) && (
-              <TouchableOpacity 
-                className="flex-row items-center bg-purple-600 border border-purple-600 rounded-xl p-4" 
-                onPress={() => {
-                  // Calculate edit permissions
-                  const now = new Date();
-                  const startTime = new Date(match.start_time);
-                  const minutesUntilStart = (startTime.getTime() - now.getTime()) / (1000 * 60);
-                  
-                  if (matchState.hoursFromCompletion > 24) {
-                    Alert.alert(
-                      "Cannot Edit",
-                      "This match is locked and cannot be edited after 24 hours.",
-                      [{ text: "OK" }]
-                    );
-                    return;
-                  }
-                  
-                  if (minutesUntilStart <= 0 && minutesUntilStart > -30) {
-                    Alert.alert(
-                      "Limited Editing",
-                      "Match has started or is about to start. Only location details can be edited.",
-                      [
-                        { text: "Cancel", style: "cancel" },
-                        { 
-                          text: "Continue", 
-                          onPress: () => router.push({
-                            pathname: '/(protected)/(screens)/edit-match',
-                            params: { matchId: match.id }
-                          })
-                        }
-                      ]
-                    );
-                    return;
-                  }
-                  
-                  router.push({
-                    pathname: '/(protected)/(screens)/edit-match',
-                    params: { matchId: match.id }
-                  });
-                }}
-              >
-                <View className="w-10 h-10 rounded-full bg-white/20 items-center justify-center mr-3">
-                  <Ionicons name="pencil-outline" size={20} color="#fff" />
-                </View>
-                <View className="flex-1">
-                  <Text className="font-medium text-white">Edit Match Details</Text>
-                  <Text className="text-xs text-white/80">
-                    {matchState.hoursFromCompletion < 2 ? 'Limited editing available' : 'Modify match information'}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#fff" />
-              </TouchableOpacity>
-            )}
-
-
-            {/* Confirmation Action */}
-            {ensureInteger(match.status) === MatchStatus.NEEDS_CONFIRMATION && userId && matchState.isCreator && (
-              <TouchableOpacity 
-                className="flex-row items-center bg-amber-500 border border-amber-500 rounded-xl p-4" 
-                onPress={() => {
-                  Alert.alert(
-                    "Confirm Match",
-                    "Are you sure the match details and scores are correct?",
-                    [
-                      { text: "No", style: "cancel" },
-                      { 
-                        text: "Yes, Confirm", 
-                        onPress: async () => {
-                          try {
-                            setSaving(true);
-                            const { error } = await supabase
-                              .from("matches")
-                              .update({ status: MatchStatus.COMPLETED })
-                              .eq("id", match.id);
-                              
-                            if (error) throw error;
-                            
-                            fetchMatchDetails(match.id);
-                            Alert.alert("Success", "Match confirmed!");
-                          } catch (error) {
-                            console.error("Error confirming match:", error);
-                            Alert.alert("Error", "Failed to confirm match");
-                          } finally {
-                            setSaving(false);
-                          }
-                        }
-                      }
-                    ]
-                  );
-                }}
-              >
-                <View className="w-10 h-10 rounded-full bg-white/20 items-center justify-center mr-3">
-                  <Ionicons name="checkmark" size={20} color="#fff" />
-                </View>
-                <View className="flex-1">
-                  <Text className="font-medium text-white">Confirm Match</Text>
-                  <Text className="text-xs text-white/80">Finalize scores</Text>
-                </View>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Delete Action (Separate Section) */}
-          {matchState.canCancel && (
-            <View className="mt-6 pt-4 border-t border-border/30">
-              <TouchableOpacity 
-                className="flex-row items-center justify-center py-3"
-                onPress={cancelMatch}
-                disabled={saving}
-              >
-                {saving ? (
-                  <ActivityIndicator size="small" color="#ef4444" />
-                ) : (
-                  <>
-                    <Ionicons name="trash-outline" size={18} color="#ef4444" />
-                    <Text className="ml-2 text-red-500 font-medium">Delete Match</Text>
-                    <Text className="ml-2 text-red-400 text-xs">(Creator Only)</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-        {/* Enhanced User Performance Summary WITH AVATARS */}
-        {matchState.userParticipating && matchState.hasScores && (
-          <View className="bg-card rounded-xl p-6 mb-6 border border-border/30">
-            <View className="flex-row items-center mb-4">
-              <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mr-3">
-                <Ionicons name="person-outline" size={20} color="#1a7ebd" />
-              </View>
-              <H3>Your Performance</H3>
-            </View>
-            <View className="flex-row justify-around">
-              <View className="items-center">
-                <View className={`w-14 h-14 rounded-full items-center justify-center mb-3 ${
-                  matchState.userWon === true ? 'bg-green-100 dark:bg-green-900/30' : 
-                  matchState.userWon === false ? 'bg-red-100 dark:bg-red-900/30' : 'bg-yellow-100 dark:bg-yellow-900/30'
-                }`}>
-                  <Ionicons 
-                    name={matchState.userWon === true ? "trophy" : matchState.userWon === false ? "sad" : "remove"} 
-                    size={28} 
-                    color={matchState.userWon === true ? "#059669" : matchState.userWon === false ? "#dc2626" : "#d97706"} 
-                  />
-                </View>
-                <Text className="text-sm font-medium">Result</Text>
-                <Text className={`text-xs ${
-                  matchState.userWon === true ? 'text-green-600 dark:text-green-400' : 
-                  matchState.userWon === false ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'
-                }`}>
-                  {matchState.userWon === true ? 'Victory' : matchState.userWon === false ? 'Defeat' : 'Draw'}
-                </Text>
-              </View>
-              
-              <View className="items-center">
-                <View className="w-14 h-14 rounded-full bg-primary/10 items-center justify-center mb-3">
-                  <Text className="text-xl font-bold text-primary">
-                    {matchState.userTeam === 1 ? matchState.team1Sets : matchState.team2Sets}
-                  </Text>
-                </View>
-                <Text className="text-sm font-medium">Sets Won</Text>
-                <Text className="text-xs text-muted-foreground">Your Team</Text>
-              </View>
-              
-              <View className="items-center">
-                <View className="w-14 h-14 rounded-full bg-muted/30 items-center justify-center mb-3">
-                  <Text className="text-xl font-bold">
-                    {matchState.userTeam === 1 ? matchState.team2Sets : matchState.team1Sets}
-                  </Text>
-                </View>
-                <Text className="text-sm font-medium">Sets Lost</Text>
-                <Text className="text-xs text-muted-foreground">Opponents</Text>
-              </View>
-            </View>
-
-            {/* Enhanced Performance Insights */}
-            {matchState.userWon !== null && (
-              <View className="mt-6 pt-4 border-t border-border/30">
-                <Text className="text-sm font-medium mb-3">Match Insights</Text>
-                <View className="space-y-2">
-                  <View className="flex-row items-center">
-                    <Ionicons 
-                      name={matchState.userWon ? "trending-up" : "trending-down"} 
-                      size={16} 
-                      color={matchState.userWon ? "#059669" : "#dc2626"} 
-                      style={{ marginRight: 8 }}
-                    />
-                    <Text className="text-sm text-muted-foreground">
-                      {matchState.userWon 
-                        ? `Great job! You dominated this match with a ${Math.abs(matchState.team1Sets - matchState.team2Sets)}-set margin.`
-                        : `Keep practicing! The margin was ${Math.abs(matchState.team1Sets - matchState.team2Sets)} set${Math.abs(matchState.team1Sets - matchState.team2Sets) !== 1 ? 's' : ''}.`
-                      }
-                    </Text>
-                  </View>
-                  
-                  {match.start_time && match.end_time && (
-                    <View className="flex-row items-center">
-                      <Ionicons name="time" size={16} color="#888" style={{ marginRight: 8 }} />
-                      <Text className="text-sm text-muted-foreground">
-                        Match duration: {getMatchDuration(match.start_time, match.end_time)}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* ENHANCED Player Details Section WITH AVATARS */}
-        <View className="bg-card rounded-xl p-5 mb-6 border border-border/30">
-          <View className="flex-row items-center mb-4">
-            <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mr-3">
-              <Ionicons name="people-outline" size={20} color="#1a7ebd" />
-            </View>
-            <H3>Player Details</H3>
-          </View>
-
-          {/* Team 1 Players */}
-          <View className="mb-6">
-            <Text className="font-medium mb-3 text-primary">Team 1</Text>
-            <View className="space-y-3">
-              {/* Player 1 */}
-              <View className="flex-row items-center p-3 bg-primary/5 rounded-lg">
-                <PlayerAvatar
-                  player={match.player1}
-                  size="md"
-                  isCurrentUser={isUserPlayer(match.player1?.id)}
-                  isCreator={matchState.isCreator}
-                  teamColor="primary"
-                />
-                <View className="flex-1 ml-3">
-                  <View className="flex-row items-center">
-                    <Text className="font-medium">
-                      {match.player1?.full_name || match.player1?.email?.split('@')[0] || 'Unknown'}
-                    </Text>
-                    {matchState.isCreator && isUserPlayer(match.player1?.id) && (
-                      <View className="ml-2 bg-purple-100 dark:bg-purple-900/30 px-2 py-0.5 rounded-full">
-                        <Text className="text-xs font-bold text-purple-700 dark:text-purple-300">Creator</Text>
-                      </View>
-                    )}
-                    {!matchState.isCreator && isUserPlayer(match.player1?.id) && (
-                      <View className="ml-2 bg-yellow-100 dark:bg-yellow-900/30 px-2 py-0.5 rounded-full">
-                        <Text className="text-xs font-bold text-yellow-700 dark:text-yellow-300">You</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text className="text-xs text-muted-foreground">{match.player1?.email}</Text>
-                  {match.player1?.glicko_rating && (
-                    <View className="flex-row items-center mt-1">
-                      <Ionicons name="stats-chart-outline" size={12} color="#888" style={{ marginRight: 4 }} />
-                      <Text className="text-xs text-muted-foreground">
-                        Rating: {Math.round(parseFloat(match.player1.glicko_rating))}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-
-              {/* Player 2 */}
-              <View className="flex-row items-center p-3 bg-primary/5 rounded-lg">
-                <PlayerAvatar
-                  player={match.player2}
-                  size="md"
-                  isCurrentUser={isUserPlayer(match.player2?.id)}
-                  teamColor="primary"
-                />
-                <View className="flex-1 ml-3">
-                  {match.player2 ? (
-                    <>
-                      <View className="flex-row items-center">
-                        <Text className="font-medium">
-                          {match.player2.full_name || match.player2.email?.split('@')[0] || 'Unknown'}
-                        </Text>
-                        {isUserPlayer(match.player2?.id) && (
-                          <View className="ml-2 bg-yellow-100 dark:bg-yellow-900/30 px-2 py-0.5 rounded-full">
-                            <Text className="text-xs font-bold text-yellow-700 dark:text-yellow-300">You</Text>
-                          </View>
-                        )}
-                      </View>
-                      <Text className="text-xs text-muted-foreground">{match.player2.email}</Text>
-                      {match.player2.glicko_rating && (
-                        <View className="flex-row items-center mt-1">
-                          <Ionicons name="stats-chart-outline" size={12} color="#888" style={{ marginRight: 4 }} />
-                          <Text className="text-xs text-muted-foreground">
-                            Rating: {Math.round(parseFloat(match.player2.glicko_rating))}
-                          </Text>
-                        </View>
-                      )}
-                    </>
-                  ) : (
-                    <View>
-                      <Text className="font-medium text-muted-foreground">Open Slot</Text>
-                      <Text className="text-xs text-muted-foreground">Waiting for player to join</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            </View>
-          </View>
-
-          {/* Team 2 Players */}
-          <View>
-            <Text className="font-medium mb-3 text-indigo-600">Team 2</Text>
-            <View className="space-y-3">
-              {/* Player 3 */}
-              <View className="flex-row items-center p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
-                <PlayerAvatar
-                  player={match.player3}
-                  size="md"
-                  isCurrentUser={isUserPlayer(match.player3?.id)}
-                  teamColor="secondary"
-                />
-                <View className="flex-1 ml-3">
-                  {match.player3 ? (
-                    <>
-                      <View className="flex-row items-center">
-                        <Text className="font-medium">
-                          {match.player3.full_name || match.player3.email?.split('@')[0] || 'Unknown'}
-                        </Text>
-                        {isUserPlayer(match.player3?.id) && (
-                          <View className="ml-2 bg-yellow-100 dark:bg-yellow-900/30 px-2 py-0.5 rounded-full">
-                            <Text className="text-xs font-bold text-yellow-700 dark:text-yellow-300">You</Text>
-                          </View>
-                        )}
-                      </View>
-                      <Text className="text-xs text-muted-foreground">{match.player3.email}</Text>
-                      {match.player3.glicko_rating && (
-                        <View className="flex-row items-center mt-1">
-                          <Ionicons name="stats-chart-outline" size={12} color="#888" style={{ marginRight: 4 }} />
-                          <Text className="text-xs text-muted-foreground">
-                            Rating: {Math.round(parseFloat(match.player3.glicko_rating))}
-                          </Text>
-                        </View>
-                      )}
-                    </>
-                  ) : (
-                    <View>
-                      <Text className="font-medium text-muted-foreground">Open Slot</Text>
-                      <Text className="text-xs text-muted-foreground">Waiting for player to join</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-
-              {/* Player 4 */}
-              <View className="flex-row items-center p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
-                <PlayerAvatar
-                  player={match.player4}
-                  size="md"
-                  isCurrentUser={isUserPlayer(match.player4?.id)}
-                  teamColor="secondary"
-                />
-                <View className="flex-1 ml-3">
-                  {match.player4 ? (
-                    <>
-                      <View className="flex-row items-center">
-                        <Text className="font-medium">
-                          {match.player4.full_name || match.player4.email?.split('@')[0] || 'Unknown'}
-                        </Text>
-                        {isUserPlayer(match.player4?.id) && (
-                          <View className="ml-2 bg-yellow-100 dark:bg-yellow-900/30 px-2 py-0.5 rounded-full">
-                            <Text className="text-xs font-bold text-yellow-700 dark:text-yellow-300">You</Text>
-                          </View>
-                        )}
-                      </View>
-                      <Text className="text-xs text-muted-foreground">{match.player4.email}</Text>
-                      {match.player4.glicko_rating && (
-                        <View className="flex-row items-center mt-1">
-                          <Ionicons name="stats-chart-outline" size={12} color="#888" style={{ marginRight: 4 }} />
-                          <Text className="text-xs text-muted-foreground">
-                            Rating: {Math.round(parseFloat(match.player4.glicko_rating))}
-                          </Text>
-                        </View>
-                      )}
-                    </>
-                  ) : (
-                    <View>
-                      <Text className="font-medium text-muted-foreground">Open Slot</Text>
-                      <Text className="text-xs text-muted-foreground">Waiting for player to join</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            </View>
-          </View>
-        </View>
+        {/* MODIFIED: COLLAPSIBLE PERFORMANCE & INFO COMPONENT */}
+        {renderCollapsiblePerformanceInfo()}
 
         {/* CRITICAL COMPONENT: Match Reports Section */}
         {reportingInfo.hasReports && (
@@ -3338,62 +2942,17 @@ export default function EnhancedMatchDetailsWithVisibility() {
           </View>
         )}
 
-        {/* Enhanced Footer with Quick Navigation */}
-        <View className="bg-card rounded-xl p-5 border border-border/30">
-          <Text className="font-medium mb-4">Quick Navigation</Text>
-          <View className="flex-row justify-around">
-            <TouchableOpacity
-              onPress={() => router.push('/(protected)/(screens)/match-history')}
-              className="items-center p-3"
-            >
-              <View className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 items-center justify-center mb-2">
-                <Ionicons name="list-outline" size={24} color="#3b82f6" />
-              </View>
-              <Text className="text-xs text-center font-medium">Match History</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              onPress={() => router.push('/(protected)/(screens)/create-match')}
-              className="items-center p-3"
-            >
-              <View className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 items-center justify-center mb-2">
-                <Ionicons name="add-circle-outline" size={24} color="#059669" />
-              </View>
-              <Text className="text-xs text-center font-medium">New Match</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              onPress={() => router.push('/(protected)/(screens)/leaderboard')}
-              className="items-center p-3"
-            >
-              <View className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 items-center justify-center mb-2">
-                <Ionicons name="trophy-outline" size={24} color="#d97706" />
-              </View>
-              <Text className="text-xs text-center font-medium">Leaderboard</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              onPress={() => router.push('/(protected)/(screens)/friends')}
-              className="items-center p-3"
-            >
-              <View className="w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-900/30 items-center justify-center mb-2">
-                <Ionicons name="people-outline" size={24} color="#7c3aed" />
-              </View>
-              <Text className="text-xs text-center font-medium">Friends</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+
 
         {/* Bottom Spacing */}
         <View className="h-8" />
       </ScrollView>
 
-
-        {renderEnhancedFloatingActionMenu()}
+      {/* NEW: EXPANDABLE FAB MENU */}
+      {renderExpandableFAB()}
 
       {/* CRITICAL MODAL: Report Match Modal */}
       {renderReportingModal()}
     </SafeAreaView>
   );
-} 
-          
+}

@@ -926,16 +926,103 @@ export default function EnhancedHome() {
     router.push("/(protected)/(screens)/match-history");
   };
 
-  // Component: Enhanced User Header with Avatar and Quick Stats
-  const renderUserHeader = () => (
-    <View className="mb-6 p-4 pt-0 bg-gradient-to-r from-primary/10 to-primary/5 rounded-xl">
-      <View className="flex-row items-center mb-4">
-        <View className="flex-1">
-          <Text className="text-4xl font-bold">
-            👋 {profile?.full_name?.split(" ")[0] || "Player"}
+/**
+   * Dynamic Emoji Selection Based on Player Performance
+   * Analyzes multiple statistics to provide contextual greeting emojis
+   */
+const getPlayerStatusEmoji = (): string => {
+  if (!userStats) return "👋";
+
+  const { currentStreak, winRate, totalMatches, recentPerformance } = userStats;
+
+  // 🔥 LEGENDARY PERFORMANCE (5+ win streak)
+  if (currentStreak >= 5) {
+    return "🔥"; // On fire!
+  }
+
+  // ⚡ HOT STREAK (3-4 wins)
+  if (currentStreak >= 3) {
+    return "⚡"; // Lightning performance
+  }
+
+  // 💪 WINNING MOMENTUM (1-2 wins)
+  if (currentStreak >= 1) {
+    return totalMatches >= 10 && winRate >= 70 ? "🏆" : "💪"; // Trophy for seasoned winners, muscle for momentum
+  }
+
+  // 🤔 ANALYZING PHASE (no streak but decent stats)
+  if (currentStreak === 0) {
+    if (winRate >= 60) return "🎯"; // Good aim, consistent player
+    if (recentPerformance === "improving") return "📈"; // Trending up
+    if (totalMatches < 3) return "🌟"; // New star player
+    return "🤔"; // Thinking, planning next move
+  }
+
+  // 😤 DETERMINATION MODE (1-2 losses)
+  if (currentStreak >= -2) {
+    return recentPerformance === "improving" ? "💡" : "😤"; // Light bulb for improvement, determined face for grinding
+  }
+
+  // 😰 ROUGH PATCH (3-4 losses)
+  if (currentStreak >= -4) {
+    return "😰"; // Worried but still fighting
+  }
+
+  // 🔄 COMEBACK TIME (5+ losses)
+  if (currentStreak <= -5) {
+    return "🔄"; // Time for a comeback/reset
+  }
+
+  // 🚀 ROOKIE ENERGY (very few matches played)
+  if (totalMatches === 0) {
+    return "🚀"; // Ready to launch career
+  }
+
+  if (totalMatches < 5) {
+    return "🌟"; // Rising star
+  }
+
+  // 👋 DEFAULT FRIENDLY GREETING
+  return "👋";
+};
+
+/**
+ * Get contextual status message based on player performance
+ */
+const getPlayerStatusMessage = (): string => {
+  if (!userStats) return "";
+
+  const { currentStreak, winRate, totalMatches, recentPerformance } = userStats;
+
+  if (currentStreak >= 5) return "You're absolutely unstoppable!";
+  if (currentStreak >= 3) return "What a streak you're on!";
+  if (currentStreak >= 1) return "Keep that momentum going!";
+  if (currentStreak === 0 && winRate >= 70) return "Consistent champion!";
+  if (currentStreak === 0 && recentPerformance === "improving") return "Getting better every match!";
+  if (currentStreak >= -2 && recentPerformance === "improving") return "Your comeback starts now!";
+  if (currentStreak >= -2) return "Time to turn things around!";
+  if (currentStreak >= -4) return "Every champion faces challenges!";
+  if (currentStreak <= -5) return "Your biggest comeback awaits!";
+  if (totalMatches === 0) return "Ready to start your journey!";
+  if (totalMatches < 5) return "Welcome to the courts!";
+  return "Great to see you back!";
+};
+
+// Component: Enhanced User Header with Avatar and Quick Stats
+const renderUserHeader = () => (
+  <View className="mb-6 p-4 pt-0 bg-gradient-to-r from-primary/10 to-primary/5 rounded-xl">
+    <View className="flex-row items-center mb-4">
+      <View className="flex-1">
+        <Text className="text-4xl font-bold">
+          {getPlayerStatusEmoji()} {profile?.full_name?.split(" ")[0] || "Player"}
+        </Text>
+        {userStats && (
+          <Text className="text-sm text-muted-foreground mt-1 italic">
+            {getPlayerStatusMessage()}
           </Text>
-        </View>
+        )}
       </View>
+    </View>
 
       {/* Quick Stats Row */}
       <View className="flex-row justify-around">
@@ -1113,8 +1200,10 @@ export default function EnhancedHome() {
                   size="sm"
                 />
               </View>
-              <View>
-                <Text className="font-medium text-sm">
+              {/* MODIFICATION 1: Add flex-1 to this View */}
+              <View className="flex-1">
+                {/* MODIFICATION 2: Add numberOfLines to this Text */}
+                <Text className="font-medium text-sm" numberOfLines={2}>
                   You{" "}
                   {teammate
                     ? `& ${teammate.full_name || teammate.email.split("@")[0]}`
@@ -1130,11 +1219,10 @@ export default function EnhancedHome() {
 
             {/* Opponent Team Section with Avatar */}
             <View className="flex-row items-center flex-1 justify-end">
-              <View className="mr-2">
-                <Text className="text-right font-medium text-sm">
-                  Opponents
-                </Text>
-                <Text className="text-xs text-muted-foreground text-right mt-2">
+              {/* MODIFICATION 3: Add flex-1 to this View */}
+              <View className="flex-1 mr-2"> 
+                {/* MODIFICATION 4: Add numberOfLines to this Text */}
+                <Text className="text-right font-medium text-sm" numberOfLines={2}>
                   {opponents
                     .filter(Boolean)
                     .map(
@@ -1146,23 +1234,7 @@ export default function EnhancedHome() {
               <PlayerAvatarStack players={opponents} maxDisplay={2} size="sm" />
             </View>
           </View>
-
-          {/* ADDITIONAL Public Match Indicator for Future Matches */}
-          {match.is_public && type === "upcoming" && (
-            <View className="flex-row items-center justify-center mt-2 p-2 bg-blue-100/50 dark:bg-blue-900/20 rounded-lg">
-              <Ionicons
-                name="people-outline"
-                size={14}
-                color="#2563eb"
-                style={{ marginRight: 4 }}
-              />
-              <Text className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                Public match - Others can join
-              </Text>
-            </View>
-          )}
-        </View>
-
+          </View>
         {/* Score Display with Enhanced Visibility Context */}
         {match.setScores ? (
           <View className="flex-row items-center justify-between mt-2">

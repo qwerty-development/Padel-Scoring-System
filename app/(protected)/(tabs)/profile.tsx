@@ -1126,6 +1126,100 @@ export default function Profile() {
     </View>
   );
 
+  // **ENHANCED RATING COMPONENT - PRODUCTION RULE 12: Prominent Rating Display System**
+  const renderProminentRatingBadge = () => {
+    const getRatingFromProfile = () => {
+      try {
+        return profile?.glicko_rating ? parseInt(profile.glicko_rating.toString()) : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const rating = getRatingFromProfile();
+    
+    // Rating level classification system
+    const getRatingLevel = (rating: number | null) => {
+      if (!rating) return { level: 'Unrated', color: '#6b7280', bgColor: '#f3f4f6' };
+      if (rating >= 2100) return { level: 'Elite', color: '#7c2d12', bgColor: '#fbbf24' };
+      if (rating >= 1900) return { level: 'Expert', color: '#7c3aed', bgColor: '#c4b5fd' };
+      if (rating >= 1700) return { level: 'Advanced', color: '#059669', bgColor: '#6ee7b7' };
+      if (rating >= 1500) return { level: 'Intermediate', color: '#2563eb', bgColor: '#93c5fd' };
+      if (rating >= 1300) return { level: 'Beginner', color: '#dc2626', bgColor: '#fca5a5' };
+      return { level: 'Novice', color: '#6b7280', bgColor: '#d1d5db' };
+    };
+
+    const ratingLevel = getRatingLevel(rating);
+    
+    // Trend calculation for visual indicator
+    const getTrendIndicator = () => {
+      if (playerStats.recentPerformance === 'improving') {
+        return { icon: 'trending-up', color: '#10b981' };
+      } else if (playerStats.recentPerformance === 'declining') {
+        return { icon: 'trending-down', color: '#ef4444' };
+      }
+      return { icon: 'remove', color: '#6b7280' };
+    };
+
+    const trend = getTrendIndicator();
+
+    return (
+      <View className="items-center mb-6">
+        {/* Primary Rating Badge */}
+        <View 
+          className="px-8 py-4 rounded-2xl mb-3 border-2 min-w-[200px] items-center"
+          style={{
+            backgroundColor: ratingLevel.bgColor,
+            borderColor: ratingLevel.color,
+            shadowColor: ratingLevel.color,
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.25,
+            shadowRadius: 8,
+            elevation: 8,
+          }}
+        >
+          <View className="flex-row items-center mb-2">
+            <View className="mr-3">
+              <Ionicons name="trophy" size={24} color={ratingLevel.color} />
+            </View>
+            <View className="items-center">
+              <Text 
+                className="text-3xl font-bold"
+                style={{ color: ratingLevel.color }}
+              >
+                {rating || '-'}
+              </Text>
+              <Text 
+                className="text-xs font-semibold tracking-wider uppercase"
+                style={{ color: ratingLevel.color, opacity: 0.8 }}
+              >
+                Glicko Rating
+              </Text>
+            </View>
+            <View className="ml-3">
+              <Ionicons 
+                name={trend.icon as any} 
+                size={20} 
+                color={trend.color} 
+              />
+            </View>
+          </View>
+          
+          {/* Rating Level Badge */}
+          <View 
+            className="px-4 py-1 rounded-full"
+            style={{ backgroundColor: ratingLevel.color }}
+          >
+            <Text className="text-white text-sm font-bold">
+              {ratingLevel.level}
+            </Text>
+          </View>
+        </View>
+
+      </View>
+    );
+  };
+
   const renderInfoCard = (title: string, value: string | null, icon: keyof typeof Ionicons.glyphMap) => (
     <View className="bg-card rounded-lg p-4 mb-3 flex-row items-center">
       <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center mr-4">
@@ -1138,21 +1232,11 @@ export default function Profile() {
     </View>
   );
 
+  // **MODIFIED STATS CARD - PRODUCTION RULE 13: Remove redundant rating display**
   const renderStatsCard = () => (
     <View className="bg-card rounded-lg p-6 mb-6">
       <View className="flex-row justify-between items-center mb-4">
-        <View className="flex-row items-center">
-          <Text className="text-xs text-muted-foreground mr-2">Current Rating:</Text>
-          <Text className="text-base font-bold text-primary">
-            {(() => {
-              try {
-                return profile?.glicko_rating ? parseInt(profile.glicko_rating.toString()).toString() : '-';
-              } catch {
-                return '-';
-              }
-            })()}
-          </Text>
-        </View>
+        <H3>Match Statistics</H3>
         <TouchableOpacity onPress={shareProfile}>
           <Ionicons name="share-outline" size={20} color="#1a7ebd" />
         </TouchableOpacity>
@@ -1388,6 +1472,9 @@ export default function Profile() {
                 )}
               </View>
             </View>
+            
+            {/* **PROMINENT RATING DISPLAY - PRODUCTION RULE 14: Header Integration** */}
+            {safeRender(() => renderProminentRatingBadge())}
           </View>
         </View>
 

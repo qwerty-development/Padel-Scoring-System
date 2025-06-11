@@ -51,21 +51,26 @@ interface MatchData {
 }
 
 interface MatchHistory {
-  asTeammates: MatchData[];
-  asOpponents: MatchData[];
+  partnerMatches: MatchData[];
+  rivalMatches: MatchData[];
   allMatches: MatchData[];
-  teammateStats: {
-    matches: number;
+  partnershipRecord: {
+    totalMatches: number;
     wins: number;
     losses: number;
-    winRate: number;
+    winPercentage: number;
+    setsWon: number;
+    setsLost: number;
   };
-  opponentStats: {
-    matches: number;
-    wins: number;
-    losses: number;
-    winRate: number;
+  headToHeadRecord: {
+    totalMatches: number;
+    userWins: number;
+    friendWins: number;
+    userWinPercentage: number;
+    setsWon: number;
+    setsLost: number;
   };
+  recentForm: ('W' | 'L')[];
 }
 
 /**
@@ -260,11 +265,26 @@ export default function FriendProfileScreen() {
   const { friendId } = useLocalSearchParams();
   const [profile, setProfile] = useState<FriendProfile | null>(null);
   const [matchHistory, setMatchHistory] = useState<MatchHistory>({
-    asTeammates: [],
-    asOpponents: [],
+    partnerMatches: [],
+    rivalMatches: [],
     allMatches: [],
-    teammateStats: { matches: 0, wins: 0, losses: 0, winRate: 0 },
-    opponentStats: { matches: 0, wins: 0, losses: 0, winRate: 0 }
+    partnershipRecord: { 
+      totalMatches: 0, 
+      wins: 0, 
+      losses: 0, 
+      winPercentage: 0,
+      setsWon: 0,
+      setsLost: 0
+    },
+    headToHeadRecord: { 
+      totalMatches: 0, 
+      userWins: 0, 
+      friendWins: 0, 
+      userWinPercentage: 0,
+      setsWon: 0,
+      setsLost: 0
+    },
+    recentForm: []
   });
   const [loading, setLoading] = useState(true);
   const [matchesLoading, setMatchesLoading] = useState(true);
@@ -343,54 +363,101 @@ export default function FriendProfileScreen() {
 
   const processMatchHistory = (matches: MatchData[], currentUserId: string, friendId: string): MatchHistory => {
     // Separate matches into categories
-    const asTeammates: MatchData[] = [];
-    const asOpponents: MatchData[] = [];
+    const partnerMatches: MatchData[] = [];
+    const rivalMatches: MatchData[] = [];
     
-    let teammateWins = 0;
-    let teammateMatches = 0;
-    let opponentWins = 0;
-    let opponentMatches = 0;
+    let partnerWins = 0;
+    let partnerSetsWon = 0;
+    let partnerSetsLost = 0;
+    let rivalUserWins = 0;
+    let rivalSetsWon = 0;
+    let rivalSetsLost = 0;
+    const recentForm: ('W' | 'L')[] = [];
 
     matches.forEach(match => {
       const isUserInTeam1 = match.player1_id === currentUserId || match.player2_id === currentUserId;
       const isFriendInTeam1 = match.player1_id === friendId || match.player2_id === friendId;
       
-      // If both in same team
+      // Calculate sets for this match
+      const team1Sets = (match.team1_score_set1 > match.team2_score_set1 ? 1 : 0) +
+                       (match.team1_score_set2 > match.team2_score_set2 ? 1 : 0) +
+                       ((match.team1_score_set3 !== null && match.team2_score_set3 !== null) 
+                        ? (match.team1_score_set3 > match.team2_score_set3 ? 1 : 0) : 0);
+      
+      const team2Sets = (match.team2_score_set1 > match.team1_score_set1 ? 1 : 0) +
+                       (match.team2_score_set2 > match.team1_score_set2 ? 1 : 0) +
+                       ((match.team1_score_set3 !== null && match.team2_score_set3 !== null) 
+                        ? (match.team2_score_set3 > match.team1_score_set3 ? 1 : 0) : 0);
+      
+      // If both in same team (partners)
       if ((isUserInTeam1 && isFriendInTeam1) || (!isUserInTeam1 && !isFriendInTeam1)) {
-        asTeammates.push(match);
-        teammateMatches++;
+        partnerMatches.push(match);
         
         // Check if their team won
-        if ((isUserInTeam1 && match.winner_team === 1) || (!isUserInTeam1 && match.winner_team === 2)) {
-          teammateWins++;
+        const teamWon = (isUserInTeam1 && match.winner_team === 1) || (!isUserInTeam1 && match.winner_team === 2);
+        if (teamWon) {
+          partnerWins++;
+          recentForm.unshift('W');
+        } else {
+          recentForm.unshift('L');
+        }
+        
+        // Track sets
+        if (isUserInTeam1) {
+          partnerSetsWon += team1Sets;
+          partnerSetsLost += team2Sets;
+        } else {
+          partnerSetsWon += team2Sets;
+          partnerSetsLost += team1Sets;
         }
       } else {
-        asOpponents.push(match);
-        opponentMatches++;
+        // They are opponents (rivals)
+        rivalMatches.push(match);
         
         // Check if current user won against friend
-        if ((isUserInTeam1 && match.winner_team === 1) || (!isUserInTeam1 && match.winner_team === 2)) {
-          opponentWins++;
+        const userWon = (isUserInTeam1 && match.winner_team === 1) || (!isUserInTeam1 && match.winner_team === 2);
+        if (userWon) {
+          rivalUserWins++;
+          recentForm.unshift('W');
+        } else {
+          recentForm.unshift('L');
+        }
+        
+        // Track sets
+        if (isUserInTeam1) {
+          rivalSetsWon += team1Sets;
+          rivalSetsLost += team2Sets;
+        } else {
+          rivalSetsWon += team2Sets;
+          rivalSetsLost += team1Sets;
         }
       }
     });
 
+    // Limit recent form to last 10 matches
+    const limitedRecentForm = recentForm.slice(0, 10);
+
     return {
-      asTeammates,
-      asOpponents,
+      partnerMatches,
+      rivalMatches,
       allMatches: matches,
-      teammateStats: {
-        matches: teammateMatches,
-        wins: teammateWins,
-        losses: teammateMatches - teammateWins,
-        winRate: teammateMatches > 0 ? Math.round((teammateWins / teammateMatches) * 100) : 0
+      partnershipRecord: {
+        totalMatches: partnerMatches.length,
+        wins: partnerWins,
+        losses: partnerMatches.length - partnerWins,
+        winPercentage: partnerMatches.length > 0 ? Math.round((partnerWins / partnerMatches.length) * 100) : 0,
+        setsWon: partnerSetsWon,
+        setsLost: partnerSetsLost
       },
-      opponentStats: {
-        matches: opponentMatches,
-        wins: opponentWins,
-        losses: opponentMatches - opponentWins,
-        winRate: opponentMatches > 0 ? Math.round((opponentWins / opponentMatches) * 100) : 0
-      }
+      headToHeadRecord: {
+        totalMatches: rivalMatches.length,
+        userWins: rivalUserWins,
+        friendWins: rivalMatches.length - rivalUserWins,
+        userWinPercentage: rivalMatches.length > 0 ? Math.round((rivalUserWins / rivalMatches.length) * 100) : 0,
+        setsWon: rivalSetsWon,
+        setsLost: rivalSetsLost
+      },
+      recentForm: limitedRecentForm
     };
   };
 
@@ -430,45 +497,259 @@ export default function FriendProfileScreen() {
   );
 
   /**
-   * Enhanced Statistics Card Renderer with Improved Visual Hierarchy
+   * Enhanced Head-to-Head Statistics Card with Visual Comparison
    */
-  const renderStatsCard = () => (
-    <View 
-      className="bg-card rounded-lg p-6 mb-6 border border-border/30"
-      style={{
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-      }}
-    >
-      <H3 className="mb-4">Player Statistics</H3>
-      <View className="flex-row justify-around">
-        <View className="items-center">
-          <Text className="text-2xl font-bold text-primary">
-            {profile?.glicko_rating ? parseInt(profile.glicko_rating).toString() : '-'}
+  const renderHeadToHeadCard = () => {
+    const { headToHeadRecord } = matchHistory;
+    
+    if (headToHeadRecord.totalMatches === 0) {
+      return (
+        <View 
+          className="bg-gradient-to-r from-orange-50 to-red-50 rounded-lg p-6 mb-4 border border-orange-200"
+          style={{
+            shadowColor: "#ea580c",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
+          }}
+        >
+          <View className="flex-row items-center mb-3">
+            <View className="bg-orange-100 p-2 rounded-full mr-3">
+              <Ionicons name="flash-outline" size={20} color="#ea580c" />
+            </View>
+            <Text className="font-bold text-lg text-orange-800">Head-to-Head Record</Text>
+          </View>
+          <Text className="text-orange-600 text-center">
+            No competitive matches yet - time for a rivalry to begin!
           </Text>
-          <Text className="text-sm text-muted-foreground">Glicko Rating</Text>
         </View>
-        <View className="items-center">
-          <Text className="text-2xl font-bold text-primary">
-            {profile?.glicko_rd ? parseInt(profile.glicko_rd).toString() : '-'}
-          </Text>
-          <Text className="text-sm text-muted-foreground">Rating Deviation</Text>
+      );
+    }
+
+    const userWinPercentage = headToHeadRecord.userWinPercentage;
+    const friendWinPercentage = 100 - userWinPercentage;
+
+    return (
+      <View 
+        className="bg-gradient-to-r from-orange-50 to-red-50 rounded-lg p-6 mb-4 border border-orange-200"
+        style={{
+          shadowColor: "#ea580c",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          elevation: 3,
+        }}
+      >
+        <View className="flex-row items-center mb-4">
+          <View className="bg-orange-100 p-2 rounded-full mr-3">
+            <Ionicons name="flash-outline" size={20} color="#ea580c" />
+          </View>
+          <Text className="font-bold text-lg text-orange-800">Head-to-Head Record</Text>
         </View>
-        <View className="items-center">
-          <Text className="text-2xl font-bold text-primary">
-            {profile?.glicko_vol || '-'}
-          </Text>
-          <Text className="text-sm text-muted-foreground">Volatility</Text>
+        
+        {/* Win percentage bar */}
+        <View className="mb-4">
+          <View className="flex-row justify-between mb-2">
+            <Text className="font-medium text-sm">You</Text>
+            <Text className="font-medium text-sm">{profile?.full_name || 'Friend'}</Text>
+          </View>
+          <View className="h-6 bg-gray-200 rounded-full overflow-hidden flex-row">
+            <View 
+              className="bg-green-500 h-full justify-center items-center"
+              style={{ width: `${userWinPercentage}%` }}
+            >
+              {userWinPercentage > 20 && (
+                <Text className="text-white text-xs font-bold">{userWinPercentage}%</Text>
+              )}
+            </View>
+            <View 
+              className="bg-red-500 h-full justify-center items-center"
+              style={{ width: `${friendWinPercentage}%` }}
+            >
+              {friendWinPercentage > 20 && (
+                <Text className="text-white text-xs font-bold">{friendWinPercentage}%</Text>
+              )}
+            </View>
+          </View>
+        </View>
+
+        {/* Detailed statistics */}
+        <View className="flex-row justify-between">
+          <View className="items-center flex-1">
+            <Text className="text-2xl font-bold text-green-600">
+              {headToHeadRecord.userWins}
+            </Text>
+            <Text className="text-xs text-gray-600">Your Wins</Text>
+          </View>
+          
+          <View className="items-center flex-1">
+            <Text className="text-lg font-bold text-gray-600">
+              {headToHeadRecord.totalMatches}
+            </Text>
+            <Text className="text-xs text-gray-600">Total Matches</Text>
+          </View>
+          
+          <View className="items-center flex-1">
+            <Text className="text-2xl font-bold text-red-600">
+              {headToHeadRecord.friendWins}
+            </Text>
+            <Text className="text-xs text-gray-600">Their Wins</Text>
+          </View>
+        </View>
+
+        {/* Sets record */}
+        <View className="mt-4 pt-4 border-t border-orange-200">
+          <View className="flex-row justify-between">
+            <Text className="text-sm text-gray-600">
+              Sets: {headToHeadRecord.setsWon}-{headToHeadRecord.setsLost}
+            </Text>
+            <Text className="text-sm font-medium text-orange-700">
+              {headToHeadRecord.userWins > headToHeadRecord.friendWins ? 'You lead' : 
+               headToHeadRecord.friendWins > headToHeadRecord.userWins ? 'They lead' : 'Tied'}
+            </Text>
+          </View>
         </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   /**
-   * Enhanced Match History Card with Comprehensive Statistics Display
+   * Enhanced Partnership Record Card
+   */
+  const renderPartnershipCard = () => {
+    const { partnershipRecord } = matchHistory;
+    
+    if (partnershipRecord.totalMatches === 0) {
+      return (
+        <View 
+          className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 mb-4 border border-blue-200"
+          style={{
+            shadowColor: "#3b82f6",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
+          }}
+        >
+          <View className="flex-row items-center mb-3">
+            <View className="bg-blue-100 p-2 rounded-full mr-3">
+              <Ionicons name="people-outline" size={20} color="#3b82f6" />
+            </View>
+            <Text className="font-bold text-lg text-blue-800">Partnership Record</Text>
+          </View>
+          <Text className="text-blue-600 text-center">
+            No team matches yet - team up for your first victory!
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <View 
+        className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 mb-4 border border-blue-200"
+        style={{
+          shadowColor: "#3b82f6",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          elevation: 3,
+        }}
+      >
+        <View className="flex-row items-center mb-4">
+          <View className="bg-blue-100 p-2 rounded-full mr-3">
+            <Ionicons name="people-outline" size={20} color="#3b82f6" />
+          </View>
+          <Text className="font-bold text-lg text-blue-800">Partnership Record</Text>
+        </View>
+        
+        {/* Win rate circle or bar */}
+        <View className="items-center mb-4">
+          <View className="bg-white rounded-full p-4 shadow-sm">
+            <Text className="text-3xl font-bold text-blue-600">
+              {partnershipRecord.winPercentage}%
+            </Text>
+          </View>
+          <Text className="text-blue-700 font-medium mt-2">Team Win Rate</Text>
+        </View>
+
+        {/* Detailed stats */}
+        <View className="flex-row justify-between mb-4">
+          <View className="items-center flex-1">
+            <Text className="text-xl font-bold text-green-600">
+              {partnershipRecord.wins}
+            </Text>
+            <Text className="text-xs text-gray-600">Wins</Text>
+          </View>
+          
+          <View className="items-center flex-1">
+            <Text className="text-xl font-bold text-gray-600">
+              {partnershipRecord.totalMatches}
+            </Text>
+            <Text className="text-xs text-gray-600">Matches</Text>
+          </View>
+          
+          <View className="items-center flex-1">
+            <Text className="text-xl font-bold text-red-600">
+              {partnershipRecord.losses}
+            </Text>
+            <Text className="text-xs text-gray-600">Losses</Text>
+          </View>
+        </View>
+
+        {/* Sets record */}
+        <View className="pt-4 border-t border-blue-200">
+          <Text className="text-sm text-gray-600 text-center">
+            Sets as partners: {partnershipRecord.setsWon}-{partnershipRecord.setsLost}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
+  /**
+   * Recent Form Indicator
+   */
+  const renderRecentForm = () => {
+    if (matchHistory.recentForm.length === 0) return null;
+
+    return (
+      <View 
+        className="bg-card rounded-lg p-4 mb-4 border border-border/30"
+        style={{
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.05,
+          shadowRadius: 2,
+          elevation: 1,
+        }}
+      >
+
+        
+        <View className="flex-row justify-center">
+          {matchHistory.recentForm.map((result, index) => (
+            <View
+              key={index}
+              className={`w-8 h-8 rounded-full mr-2 items-center justify-center ${
+                result === 'W' ? 'bg-green-100' : 'bg-red-100'
+              }`}
+            >
+              <Text 
+                className={`font-bold text-xs ${
+                  result === 'W' ? 'text-green-700' : 'text-red-700'
+                }`}
+              >
+                {result}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  };
+
+  /**
+   * Enhanced Match History Summary Card
    */
   const renderMatchHistoryCard = () => {
     if (matchesLoading) {
@@ -508,92 +789,66 @@ export default function FriendProfileScreen() {
             No matches played together yet
           </Text>
           <Text className="text-sm text-muted-foreground text-center mt-1">
-            Challenge them to your first match!
+            Create your first match to start building history!
           </Text>
         </View>
       );
     }
 
     return (
-      <View 
-        className="bg-card rounded-lg p-6 mb-6 border border-border/30"
-        style={{
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-          elevation: 3,
-        }}
-      >
+      <View className="mb-6">
         <H3 className="mb-4">Match History</H3>
         
-        {/* Head-to-head Stats */}
-        <View className="flex-row justify-between mb-4">
-          <View className="items-center flex-1">
-            <Text className="text-lg font-bold text-primary">
-              {matchHistory.teammateStats.matches}
-            </Text>
-            <Text className="text-sm text-muted-foreground text-center">
-              As Teammates
-            </Text>
-            <Text className="text-xs mt-1">
-              {matchHistory.teammateStats.wins}W - {matchHistory.teammateStats.losses}L
-            </Text>
-            <Text className="text-xs font-medium text-primary">
-              {matchHistory.teammateStats.winRate}% Win Rate
-            </Text>
+        {/* Head-to-Head Record */}
+        {renderHeadToHeadCard()}
+        
+        {/* Partnership Record */}
+        {renderPartnershipCard()}
+        
+        {/* Recent Form */}
+        {renderRecentForm()}
+        
+        {/* Recent Matches Preview */}
+        <View 
+          className="bg-card rounded-lg p-4 border border-border/30"
+          style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.05,
+            shadowRadius: 2,
+            elevation: 1,
+          }}
+        >
+          <View className="flex-row justify-between items-center mb-3">
+            <Text className="font-bold text-base">Recent Matches</Text>
+            {matchHistory.allMatches.length > 3 && (
+              <TouchableOpacity
+                onPress={() => {
+                  router.push({
+                    pathname: '/(protected)/(screens)/match-history',
+                    params: { friendId: friendId as string }
+                  });
+                }}
+              >
+                <Text className="text-primary text-sm">View All</Text>
+              </TouchableOpacity>
+            )}
           </View>
           
-          <View className="h-full w-px bg-border mx-2" />
-          
-          <View className="items-center flex-1">
-            <Text className="text-lg font-bold text-primary">
-              {matchHistory.opponentStats.matches}
-            </Text>
-            <Text className="text-sm text-muted-foreground text-center">
-              As Opponents
-            </Text>
-            <Text className="text-xs mt-1">
-              {matchHistory.opponentStats.wins}W - {matchHistory.opponentStats.losses}L
-            </Text>
-            <Text className="text-xs font-medium text-primary">
-              {matchHistory.opponentStats.winRate}% Win Rate
-            </Text>
-          </View>
+          {matchHistory.allMatches.slice(0, 3).map(match => renderMatchItem(match))}
         </View>
-        
-        {/* Recent Matches */}
-        <Text className="font-medium mt-4 mb-2">Recent Matches</Text>
-        
-        {matchHistory.allMatches.slice(0, 3).map(match => renderMatchItem(match))}
-        
-        {matchHistory.allMatches.length > 3 && (
-          <Button
-            variant="outline"
-            className="mt-3"
-            onPress={() => {
-              router.push({
-                pathname: '/(protected)/(screens)/match-history',
-                params: { friendId: friendId as string }
-              });
-            }}
-          >
-            <Ionicons name="time-outline" size={16} style={{ marginRight: 6 }} />
-            <Text>View All Matches</Text>
-          </Button>
-        )}
       </View>
     );
   };
 
   /**
-   * Enhanced Match Item Renderer with Improved Visual Indicators
+   * Enhanced Match Item Renderer with Better Visual Indicators
    */
   const renderMatchItem = (match: MatchData) => {
     const currentUserId = session?.user?.id;
     const isUserInTeam1 = match.player1_id === currentUserId || match.player2_id === currentUserId;
     const isFriendInTeam1 = match.player1_id === friendId || match.player2_id === friendId;
-    const areTeammates = (isUserInTeam1 && isFriendInTeam1) || (!isUserInTeam1 && !isFriendInTeam1);
+    const arePartners = (isUserInTeam1 && isFriendInTeam1) || (!isUserInTeam1 && !isFriendInTeam1);
     
     // Format match date
     const matchDate = new Date(match.start_time);
@@ -638,25 +893,37 @@ export default function FriendProfileScreen() {
       >
         <View className="flex-row justify-between items-center">
           <View className="flex-row items-center">
-            <View className={`w-8 h-8 rounded-full ${areTeammates ? 'bg-blue-100' : 'bg-amber-100'} items-center justify-center mr-2`}>
+            <View className={`w-8 h-8 rounded-full ${
+              arePartners 
+                ? 'bg-blue-100' 
+                : 'bg-orange-100'
+            } items-center justify-center mr-3`}>
               <Ionicons 
-                name={areTeammates ? "people-outline" : "git-compare-outline"} 
+                name={arePartners ? "people-outline" : "flash-outline"} 
                 size={16} 
-                color={areTeammates ? "#1d4ed8" : "#d97706"} 
+                color={arePartners ? "#3b82f6" : "#ea580c"} 
               />
             </View>
-            <Text className="font-medium">
-              {areTeammates ? 'Teammates' : 'Opponents'}
-            </Text>
+            <View>
+              <Text className="font-medium">
+                {arePartners ? 'Partners' : 'Rivals'}
+              </Text>
+              <Text className="text-xs text-muted-foreground">{formattedDate}</Text>
+            </View>
           </View>
-          <Text className="text-xs text-muted-foreground">{formattedDate}</Text>
-        </View>
-        
-        <View className="flex-row justify-between items-center mt-2">
-          <Text className={`font-medium ${userWon ? 'text-green-600' : 'text-red-600'}`}>
-            {userWon ? 'Win' : 'Loss'}
-          </Text>
-          <Text className="font-medium">{scoreDisplay}</Text>
+          
+          <View className="items-end">
+            <View className={`px-2 py-1 rounded-full ${
+              userWon ? 'bg-green-100' : 'bg-red-100'
+            }`}>
+              <Text className={`text-xs font-bold ${
+                userWon ? 'text-green-700' : 'text-red-700'
+              }`}>
+                {userWon ? 'WIN' : 'LOSS'}
+              </Text>
+            </View>
+            <Text className="text-xs mt-1 text-muted-foreground">{scoreDisplay}</Text>
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -768,7 +1035,7 @@ export default function FriendProfileScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Enhanced Header with Back Button */}
-        <View className=" pt-4 flex-row items-center">
+        <View className="pt-4 flex-row items-center">
           <Button 
             variant="ghost" 
             onPress={() => router.back()}
@@ -786,7 +1053,7 @@ export default function FriendProfileScreen() {
             <H2 className="text-muted-foreground text-center">"{profile.nickname}"</H2>
           )}
           <Text className="text-sm text-muted-foreground mt-2">{profile.email}</Text>
-        </View>
+        </View> 
 
         {/* Enhanced Content Section */}
         <View className="px-6 pb-8">
@@ -796,9 +1063,6 @@ export default function FriendProfileScreen() {
           {/* Match History */}
           {renderMatchHistoryCard()}
           
-          {/* Stats Card */}
-          {renderStatsCard()}
-
           {/* Personal Info Section */}
           <H3 className="mb-4">Personal Information</H3>
           {renderInfoCard("Age", profile.age, "person-outline")}
@@ -832,7 +1096,7 @@ export default function FriendProfileScreen() {
               }}
             >
               <Ionicons name="tennisball-outline" size={20} style={{ marginRight: 8 }} />
-              <Text>Challenge to Match</Text>
+              <Text>Play Together</Text>
             </Button>
           </View>
         </View>
