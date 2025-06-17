@@ -994,7 +994,7 @@ export default function RefactoredMatchDetails() {
             onPress={toggleFAB}
             className="w-14 h-14 rounded-full bg-primary items-center justify-center shadow-lg"
             style={{
-              shadowColor: "#1a7ebd",
+              shadowColor: "#2148ce",
               shadowOffset: { width: 0, height: 4 },
               shadowOpacity: 0.3,
               shadowRadius: 8,
@@ -1651,7 +1651,7 @@ export default function RefactoredMatchDetails() {
         {scoreValidation.isValid && scoreValidation.suggestedWinner && (
           <View className="mt-4 p-4 rounded-lg bg-primary/10 border border-primary/20">
             <View className="flex-row items-center justify-center">
-              <Ionicons name="trophy-outline" size={20} color="#1a7ebd" style={{ marginRight: 8 }} />
+              <Ionicons name="trophy-outline" size={20} color="#2148ce" style={{ marginRight: 8 }} />
               <Text className="text-lg font-semibold text-primary">
                 Winner: Team {scoreValidation.suggestedWinner}
               </Text>
@@ -1928,7 +1928,7 @@ export default function RefactoredMatchDetails() {
             >
               <View className="flex-row items-center">
                 <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mr-3">
-                  <Ionicons name="person-outline" size={20} color="#1a7ebd" />
+                  <Ionicons name="person-outline" size={20} color="#2148ce" />
                 </View>
                 <View>
                   <Text className="font-medium">Your Performance</Text>
@@ -2042,7 +2042,7 @@ export default function RefactoredMatchDetails() {
           >
             <View className="flex-row items-center">
               <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mr-3">
-                <Ionicons name="information-circle" size={20} color="#1a7ebd" />
+                <Ionicons name="information-circle" size={20} color="#2148ce" />
               </View>
               <View>
                 <Text className="font-medium">Match Information</Text>
@@ -2528,7 +2528,7 @@ export default function RefactoredMatchDetails() {
                       <View className="flex-row items-start">
                         <View className="w-6 h-6 rounded-full border-2 mr-3 mt-0.5 items-center justify-center"
                           style={{
-                            borderColor: reportReason === option.value ? '#1a7ebd' : '#888'
+                            borderColor: reportReason === option.value ? '#2148ce' : '#888'
                           }}
                         >
                           {reportReason === option.value && (
@@ -2540,7 +2540,7 @@ export default function RefactoredMatchDetails() {
                             <Ionicons 
                               name={option.icon as any} 
                               size={18} 
-                              color={reportReason === option.value ? '#1a7ebd' : '#888'}
+                              color={reportReason === option.value ? '#2148ce' : '#888'}
                               style={{ marginRight: 6 }}
                             />
                             <Text className={`font-medium ${
@@ -2629,7 +2629,7 @@ export default function RefactoredMatchDetails() {
     return (
       <SafeAreaView className="flex-1 bg-background">
         <View className="flex-1 items-center justify-center p-6">
-          <ActivityIndicator size="large" color="#1a7ebd" />
+          <ActivityIndicator size="large" color="#2148ce" />
           <Text className="mt-4 text-muted-foreground">Loading match details...</Text>
           <View className="mt-6 bg-card rounded-xl p-4 w-full max-w-sm">
             <View className="flex-row items-center">
@@ -2653,7 +2653,7 @@ export default function RefactoredMatchDetails() {
             onPress={() => router.back()}
             className="mr-2"
           >
-            <Ionicons name="arrow-back" size={24} color="#1a7ebd" />
+            <Ionicons name="arrow-back" size={24} color="#2148ce" />
           </Button>
           <H1>Match Not Found</H1>
         </View>
@@ -2683,8 +2683,8 @@ export default function RefactoredMatchDetails() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={["#1a7ebd"]}
-            tintColor="#1a7ebd"
+            colors={["#2148ce"]}
+            tintColor="#2148ce"
           />
         }
         showsVerticalScrollIndicator={false}
@@ -2781,7 +2781,7 @@ export default function RefactoredMatchDetails() {
           <View className="flex-row justify-between items-start">
             <View className="flex-row items-start flex-1">
               <View className="w-12 h-12 rounded-full bg-primary/10 items-center justify-center mr-4">
-                <Ionicons name="calendar-outline" size={24} color="#1a7ebd" />
+                <Ionicons name="calendar-outline" size={24} color="#2148ce" />
               </View>
               <View className="flex-1">
                 <Text className="text-lg font-semibold mb-1">
@@ -2930,7 +2930,7 @@ export default function RefactoredMatchDetails() {
           <View className="bg-card rounded-xl p-5 mb-6 border border-border/30">
             <View className="flex-row items-center mb-3">
               <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mr-3">
-                <Ionicons name="document-text-outline" size={20} color="#1a7ebd" />
+                <Ionicons name="document-text-outline" size={20} color="#2148ce" />
               </View>
               <Text className="font-medium">Match Notes</Text>
             </View>

@@ -595,7 +595,7 @@ const [showRequestsModal, setShowRequestsModal] = useState(false);
   if (loading) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#1a7ebd" />
+        <ActivityIndicator size="large" color="#2148ce" />
       </View>
     );
   }
@@ -654,8 +654,8 @@ const [showRequestsModal, setShowRequestsModal] = useState(false);
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={onRefresh}
-                colors={["#1a7ebd"]}
-                tintColor="#1a7ebd"
+                colors={["#2148ce"]}
+                tintColor="#2148ce"
               />
             }
             className="flex-1 px-6 pt-2"

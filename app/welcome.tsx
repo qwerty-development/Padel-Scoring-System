@@ -28,7 +28,7 @@ const FEATURES = [
     title: "Match Tracking",
     description: "Record scores, track performance stats, and analyze your game progression",
     icon: "tennisball",
-    color: "#1a7ebd" // Primary blue
+    color: "#2148ce" // Primary blue
   },
   {
     id: 2,
@@ -82,7 +82,7 @@ export default function WelcomeScreen() {
     : ["rgba(255,255,255,0.95)", "rgba(255,255,255,0.85)", "rgba(255,255,255,0.7)"];
     
   // Primary color
-  const primaryColor = "#1a7ebd"; 
+  const primaryColor = "#2148ce"; 
 
   // **FIX 1: Handle ScrollView layout and ensure proper initial positioning**
   const handleScrollViewLayout = (event: any) => {

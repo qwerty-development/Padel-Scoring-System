@@ -72,33 +72,147 @@ const VALIDATION_CONFIG = {
 // PREDEFINED COURTS DATA
 const PREDEFINED_COURTS = [
   // Dubai Courts
-  { id: "dub-001", name: "The Padel Lab", region: "Dubai", area: "Al Quoz", type: "indoor" },
-  { id: "dub-002", name: "Just Padel", region: "Dubai", area: "Business Bay", type: "indoor" },
-  { id: "dub-003", name: "Padel Pro Dubai", region: "Dubai", area: "Dubai Sports City", type: "outdoor" },
-  { id: "dub-004", name: "The Smash Room", region: "Dubai", area: "JLT", type: "indoor" },
-  { id: "dub-005", name: "ISD Sports City", region: "Dubai", area: "Dubai Sports City", type: "outdoor" },
-  { id: "dub-006", name: "Real Padel Club", region: "Dubai", area: "Al Barsha", type: "indoor" },
-  { id: "dub-007", name: "Dubai Padel Academy", region: "Dubai", area: "Al Khawaneej", type: "outdoor" },
-  { id: "dub-008", name: "Reform Athletica", region: "Dubai", area: "Dubai Design District", type: "indoor" },
-  
+  {
+    id: "dub-001",
+    name: "The Padel Lab",
+    region: "Dubai",
+    area: "Al Quoz",
+    type: "indoor",
+  },
+  {
+    id: "dub-002",
+    name: "Just Padel",
+    region: "Dubai",
+    area: "Business Bay",
+    type: "indoor",
+  },
+  {
+    id: "dub-003",
+    name: "Padel Pro Dubai",
+    region: "Dubai",
+    area: "Dubai Sports City",
+    type: "outdoor",
+  },
+  {
+    id: "dub-004",
+    name: "The Smash Room",
+    region: "Dubai",
+    area: "JLT",
+    type: "indoor",
+  },
+  {
+    id: "dub-005",
+    name: "ISD Sports City",
+    region: "Dubai",
+    area: "Dubai Sports City",
+    type: "outdoor",
+  },
+  {
+    id: "dub-006",
+    name: "Real Padel Club",
+    region: "Dubai",
+    area: "Al Barsha",
+    type: "indoor",
+  },
+  {
+    id: "dub-007",
+    name: "Dubai Padel Academy",
+    region: "Dubai",
+    area: "Al Khawaneej",
+    type: "outdoor",
+  },
+  {
+    id: "dub-008",
+    name: "Reform Athletica",
+    region: "Dubai",
+    area: "Dubai Design District",
+    type: "indoor",
+  },
+
   // Abu Dhabi Courts
-  { id: "ad-001", name: "Zayed Sports City", region: "Abu Dhabi", area: "Zayed City", type: "outdoor" },
-  { id: "ad-002", name: "Al Forsan Padel", region: "Abu Dhabi", area: "Khalifa City", type: "outdoor" },
-  { id: "ad-003", name: "NYU Abu Dhabi", region: "Abu Dhabi", area: "Saadiyat Island", type: "indoor" },
-  { id: "ad-004", name: "Yas Marina Circuit", region: "Abu Dhabi", area: "Yas Island", type: "outdoor" },
-  
+  {
+    id: "ad-001",
+    name: "Zayed Sports City",
+    region: "Abu Dhabi",
+    area: "Zayed City",
+    type: "outdoor",
+  },
+  {
+    id: "ad-002",
+    name: "Al Forsan Padel",
+    region: "Abu Dhabi",
+    area: "Khalifa City",
+    type: "outdoor",
+  },
+  {
+    id: "ad-003",
+    name: "NYU Abu Dhabi",
+    region: "Abu Dhabi",
+    area: "Saadiyat Island",
+    type: "indoor",
+  },
+  {
+    id: "ad-004",
+    name: "Yas Marina Circuit",
+    region: "Abu Dhabi",
+    area: "Yas Island",
+    type: "outdoor",
+  },
+
   // Sharjah Courts
-  { id: "shj-001", name: "Sharjah Golf & Shooting Club", region: "Sharjah", area: "Al Dhaid", type: "outdoor" },
-  { id: "shj-002", name: "Al Jazeera Cultural Club", region: "Sharjah", area: "Al Majaz", type: "indoor" },
-  
+  {
+    id: "shj-001",
+    name: "Sharjah Golf & Shooting Club",
+    region: "Sharjah",
+    area: "Al Dhaid",
+    type: "outdoor",
+  },
+  {
+    id: "shj-002",
+    name: "Al Jazeera Cultural Club",
+    region: "Sharjah",
+    area: "Al Majaz",
+    type: "indoor",
+  },
+
   // Ajman Courts
-  { id: "ajm-001", name: "Ajman Club", region: "Ajman", area: "Al Jurf", type: "outdoor" },
-  
+  {
+    id: "ajm-001",
+    name: "Ajman Club",
+    region: "Ajman",
+    area: "Al Jurf",
+    type: "outdoor",
+  },
+
   // Generic Courts (for other areas)
-  { id: "gen-001", name: "Community Court 1", region: "Other", area: "Community Center", type: "outdoor" },
-  { id: "gen-002", name: "Community Court 2", region: "Other", area: "Community Center", type: "outdoor" },
-  { id: "gen-003", name: "Sports Complex A", region: "Other", area: "Sports District", type: "indoor" },
-  { id: "gen-004", name: "Sports Complex B", region: "Other", area: "Sports District", type: "indoor" },
+  {
+    id: "gen-001",
+    name: "Community Court 1",
+    region: "Other",
+    area: "Community Center",
+    type: "outdoor",
+  },
+  {
+    id: "gen-002",
+    name: "Community Court 2",
+    region: "Other",
+    area: "Community Center",
+    type: "outdoor",
+  },
+  {
+    id: "gen-003",
+    name: "Sports Complex A",
+    region: "Other",
+    area: "Sports District",
+    type: "indoor",
+  },
+  {
+    id: "gen-004",
+    name: "Sports Complex B",
+    region: "Other",
+    area: "Sports District",
+    type: "indoor",
+  },
 ];
 
 interface Court {
@@ -188,7 +302,9 @@ const CourtSelectionModal: React.FC<CourtSelectionModalProps> = ({
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
 
   const regions = useMemo(() => {
-    const uniqueRegions = new Set(PREDEFINED_COURTS.map(court => court.region));
+    const uniqueRegions = new Set(
+      PREDEFINED_COURTS.map((court) => court.region)
+    );
     return Array.from(uniqueRegions).sort();
   }, []);
 
@@ -196,15 +312,16 @@ const CourtSelectionModal: React.FC<CourtSelectionModalProps> = ({
     let courts = PREDEFINED_COURTS;
 
     if (selectedRegion) {
-      courts = courts.filter(court => court.region === selectedRegion);
+      courts = courts.filter((court) => court.region === selectedRegion);
     }
 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      courts = courts.filter(court => 
-        court.name.toLowerCase().includes(query) ||
-        court.area.toLowerCase().includes(query) ||
-        court.region.toLowerCase().includes(query)
+      courts = courts.filter(
+        (court) =>
+          court.name.toLowerCase().includes(query) ||
+          court.area.toLowerCase().includes(query) ||
+          court.region.toLowerCase().includes(query)
       );
     }
 
@@ -217,8 +334,8 @@ const CourtSelectionModal: React.FC<CourtSelectionModalProps> = ({
     return (
       <TouchableOpacity
         className={`p-4 mb-2 rounded-xl border ${
-          isSelected 
-            ? "bg-primary/10 border-primary" 
+          isSelected
+            ? "bg-primary/10 border-primary"
             : "bg-card border-border/30"
         }`}
         onPress={() => {
@@ -230,16 +347,22 @@ const CourtSelectionModal: React.FC<CourtSelectionModalProps> = ({
         <View className="flex-row items-center justify-between">
           <View className="flex-1">
             <View className="flex-row items-center mb-1">
-              <Text className={`font-semibold ${isSelected ? "text-primary" : ""}`}>
+              <Text
+                className={`font-semibold ${isSelected ? "text-primary" : ""}`}
+              >
                 {item.name}
               </Text>
               {item.type === "indoor" ? (
                 <View className="ml-2 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 rounded">
-                  <Text className="text-xs text-blue-700 dark:text-blue-300">Indoor</Text>
+                  <Text className="text-xs text-blue-700 dark:text-blue-300">
+                    Indoor
+                  </Text>
                 </View>
               ) : (
                 <View className="ml-2 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 rounded">
-                  <Text className="text-xs text-green-700 dark:text-green-300">Outdoor</Text>
+                  <Text className="text-xs text-green-700 dark:text-green-300">
+                    Outdoor
+                  </Text>
                 </View>
               )}
             </View>
@@ -248,7 +371,7 @@ const CourtSelectionModal: React.FC<CourtSelectionModalProps> = ({
             </Text>
           </View>
           {isSelected && (
-            <Ionicons name="checkmark-circle" size={24} color="#1a7ebd" />
+            <Ionicons name="checkmark-circle" size={24} color="#2148ce" />
           )}
         </View>
       </TouchableOpacity>
@@ -270,7 +393,12 @@ const CourtSelectionModal: React.FC<CourtSelectionModalProps> = ({
 
             {/* Search Bar */}
             <View className="flex-row items-center bg-muted/30 rounded-xl px-4 py-3">
-              <Ionicons name="search" size={20} color="#666" style={{ marginRight: 8 }} />
+              <Ionicons
+                name="search"
+                size={20}
+                color="#666"
+                style={{ marginRight: 8 }}
+              />
               <TextInput
                 className="flex-1 text-foreground"
                 placeholder="Search courts..."
@@ -288,11 +416,14 @@ const CourtSelectionModal: React.FC<CourtSelectionModalProps> = ({
           </View>
 
           {/* Region Filter */}
-          <ScrollView 
-            horizontal 
+          <ScrollView
+            horizontal
             showsHorizontalScrollIndicator={false}
             className="border-b border-border"
-            contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12 }}
+            contentContainerStyle={{
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+            }}
           >
             <TouchableOpacity
               className={`px-4 py-2 rounded-full mr-2 ${
@@ -300,11 +431,17 @@ const CourtSelectionModal: React.FC<CourtSelectionModalProps> = ({
               }`}
               onPress={() => setSelectedRegion(null)}
             >
-              <Text className={!selectedRegion ? "text-white font-medium" : "text-muted-foreground"}>
+              <Text
+                className={
+                  !selectedRegion
+                    ? "text-white font-medium"
+                    : "text-muted-foreground"
+                }
+              >
                 All Regions
               </Text>
             </TouchableOpacity>
-            {regions.map(region => (
+            {regions.map((region) => (
               <TouchableOpacity
                 key={region}
                 className={`px-4 py-2 rounded-full mr-2 ${
@@ -312,7 +449,13 @@ const CourtSelectionModal: React.FC<CourtSelectionModalProps> = ({
                 }`}
                 onPress={() => setSelectedRegion(region)}
               >
-                <Text className={selectedRegion === region ? "text-white font-medium" : "text-muted-foreground"}>
+                <Text
+                  className={
+                    selectedRegion === region
+                      ? "text-white font-medium"
+                      : "text-muted-foreground"
+                  }
+                >
                   {region}
                 </Text>
               </TouchableOpacity>
@@ -328,7 +471,9 @@ const CourtSelectionModal: React.FC<CourtSelectionModalProps> = ({
             ListEmptyComponent={
               <View className="items-center justify-center py-12">
                 <Ionicons name="search" size={48} color="#666" />
-                <Text className="text-muted-foreground mt-2">No courts found</Text>
+                <Text className="text-muted-foreground mt-2">
+                  No courts found
+                </Text>
               </View>
             }
           />
@@ -544,7 +689,7 @@ function MatchPlayerAvatar({
       1: {
         bgColor: "bg-primary",
         bgColorFallback: "bg-primary/80",
-        borderColor: "#1a7ebd",
+        borderColor: "#2148ce",
         indicatorBg: "bg-primary",
         teamLabel: "T1",
         teamColor: "#ffffff",
@@ -645,13 +790,13 @@ function MatchPlayerAvatar({
           {...containerProps}
           className={`${sizeConfig.containerClass} rounded-full border-2 border-dashed items-center justify-center ${
             team === 1 ? "border-primary/40" : "border-indigo-500/40"
-          } ${onPress ? 'bg-gray-50 dark:bg-gray-800' : ''}`}
+          } ${onPress ? "bg-gray-50 dark:bg-gray-800" : ""}`}
           style={getContainerStyle()}
         >
-          <Ionicons 
-            name={onPress ? "add" : "help-outline"} 
-            size={size === 'md' ? 20 : 16} 
-            color={team === 1 ? "#1a7ebd" : "#6366f1"}
+          <Ionicons
+            name={onPress ? "add" : "help-outline"}
+            size={size === "md" ? 20 : 16}
+            color={team === 1 ? "#2148ce" : "#6366f1"}
           />
         </AvatarContainer>
 
@@ -827,84 +972,50 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
   completedSteps,
   stepConfig,
 }) => {
-  const currentIndex = stepConfig.findIndex(step => step.id === currentStep) + 1;
-  
+  const currentIndex =
+    stepConfig.findIndex((step) => step.id === currentStep) + 1;
+
   return (
-    <View className="px-6 py-4 bg-white/80 dark:bg-gray-900/80 border-b border-gray-200 dark:border-gray-700">
-      {/* Step counter */}
-      <View className="flex-row items-center justify-between mb-3">
-        <Text className="text-sm font-medium text-gray-600 dark:text-gray-400">
-          Step {currentIndex} of {totalSteps}
-        </Text>
-        <Text className="text-sm text-gray-500 dark:text-gray-500">
-          {Math.round((currentIndex / totalSteps) * 100)}% Complete
-        </Text>
-      </View>
-
-      {/* Progress bar */}
-      <View className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-        <View
-          className="h-full bg-primary rounded-full transition-all duration-300"
-          style={{
-            width: `${(currentIndex / totalSteps) * 100}%`,
-          }}
-        />
-      </View>
-
+    <View className=" dark:bg-gray-900/80  dark:border-gray-700">
       {/* Step indicators */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        className="mt-4"
-        contentContainerStyle={{ paddingHorizontal: 8 }}
-      >
+      <View className="flex-row">
         {stepConfig.map((step, index) => {
           const isCompleted = completedSteps.has(step.id);
           const isCurrent = step.id === currentStep;
-          const currentIdx = stepConfig.findIndex(s => s.id === currentStep);
+          const currentIdx = stepConfig.findIndex((s) => s.id === currentStep);
           const isPassed = index < currentIdx;
 
           return (
             <View key={step.id} className="flex-row items-center">
               <View className="items-center">
                 <View
-                  className={`w-8 h-8 rounded-full border-2 items-center justify-center ${
+                  className={`w-12 h-12 rounded-full border items-center justify-center ${
                     isCompleted || isPassed
                       ? "bg-primary border-primary"
                       : isCurrent
-                        ? "bg-primary/10 border-primary"
+                        ? "bg-gray-100 border-primary"
                         : "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600"
                   }`}
                 >
                   {isCompleted || isPassed ? (
-                    <Ionicons name="checkmark" size={16} color="white" />
+                    <Ionicons
+                      name="tennisball-outline"
+                      size={24}
+                      color="white"
+                    />
                   ) : (
                     <Ionicons
                       name={step.icon as any}
-                      size={14}
-                      color={
-                        isCurrent
-                          ? "#1a7ebd"
-                          : "#9ca3af"
-                      }
+                      size={24}
+                      color={isCurrent ? "#2148ce" : "#9ca3af"}
                     />
                   )}
                 </View>
-                <Text
-                  className={`text-xs mt-1 text-center max-w-16 ${
-                    isCompleted || isPassed || isCurrent
-                      ? "text-primary font-medium"
-                      : "text-gray-500"
-                  }`}
-                  numberOfLines={2}
-                >
-                  {step.title}
-                </Text>
               </View>
 
               {index < stepConfig.length - 1 && (
                 <View
-                  className={`w-8 h-0.5 mx-2 mt-[-16px] ${
+                  className={`w-8 h-0.5 mx-2 ${
                     isPassed || isCompleted
                       ? "bg-primary"
                       : "bg-gray-300 dark:bg-gray-600"
@@ -914,7 +1025,7 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
             </View>
           );
         })}
-      </ScrollView>
+      </View>
     </View>
   );
 };
@@ -975,16 +1086,22 @@ export default function CreateMatchWizard() {
   const { profile, session } = useAuth();
 
   // 2. WIZARD STATE HOOKS
-  const [currentStep, setCurrentStep] = useState<WizardStep>(WizardStep.MATCH_TYPE_TIME);
-  const [completedSteps, setCompletedSteps] = useState<Set<WizardStep>>(new Set());
-  const [slideDirection, setSlideDirection] = useState<"forward" | "backward">("forward");
+  const [currentStep, setCurrentStep] = useState<WizardStep>(
+    WizardStep.MATCH_TYPE_TIME
+  );
+  const [completedSteps, setCompletedSteps] = useState<Set<WizardStep>>(
+    new Set()
+  );
+  const [slideDirection, setSlideDirection] = useState<"forward" | "backward">(
+    "forward"
+  );
 
   // 3. CORE STATE HOOKS
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [selectedFriends, setSelectedFriends] = useState<string[]>(
-    friendId ? [friendId as string] : [],
+    friendId ? [friendId as string] : []
   );
   const [selectedPlayers, setSelectedPlayers] = useState<Friend[]>([]);
   const [showPlayerModal, setShowPlayerModal] = useState(false);
@@ -995,14 +1112,14 @@ export default function CreateMatchWizard() {
     const now = new Date();
     const minutes = now.getMinutes();
     const roundedMinutes = Math.ceil(minutes / 30) * 30;
-    
+
     const startDateTime = new Date(now);
     if (roundedMinutes === 60) {
       startDateTime.setHours(startDateTime.getHours() + 1, 0, 0, 0);
     } else {
       startDateTime.setMinutes(roundedMinutes, 0, 0);
     }
-    
+
     return startDateTime;
   };
 
@@ -1013,7 +1130,9 @@ export default function CreateMatchWizard() {
   };
 
   const [startDateTime, setStartDateTime] = useState(getDefaultStartDateTime());
-  const [endDateTime, setEndDateTime] = useState(getDefaultEndDateTime(getDefaultStartDateTime()));
+  const [endDateTime, setEndDateTime] = useState(
+    getDefaultEndDateTime(getDefaultStartDateTime())
+  );
   const [endTimeManuallyChanged, setEndTimeManuallyChanged] = useState(false);
 
   // 5. MATCH SETTINGS STATE
@@ -1050,13 +1169,13 @@ export default function CreateMatchWizard() {
   const isPastMatch = useMemo(() => {
     const now = new Date();
     // Consider it a past match if it starts within 15 minutes from now
-    return startDateTime.getTime() <= now.getTime() + (15 * 60 * 1000);
+    return startDateTime.getTime() <= now.getTime() + 15 * 60 * 1000;
   }, [startDateTime]);
 
   const isFutureMatch = useMemo(() => {
     const now = new Date();
     // It's a future match if it's more than 15 minutes from now
-    return startDateTime.getTime() > now.getTime() + (15 * 60 * 1000);
+    return startDateTime.getTime() > now.getTime() + 15 * 60 * 1000;
   }, [startDateTime]);
 
   const teamComposition = useMemo(() => {
@@ -1170,7 +1289,7 @@ export default function CreateMatchWizard() {
       const { data, error } = await supabase
         .from("profiles")
         .select(
-          "id, email, full_name, avatar_url, glicko_rating, preferred_hand, court_playing_side",
+          "id, email, full_name, avatar_url, glicko_rating, preferred_hand, court_playing_side"
         )
         .in("id", profile.friends_list);
 
@@ -1217,7 +1336,7 @@ export default function CreateMatchWizard() {
   useEffect(() => {
     if (selectedFriends.length > 0) {
       const selected = friends.filter((friend) =>
-        selectedFriends.includes(friend.id),
+        selectedFriends.includes(friend.id)
       );
       setSelectedPlayers(selected);
     } else {
@@ -1249,15 +1368,25 @@ export default function CreateMatchWizard() {
   // Handler functions for date/time updates
   const handleDateChange = (date: Date) => {
     const newStartDateTime = new Date(startDateTime);
-    newStartDateTime.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
+    newStartDateTime.setFullYear(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate()
+    );
     setStartDateTime(newStartDateTime);
 
     // Update end date if it's on a different day
     const newEndDateTime = new Date(endDateTime);
-    if (newEndDateTime.getDate() !== date.getDate() || 
-        newEndDateTime.getMonth() !== date.getMonth() || 
-        newEndDateTime.getFullYear() !== date.getFullYear()) {
-      newEndDateTime.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
+    if (
+      newEndDateTime.getDate() !== date.getDate() ||
+      newEndDateTime.getMonth() !== date.getMonth() ||
+      newEndDateTime.getFullYear() !== date.getFullYear()
+    ) {
+      newEndDateTime.setFullYear(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate()
+      );
       setEndDateTime(newEndDateTime);
     }
   };
@@ -1271,12 +1400,12 @@ export default function CreateMatchWizard() {
   const handleEndTimeChange = (time: Date) => {
     const newEndDateTime = new Date(endDateTime);
     newEndDateTime.setHours(time.getHours(), time.getMinutes(), 0, 0);
-    
+
     // If end time is before start time, assume it's the next day
     if (newEndDateTime <= startDateTime) {
       newEndDateTime.setDate(newEndDateTime.getDate() + 1);
     }
-    
+
     setEndDateTime(newEndDateTime);
     setEndTimeManuallyChanged(true);
   };
@@ -1286,40 +1415,50 @@ export default function CreateMatchWizard() {
   // ========================================
 
   const goToNextStep = useCallback(() => {
-    const currentIndex = stepConfig.findIndex(step => step.id === currentStep);
+    const currentIndex = stepConfig.findIndex(
+      (step) => step.id === currentStep
+    );
     const nextIndex = currentIndex + 1;
-    
+
     if (nextIndex < stepConfig.length) {
       setSlideDirection("forward");
-      setCompletedSteps(prev => new Set(prev).add(currentStep));
+      setCompletedSteps((prev) => new Set(prev).add(currentStep));
       setCurrentStep(stepConfig[nextIndex].id);
     }
   }, [currentStep, stepConfig]);
-  
+
   const goToPreviousStep = useCallback(() => {
-    const currentIndex = stepConfig.findIndex(step => step.id === currentStep);
+    const currentIndex = stepConfig.findIndex(
+      (step) => step.id === currentStep
+    );
     const prevIndex = currentIndex - 1;
-    
+
     if (prevIndex >= 0) {
       setSlideDirection("backward");
       setCurrentStep(stepConfig[prevIndex].id);
     }
   }, [currentStep, stepConfig]);
-  
-  const goToStep = useCallback((step: WizardStep) => {
-    if (step !== currentStep) {
-      const currentIndex = stepConfig.findIndex(s => s.id === currentStep);
-      const targetIndex = stepConfig.findIndex(s => s.id === step);
-      setSlideDirection(targetIndex > currentIndex ? "forward" : "backward");
-      setCurrentStep(step);
-    }
-  }, [currentStep, stepConfig]);
+
+  const goToStep = useCallback(
+    (step: WizardStep) => {
+      if (step !== currentStep) {
+        const currentIndex = stepConfig.findIndex((s) => s.id === currentStep);
+        const targetIndex = stepConfig.findIndex((s) => s.id === step);
+        setSlideDirection(targetIndex > currentIndex ? "forward" : "backward");
+        setCurrentStep(step);
+      }
+    },
+    [currentStep, stepConfig]
+  );
 
   // ========================================
   // STEP VALIDATION FUNCTIONS
   // ========================================
 
-  const validateCurrentStep = useCallback((): { isValid: boolean; errors: string[] } => {
+  const validateCurrentStep = useCallback((): {
+    isValid: boolean;
+    errors: string[];
+  } => {
     const errors: string[] = [];
 
     switch (currentStep) {
@@ -1346,16 +1485,16 @@ export default function CreateMatchWizard() {
             (now.getTime() - startDateTime.getTime()) / (1000 * 60 * 60 * 24);
           if (daysDiff > VALIDATION_CONFIG.MIN_MATCH_AGE_DAYS) {
             errors.push(
-              `Cannot record matches older than ${VALIDATION_CONFIG.MIN_MATCH_AGE_DAYS} days`,
+              `Cannot record matches older than ${VALIDATION_CONFIG.MIN_MATCH_AGE_DAYS} days`
             );
           }
         } else {
           // For future matches, ensure they're at least 15 minutes in the future
           const now = new Date();
-          const minFutureTime = now.getTime() + (15 * 60 * 1000);
+          const minFutureTime = now.getTime() + 15 * 60 * 1000;
           if (startDateTime.getTime() <= minFutureTime) {
             errors.push(
-              "Future matches must be scheduled at least 15 minutes from now",
+              "Future matches must be scheduled at least 15 minutes from now"
             );
           }
 
@@ -1363,7 +1502,7 @@ export default function CreateMatchWizard() {
             (startDateTime.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
           if (daysDiff > VALIDATION_CONFIG.MAX_FUTURE_DAYS) {
             errors.push(
-              `Cannot schedule matches more than ${VALIDATION_CONFIG.MAX_FUTURE_DAYS} days in advance`,
+              `Cannot schedule matches more than ${VALIDATION_CONFIG.MAX_FUTURE_DAYS} days in advance`
             );
           }
         }
@@ -1372,7 +1511,9 @@ export default function CreateMatchWizard() {
       case WizardStep.PLAYER_SELECTION:
         if (isPastMatch) {
           if (!teamComposition.isValidForPast) {
-            errors.push("Past matches require exactly 4 players (you + 3 friends)");
+            errors.push(
+              "Past matches require exactly 4 players (you + 3 friends)"
+            );
           }
         } else {
           if (!teamComposition.isValidForFuture) {
@@ -1471,19 +1612,19 @@ export default function CreateMatchWizard() {
   // CORRECTED: Backspace navigation with proper field sequence
   const handleBackspaceNavigation = useCallback((currentField: string) => {
     switch (currentField) {
-      case 'team2Set1':
+      case "team2Set1":
         team1Set1Ref.current?.focus();
         break;
-      case 'team1Set2':
+      case "team1Set2":
         team2Set1Ref.current?.focus();
         break;
-      case 'team2Set2':
+      case "team2Set2":
         team1Set2Ref.current?.focus();
         break;
-      case 'team1Set3':
+      case "team1Set3":
         team2Set2Ref.current?.focus();
         break;
-      case 'team2Set3':
+      case "team2Set3":
         team1Set3Ref.current?.focus();
         break;
       // team1Set1 has no previous field
@@ -1519,8 +1660,7 @@ export default function CreateMatchWizard() {
       errors.push("End time must be after start time");
     }
 
-    const matchDuration =
-      endDateTime.getTime() - startDateTime.getTime();
+    const matchDuration = endDateTime.getTime() - startDateTime.getTime();
     const minDuration = 30 * 60 * 1000;
     const maxDuration = 4 * 60 * 60 * 1000;
 
@@ -1550,7 +1690,7 @@ export default function CreateMatchWizard() {
         (now.getTime() - startDateTime.getTime()) / (1000 * 60 * 60 * 24);
       if (daysDiff > VALIDATION_CONFIG.MIN_MATCH_AGE_DAYS) {
         errors.push(
-          `Cannot record matches older than ${VALIDATION_CONFIG.MIN_MATCH_AGE_DAYS} days`,
+          `Cannot record matches older than ${VALIDATION_CONFIG.MIN_MATCH_AGE_DAYS} days`
         );
       }
 
@@ -1559,10 +1699,10 @@ export default function CreateMatchWizard() {
       }
     } else {
       const now = new Date();
-      const minFutureTime = now.getTime() + (15 * 60 * 1000);
+      const minFutureTime = now.getTime() + 15 * 60 * 1000;
       if (startDateTime.getTime() <= minFutureTime) {
         errors.push(
-          "Future matches must be scheduled at least 15 minutes from now",
+          "Future matches must be scheduled at least 15 minutes from now"
         );
       }
 
@@ -1574,7 +1714,7 @@ export default function CreateMatchWizard() {
         (startDateTime.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
       if (daysDiff > VALIDATION_CONFIG.MAX_FUTURE_DAYS) {
         errors.push(
-          `Cannot schedule matches more than ${VALIDATION_CONFIG.MAX_FUTURE_DAYS} days in advance`,
+          `Cannot schedule matches more than ${VALIDATION_CONFIG.MAX_FUTURE_DAYS} days in advance`
         );
       }
     }
@@ -1606,7 +1746,7 @@ export default function CreateMatchWizard() {
         const winnerTeam = determineWinnerTeam();
 
         const playerIds = [session?.user?.id, ...selectedFriends].filter(
-          (id) => id != null,
+          (id) => id != null
         ) as string[];
         if (playerIds.length !== 4) {
           throw new Error("Could not form a team of 4 players");
@@ -1617,7 +1757,7 @@ export default function CreateMatchWizard() {
           ? VALIDATION_CONFIG.QUICK_VALIDATION_HOURS
           : VALIDATION_CONFIG.DISPUTE_WINDOW_HOURS;
         const validationDeadline = new Date(
-          now.getTime() + validationHours * 60 * 60 * 1000,
+          now.getTime() + validationHours * 60 * 60 * 1000
         );
 
         const matchData: MatchData = {
@@ -1651,7 +1791,7 @@ export default function CreateMatchWizard() {
           validation_status: matchData.validation_status,
           rating_applied: matchData.rating_applied,
           hours_until_deadline: validationHours,
-          processing_method: "postgresql_cron_job"
+          processing_method: "postgresql_cron_job",
         });
 
         const { data: matchResult, error: matchError } = await supabase
@@ -1662,19 +1802,23 @@ export default function CreateMatchWizard() {
 
         if (matchError) throw matchError;
 
-        console.log("✅ Match created successfully. PostgreSQL cron job will process ratings after validation period.");
+        console.log(
+          "✅ Match created successfully. PostgreSQL cron job will process ratings after validation period."
+        );
 
-        const validationHoursDisplay = useQuickValidation ? "1 hour" : "24 hours";
+        const validationHoursDisplay = useQuickValidation
+          ? "1 hour"
+          : "24 hours";
 
         Alert.alert(
           "✅ Match Created Successfully!",
           `Match has been recorded with automatic validation system.\n\n` +
-          `⏰ Validation Period: ${validationHoursDisplay}\n\n` +
-          `🤖 Rating Processing: Automated server processing\n` +
-          `📊 Ratings will be calculated and applied automatically after validation period expires.\n\n` +
-          `📢 All players can report issues during validation period.\n` +
-          `💡 You can delete this match within 24 hours if needed.\n\n` +
-          `🎯 Server automation will handle rating calculations every 30 minutes.`,
+            `⏰ Validation Period: ${validationHoursDisplay}\n\n` +
+            `🤖 Rating Processing: Automated server processing\n` +
+            `📊 Ratings will be calculated and applied automatically after validation period expires.\n\n` +
+            `📢 All players can report issues during validation period.\n` +
+            `💡 You can delete this match within 24 hours if needed.\n\n` +
+            `🎯 Server automation will handle rating calculations every 30 minutes.`,
           [
             {
               text: "View Match Details",
@@ -1688,11 +1832,10 @@ export default function CreateMatchWizard() {
               text: "OK",
               onPress: () => router.push("/(protected)/(tabs)"),
             },
-          ],
+          ]
         );
 
         Vibration.vibrate([100, 50, 100]);
-
       } else {
         const matchData: MatchData = {
           player1_id: session?.user?.id as string,
@@ -1748,7 +1891,7 @@ export default function CreateMatchWizard() {
       Alert.alert(
         "Error",
         `Failed to create match: ${(error as Error).message}`,
-        [{ text: "OK" }],
+        [{ text: "OK" }]
       );
       Vibration.vibrate(300);
     } finally {
@@ -1761,94 +1904,100 @@ export default function CreateMatchWizard() {
   // ========================================
 
   const renderStep1MatchTypeTime = () => (
-    <SlideContainer isActive={currentStep === WizardStep.MATCH_TYPE_TIME} direction={slideDirection}>
+    <SlideContainer
+      isActive={currentStep === WizardStep.MATCH_TYPE_TIME}
+      direction={slideDirection}
+    >
       <ScrollView
-        className="flex-1 px-6"
-        contentContainerStyle={{ paddingBottom: 40 }}
+        className="flex-1"
+        contentContainerStyle={{ paddingBottom: 40, paddingTop: 100 }}
         showsVerticalScrollIndicator={false}
       >
-        <View className="mb-6 mt-3">
-          <H2 className="mb-2">Match Date & Time</H2>
-          <Text className="text-muted-foreground mb-6">
-            {isPastMatch 
-              ? "Enter when the match was played" 
-              : "Schedule when the match will be played"}
-          </Text>
+        {/* Main Content */}
+        <View className="px-6 bg-background rounded-t-3xl relative z-10 -mt-6">
+          <View className="mb-6 mt-6">
+            <H2 className="mb-2">Match Date & Time</H2>
+            {isPastMatch && (
+              <ValidationInfoCard
+                isPastMatch={isPastMatch}
+                isDemo={useQuickValidation}
+              />
+            )}
 
-          {isPastMatch && <ValidationInfoCard isPastMatch={isPastMatch} isDemo={useQuickValidation} />}
-
-          <View className="bg-card rounded-xl p-5 border border-border/30">
-            <CustomDateTimePicker
-              label="Match Date"
-              value={startDateTime}
-              onChange={handleDateChange}
-              mode="date"
-              minimumDate={
-                (() => {
+            <View className="bg-card rounded-xl p-5 border border-border/30">
+              <CustomDateTimePicker
+                label="Match Date"
+                value={startDateTime}
+                onChange={handleDateChange}
+                mode="date"
+                minimumDate={(() => {
                   const minDate = new Date();
-                  minDate.setDate(minDate.getDate() - VALIDATION_CONFIG.MIN_MATCH_AGE_DAYS);
+                  minDate.setDate(
+                    minDate.getDate() - VALIDATION_CONFIG.MIN_MATCH_AGE_DAYS
+                  );
                   return minDate;
-                })()
-              }
-              maximumDate={
-                (() => {
+                })()}
+                maximumDate={(() => {
                   const maxDate = new Date();
-                  maxDate.setDate(maxDate.getDate() + VALIDATION_CONFIG.MAX_FUTURE_DAYS);
+                  maxDate.setDate(
+                    maxDate.getDate() + VALIDATION_CONFIG.MAX_FUTURE_DAYS
+                  );
                   return maxDate;
-                })()
-              }
-            />
+                })()}
+              />
 
-            <View className="flex-row gap-4 mt-4">
-              <View className="flex-1">
-                <CustomDateTimePicker
-                  label="Start Time"
-                  value={startDateTime}
-                  onChange={handleStartTimeChange}
-                  mode="time"
-                />
+              <View className="flex-row gap-4 mt-4">
+                <View className="flex-1">
+                  <CustomDateTimePicker
+                    label="Start Time"
+                    value={startDateTime}
+                    onChange={handleStartTimeChange}
+                    mode="time"
+                  />
+                </View>
+                <View className="flex-1">
+                  <CustomDateTimePicker
+                    label="End Time"
+                    value={endDateTime}
+                    onChange={handleEndTimeChange}
+                    mode="time"
+                  />
+                </View>
               </View>
-              <View className="flex-1">
-                <CustomDateTimePicker
-                  label="End Time"
-                  value={endDateTime}
-                  onChange={handleEndTimeChange}
-                  mode="time"
-                />
-              </View>
-            </View>
 
-            <View className="mt-4 p-3 bg-muted/30 rounded-lg">
-              <Text className="text-sm text-muted-foreground">
-                Duration:{" "}
-                {Math.round(
-                  (endDateTime.getTime() - startDateTime.getTime()) / (1000 * 60),
-                )}{" "}
-                minutes
-              </Text>
-              {endDateTime.getDate() !== startDateTime.getDate() && (
-                <Text className="text-xs text-muted-foreground mt-1">
-                  Match ends the next day
+              <View className="mt-4 p-3 bg-muted/30 rounded-lg">
+                <Text className="text-sm text-muted-foreground">
+                  Duration:{" "}
+                  {Math.round(
+                    (endDateTime.getTime() - startDateTime.getTime()) /
+                      (1000 * 60)
+                  )}{" "}
+                  minutes
                 </Text>
-              )}
-            </View>
+                {endDateTime.getDate() !== startDateTime.getDate() && (
+                  <Text className="text-xs text-muted-foreground mt-1">
+                    Match ends the next day
+                  </Text>
+                )}
+              </View>
 
-            <View className="mt-4 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border-l-4 border-primary">
-              <View className="flex-row items-center">
-                <Ionicons 
-                  name={isPastMatch ? "time-outline" : "calendar-outline"}
-                  size={20} 
-                  color="#1a7ebd" 
-                />
-                <Text className="ml-2 font-medium text-primary">
-                  {isPastMatch ? "Past Match Mode" : "Future Match Mode"}
+              <View className="mt-4 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border-l-4 border-primary">
+                <View className="flex-row items-center">
+                  <Ionicons
+                    name={isPastMatch ? "time-outline" : "calendar-outline"}
+                    size={20}
+                    color="#2148ce"
+                  />
+                  <Text className="ml-2 font-medium text-primary">
+                    {isPastMatch ? "Past Match Mode" : "Future Match Mode"}
+                  </Text>
+                </View>
+                <Text className="text-sm text-muted-foreground mt-1">
+                  {isPastMatch
+                    ? "Recording a completed match. Scores will enter validation period."
+                    : "Scheduling a future match. Players can join before match time."}
                 </Text>
               </View>
-              <Text className="text-sm text-muted-foreground mt-1">
-                {isPastMatch
-                  ? "Recording a completed match. Scores will enter validation period."
-                  : "Scheduling a future match. Players can join before match time."}
-              </Text>
             </View>
           </View>
         </View>
@@ -1857,200 +2006,227 @@ export default function CreateMatchWizard() {
   );
 
   const renderStep2PlayerSelection = () => (
-    <SlideContainer isActive={currentStep === WizardStep.PLAYER_SELECTION} direction={slideDirection}>
+    <SlideContainer
+      isActive={currentStep === WizardStep.PLAYER_SELECTION}
+      direction={slideDirection}
+    >
       <ScrollView
-        className="flex-1 px-6"
-        contentContainerStyle={{ paddingBottom: 40 }}
+        className="flex-1"
+        contentContainerStyle={{ paddingBottom: 40, paddingTop: 100 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#1a7ebd"
-            colors={["#1a7ebd"]}
+            tintColor="#2148ce"
+            colors={["#2148ce"]}
           />
         }
       >
-        <View className="mb-6">
-          <H2 className="mb-2">Team Composition</H2>
-          <Text className="text-muted-foreground mb-6">
-            {isPastMatch 
-              ? "Select all 4 players who participated in this match"
-              : "Select players for your match (you can add more later)"}
-          </Text>
+        {/* Main Content */}
+        <View className="px-6 bg-background rounded-t-3xl relative z-10 -mt-6">
+          <View className="mb-6 mt-6">
+            <H2 className="mb-2">Team Composition</H2>
+            <Text className="text-muted-foreground mb-6">
+              {isPastMatch
+                ? "Select all 4 players who participated in this match"
+                : "Select players for your match (you can add more later)"}
+            </Text>
 
-          <View className="bg-card rounded-xl p-5 border border-border/30">
-            <View className="flex-row items-center justify-between mb-4">
-              <View>
-                <Text className="text-lg font-semibold">Players Selected</Text>
-                <Text className="text-sm text-muted-foreground">
-                  {teamComposition.totalPlayers}/4 players
-                </Text>
-              </View>
-              <View
-                className={`px-4 py-2 rounded-full ${
-                  isPastMatch
-                    ? "bg-amber-100 dark:bg-amber-900/40 border border-amber-200 dark:border-amber-800"
-                    : "bg-blue-100 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-800"
-                }`}
-              >
-                <Text
-                  className={`text-sm font-bold ${
-                    isPastMatch
-                      ? "text-amber-800 dark:text-amber-200"
-                      : "text-blue-800 dark:text-blue-200"
-                  }`}
-                >
-                  {isPastMatch ? "Past Match" : "Future Match"}
-                </Text>
-              </View>
-            </View>
-
-            {/* Team visualization */}
-            <View className="bg-white/80 dark:bg-white/10 rounded-2xl p-5 mb-6 border border-white/50">
-              <View className="flex-row justify-between">
-                <View className="flex-1 mr-3">
-                  <View className="flex-row items-center mb-4">
-                    <View className="w-8 h-8 rounded-xl bg-primary items-center justify-center mr-3 shadow-sm">
-                      <Text className="text-sm font-bold text-white">T1</Text>
-                    </View>
-                    <View>
-                      <Text className="font-bold text-primary">Team 1</Text>
-                      <Text className="text-xs text-muted-foreground">
-                        {teamComposition.team1Players.length}/2 players
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View className="space-y-2">
-                    {teamComposition.team1Players.map((player, index) => (
-                      <TeamPlayerRow
-                        key={player.id}
-                        player={player}
-                        team={1}
-                        showRating={isPastMatch}
-                      />
-                    ))}
-
-                    {Array(2 - teamComposition.team1Players.length)
-                      .fill(0)
-                      .map((_, i) => (
-                        <TouchableOpacity
-                          key={`team1-empty-${i}`}
-                          className="flex-row items-center mb-2 p-2 w-32 rounded-lg border-2 border-dashed border-primary/30 bg-primary/5 active:bg-primary/10"
-                          onPress={() => setShowPlayerModal(true)}
-                          activeOpacity={0.7}
-                        >
-                          <MatchPlayerAvatar
-                            player={null}
-                            team={1}
-                            size="md"
-                            isPlaceholder={true}
-                            onPress={() => setShowPlayerModal(true)}
-                          />
-                          <View className="flex-1 ml-3">
-                            <Text className="text-sm text-primary/70 font-medium">
-                              Tap to add
-                            </Text>
-                          </View>
-                        </TouchableOpacity>
-                      ))}
-                  </View>
-                </View>
-
-                <View className="items-center justify-center px-4">
-                  <View className="w-12 h-12 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 items-center justify-center shadow-md">
-                    <Text className="text-lg font-black text-slate-600 dark:text-slate-300">
-                      VS
-                    </Text>
-                  </View>
-                </View>
-
-                <View className="flex-1 ml-3">
-                  <View className="flex-row items-center mb-4">
-                    <View className="w-8 h-8 rounded-xl bg-indigo-500 items-center justify-center mr-3 shadow-sm">
-                      <Text className="text-sm font-bold text-white">T2</Text>
-                    </View>
-                    <View>
-                      <Text className="font-bold text-indigo-600">Team 2</Text>
-                      <Text className="text-xs text-muted-foreground">
-                        {teamComposition.team2Players.length}/2 players
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View className="space-y-2">
-                    {teamComposition.team2Players.map((player, index) => (
-                      <TeamPlayerRow
-                        key={player.id}
-                        player={player}
-                        team={2}
-                        showRating={isPastMatch}
-                      />
-                    ))}
-
-                    {Array(2 - teamComposition.team2Players.length)
-                      .fill(0)
-                      .map((_, i) => (
-                        <TouchableOpacity
-                          key={`team2-empty-${i}`}
-                          className="flex-row items-center mb-2 p-2 w-32 rounded-lg border-2 border-dashed border-indigo-500/30 bg-indigo-500/5 active:bg-indigo-500/10"
-                          onPress={() => setShowPlayerModal(true)}
-                          activeOpacity={0.7}
-                        >
-                          <MatchPlayerAvatar
-                            player={null}
-                            team={2}
-                            size="md"
-                            isPlaceholder={true}
-                            onPress={() => setShowPlayerModal(true)}
-                          />
-                          <View className="flex-1 ml-3">
-                            <Text className="text-sm text-indigo-500/70 font-medium">
-                              Tap to add
-                            </Text>
-                          </View>
-                        </TouchableOpacity>
-                      ))}
-                  </View>
-                </View>
-              </View>
-            </View>
-
-            {/* Player management */}
-            <View className="flex-row gap-3">
-              <Button
-                variant="outline"
-                className="flex-1 py-3"
-                onPress={() => setShowPlayerModal(true)}
-                style={{
-                  shadowColor: "#1a7ebd",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 4,
-                  elevation: 2,
-                }}
-              >
-                <View className="flex-row items-center">
-                  <Ionicons name="people-outline" size={18} color="#1a7ebd" />
-                  <Text className="ml-2 font-medium">
-                    {selectedPlayers.length === 0 ? "Select Players" : "Manage Team"}
+            <View className="bg-card rounded-xl p-5 border border-border/30">
+              <View className="flex-row items-center justify-between mb-4">
+                <View>
+                  <Text className="text-lg font-semibold">
+                    Players Selected
+                  </Text>
+                  <Text className="text-sm text-muted-foreground">
+                    {teamComposition.totalPlayers}/4 players
                   </Text>
                 </View>
-              </Button>
+                <View
+                  className={`px-4 py-2 rounded-full ${
+                    isPastMatch
+                      ? "bg-amber-100 dark:bg-amber-900/40 border border-amber-200 dark:border-amber-800"
+                      : "bg-blue-100 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-800"
+                  }`}
+                >
+                  <Text
+                    className={`text-sm font-bold ${
+                      isPastMatch
+                        ? "text-amber-800 dark:text-amber-200"
+                        : "text-blue-800 dark:text-blue-200"
+                    }`}
+                  >
+                    {isPastMatch ? "Past Match" : "Future Match"}
+                  </Text>
+                </View>
+              </View>
 
-              {selectedPlayers.length > 0 && (
+              {/* Team visualization */}
+              <View className="bg-white/80 dark:bg-white/10 rounded-2xl p-5 mb-6 border border-white/50">
+                <View className="flex-row justify-between">
+                  <View className="flex-1 mr-3">
+                    <View className="flex-row items-center mb-4">
+                      <View className="w-8 h-8 rounded-xl bg-primary items-center justify-center mr-3 shadow-sm">
+                        <Text className="text-sm font-bold text-white">T1</Text>
+                      </View>
+                      <View>
+                        <Text className="font-bold text-primary">Team 1</Text>
+                        <Text className="text-xs text-muted-foreground">
+                          {teamComposition.team1Players.length}/2 players
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View className="space-y-2">
+                      {teamComposition.team1Players.map((player, index) => (
+                        <TeamPlayerRow
+                          key={player.id}
+                          player={player}
+                          team={1}
+                          showRating={isPastMatch}
+                        />
+                      ))}
+
+                      {Array(2 - teamComposition.team1Players.length)
+                        .fill(0)
+                        .map((_, i) => (
+                          <TouchableOpacity
+                            key={`team1-empty-${i}`}
+                            className="flex-row items-center mb-2 p-2 w-32 rounded-lg border-2 border-dashed border-primary/30 bg-primary/5 active:bg-primary/10"
+                            onPress={() => setShowPlayerModal(true)}
+                            activeOpacity={0.7}
+                          >
+                            <MatchPlayerAvatar
+                              player={null}
+                              team={1}
+                              size="md"
+                              isPlaceholder={true}
+                              onPress={() => setShowPlayerModal(true)}
+                            />
+                            <View className="flex-1 ml-3">
+                              <Text className="text-sm text-primary/70 font-medium">
+                                Tap to add
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        ))}
+                    </View>
+                  </View>
+
+                  <View className="items-center justify-center px-4">
+                    <View className="w-12 h-12 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 items-center justify-center shadow-md">
+                      <Text className="text-lg font-black text-slate-600 dark:text-slate-300">
+                        VS
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View className="flex-1 ml-3">
+                    <View className="flex-row items-center mb-4">
+                      <View className="w-8 h-8 rounded-xl bg-indigo-500 items-center justify-center mr-3 shadow-sm">
+                        <Text className="text-sm font-bold text-white">T2</Text>
+                      </View>
+                      <View>
+                        <Text className="font-bold text-indigo-600">
+                          Team 2
+                        </Text>
+                        <Text className="text-xs text-muted-foreground">
+                          {teamComposition.team2Players.length}/2 players
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View className="space-y-2">
+                      {teamComposition.team2Players.map((player, index) => (
+                        <TeamPlayerRow
+                          key={player.id}
+                          player={player}
+                          team={2}
+                          showRating={isPastMatch}
+                        />
+                      ))}
+
+                      {Array(2 - teamComposition.team2Players.length)
+                        .fill(0)
+                        .map((_, i) => (
+                          <TouchableOpacity
+                            key={`team2-empty-${i}`}
+                            className="flex-row items-center mb-2 p-2 w-32 rounded-lg border-2 border-dashed border-indigo-500/30 bg-indigo-500/5 active:bg-indigo-500/10"
+                            onPress={() => setShowPlayerModal(true)}
+                            activeOpacity={0.7}
+                          >
+                            <MatchPlayerAvatar
+                              player={null}
+                              team={2}
+                              size="md"
+                              isPlaceholder={true}
+                              onPress={() => setShowPlayerModal(true)}
+                            />
+                            <View className="flex-1 ml-3">
+                              <Text className="text-sm text-indigo-500/70 font-medium">
+                                Tap to add
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        ))}
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              {/* Info card similar to Step 1's ValidationInfoCard */}
+              <View className="mt-4 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border-l-4 border-primary">
+                <View className="flex-row items-center">
+                  <Ionicons name="people-outline" size={20} color="#2148ce" />
+                  <Text className="ml-2 font-medium text-primary">
+                    Team Selection
+                  </Text>
+                </View>
+                <Text className="text-sm text-muted-foreground mt-1">
+                  {isPastMatch
+                    ? "All 4 players must be selected for match validation."
+                    : "Add players now or invite them later before match time."}
+                </Text>
+              </View>
+
+              {/* Player management */}
+              <View className="flex-row gap-3 mt-6">
                 <Button
-                  variant="ghost"
-                  className="px-4"
-                  onPress={() => {
-                    setSelectedFriends([]);
-                    setSelectedPlayers([]);
+                  variant="outline"
+                  className="flex-1 py-3"
+                  onPress={() => setShowPlayerModal(true)}
+                  style={{
+                    shadowColor: "#2148ce",
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 4,
+                    elevation: 2,
                   }}
                 >
-                  <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                  <View className="flex-row items-center">
+                    <Ionicons name="people-outline" size={18} color="#2148ce" />
+                    <Text className="ml-2 font-medium">
+                      {selectedPlayers.length === 0
+                        ? "Select Players"
+                        : "Manage Team"}
+                    </Text>
+                  </View>
                 </Button>
-              )}
+
+                {selectedPlayers.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    className="px-4"
+                    onPress={() => {
+                      setSelectedFriends([]);
+                      setSelectedPlayers([]);
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                  </Button>
+                )}
+              </View>
             </View>
           </View>
         </View>
@@ -2059,22 +2235,38 @@ export default function CreateMatchWizard() {
   );
 
   const renderStep3LocationSettings = () => (
-    <SlideContainer isActive={currentStep === WizardStep.LOCATION_SETTINGS} direction={slideDirection}>
+    <SlideContainer
+      isActive={currentStep === WizardStep.LOCATION_SETTINGS}
+      direction={slideDirection}
+    >
       <ScrollView
-        className="flex-1 px-6"
-        contentContainerStyle={{ paddingBottom: 40 }}
+        className="flex-1"
+        contentContainerStyle={{ paddingBottom: 40, paddingTop: 100 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#2148ce"
+            colors={["#2148ce"]}
+          />
+        }
       >
-        <View className="mb-6">
+        {/* Main Content */}
+        <View className="px-6 bg-background rounded-t-3xl relative z-10 -mt-6">
+          <View className="mb-6 mt-6">
           <H2 className="mb-2">Location & Settings</H2>
           <Text className="text-muted-foreground mb-6">
-            Specify where the match {isPastMatch ? "was" : "will be"} played and match settings
+            Specify where the match {isPastMatch ? "was" : "will be"} played and
+            match settings
           </Text>
 
           <View className="bg-card rounded-xl p-5 border border-border/30">
             {/* Location details */}
             <View className="mb-6">
-              <Text className="text-lg font-semibold mb-4">Court Selection</Text>
+              <Text className="text-lg font-semibold mb-4">
+                Court Selection
+              </Text>
 
               <TouchableOpacity
                 className="p-4 bg-background dark:bg-background/60 border border-border rounded-lg active:bg-muted/50"
@@ -2085,7 +2277,9 @@ export default function CreateMatchWizard() {
                   <View>
                     <View className="flex-row items-center justify-between">
                       <View className="flex-1">
-                        <Text className="font-medium">{selectedCourt.name}</Text>
+                        <Text className="font-medium">
+                          {selectedCourt.name}
+                        </Text>
                         <Text className="text-sm text-muted-foreground">
                           {selectedCourt.area} • {selectedCourt.region}
                         </Text>
@@ -2093,20 +2287,30 @@ export default function CreateMatchWizard() {
                       <View className="flex-row items-center">
                         {selectedCourt.type === "indoor" ? (
                           <View className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 rounded mr-2">
-                            <Text className="text-xs text-blue-700 dark:text-blue-300">Indoor</Text>
+                            <Text className="text-xs text-blue-700 dark:text-blue-300">
+                              Indoor
+                            </Text>
                           </View>
                         ) : (
                           <View className="px-2 py-1 bg-green-100 dark:bg-green-900/30 rounded mr-2">
-                            <Text className="text-xs text-green-700 dark:text-green-300">Outdoor</Text>
+                            <Text className="text-xs text-green-700 dark:text-green-300">
+                              Outdoor
+                            </Text>
                           </View>
                         )}
-                        <Ionicons name="chevron-forward" size={20} color="#666" />
+                        <Ionicons
+                          name="chevron-forward"
+                          size={20}
+                          color="#666"
+                        />
                       </View>
                     </View>
                   </View>
                 ) : (
                   <View className="flex-row items-center justify-between">
-                    <Text className="text-muted-foreground">Select a court</Text>
+                    <Text className="text-muted-foreground">
+                      Select a court
+                    </Text>
                     <Ionicons name="chevron-forward" size={20} color="#666" />
                   </View>
                 )}
@@ -2122,7 +2326,9 @@ export default function CreateMatchWizard() {
             {/* Match settings for future matches */}
             {!isPastMatch && (
               <View className="border-t border-border/30 pt-6">
-                <Text className="text-lg font-semibold mb-4">Match Settings</Text>
+                <Text className="text-lg font-semibold mb-4">
+                  Match Settings
+                </Text>
 
                 <View className="mb-4">
                   <View className="flex-row items-center justify-between mb-2">
@@ -2186,8 +2392,10 @@ export default function CreateMatchWizard() {
             {/* Demo mode toggle for past matches */}
             {isPastMatch && (
               <View className="border-t border-border/30 pt-6">
-                <Text className="text-lg font-semibold mb-4">Validation Settings</Text>
-                
+                <Text className="text-lg font-semibold mb-4">
+                  Validation Settings
+                </Text>
+
                 <View className="mb-4">
                   <View className="flex-row items-center justify-between mb-2">
                     <Text className="text-sm font-medium text-muted-foreground">
@@ -2198,11 +2406,15 @@ export default function CreateMatchWizard() {
                         className={`w-12 h-6 rounded-full ${
                           useQuickValidation ? "bg-primary" : "bg-muted"
                         }`}
-                        onPress={() => setUseQuickValidation(!useQuickValidation)}
+                        onPress={() =>
+                          setUseQuickValidation(!useQuickValidation)
+                        }
                       >
                         <View
                           className={`w-5 h-5 rounded-full bg-white m-0.5 transition-transform ${
-                            useQuickValidation ? "translate-x-6" : "translate-x-0"
+                            useQuickValidation
+                              ? "translate-x-6"
+                              : "translate-x-0"
                           }`}
                         />
                       </TouchableOpacity>
@@ -2218,6 +2430,7 @@ export default function CreateMatchWizard() {
             )}
           </View>
         </View>
+        </View>
       </ScrollView>
     </SlideContainer>
   );
@@ -2226,13 +2439,26 @@ export default function CreateMatchWizard() {
     if (!isPastMatch) return null;
 
     return (
-      <SlideContainer isActive={currentStep === WizardStep.SCORE_ENTRY} direction={slideDirection}>
-        <ScrollView
-          className="flex-1 px-6"
-          contentContainerStyle={{ paddingBottom: 40 }}
-          showsVerticalScrollIndicator={false}
-        >
-          <View className="mb-6">
+    <SlideContainer
+      isActive={currentStep === WizardStep.SCORE_ENTRY}
+      direction={slideDirection}
+    >
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ paddingBottom: 40, paddingTop: 100 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#2148ce"
+            colors={["#2148ce"]}
+          />
+        }
+      >
+        {/* Main Content */}
+        <View className="px-6 bg-background rounded-t-3xl relative z-10 -mt-6">
+          <View className="mb-6 mt-6">
             <H2 className="mb-2">Match Scores</H2>
             <Text className="text-muted-foreground mb-6">
               Enter the scores for each set played
@@ -2291,22 +2517,37 @@ export default function CreateMatchWizard() {
               )}
             </View>
           </View>
+          </View>
         </ScrollView>
       </SlideContainer>
     );
   };
 
   const renderStep5ReviewSubmit = () => (
-    <SlideContainer isActive={currentStep === WizardStep.REVIEW_SUBMIT} direction={slideDirection}>
+    <SlideContainer
+      isActive={currentStep === WizardStep.REVIEW_SUBMIT}
+      direction={slideDirection}
+    >
       <ScrollView
-        className="flex-1 px-6"
-        contentContainerStyle={{ paddingBottom: 40 }}
+        className="flex-1"
+        contentContainerStyle={{ paddingBottom: 40, paddingTop: 100 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#2148ce"
+            colors={["#2148ce"]}
+          />
+        }
       >
-        <View className="mb-6 mt-3">
+        {/* Main Content */}
+        <View className="px-6 bg-background rounded-t-3xl relative z-10 -mt-6">
+          <View className="mb-6 mt-6">
           <H2 className="mb-2">Review Match</H2>
           <Text className="text-muted-foreground mb-6">
-            Review all details before {isPastMatch ? "recording" : "scheduling"} your match
+            Review all details before {isPastMatch ? "recording" : "scheduling"}{" "}
+            your match
           </Text>
 
           {/* Match Summary */}
@@ -2316,14 +2557,28 @@ export default function CreateMatchWizard() {
             {/* Date & Time */}
             <View className="mb-4 p-4 bg-background/60 rounded-lg">
               <View className="flex-row items-center mb-2">
-                <Ionicons name="calendar-outline" size={16} color="#1a7ebd" />
+                <Ionicons name="calendar-outline" size={16} color="#2148ce" />
                 <Text className="ml-2 font-medium">Date & Time</Text>
               </View>
               <Text className="text-sm text-muted-foreground">
-                {startDateTime.toLocaleDateString()} • {startDateTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {endDateTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {startDateTime.toLocaleDateString()} •{" "}
+                {startDateTime.toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}{" "}
+                -{" "}
+                {endDateTime.toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
               </Text>
               <Text className="text-xs text-muted-foreground mt-1">
-                Duration: {Math.round((endDateTime.getTime() - startDateTime.getTime()) / (1000 * 60))} minutes
+                Duration:{" "}
+                {Math.round(
+                  (endDateTime.getTime() - startDateTime.getTime()) /
+                    (1000 * 60)
+                )}{" "}
+                minutes
               </Text>
               {endDateTime.getDate() !== startDateTime.getDate() && (
                 <Text className="text-xs text-muted-foreground mt-1">
@@ -2335,35 +2590,57 @@ export default function CreateMatchWizard() {
             {/* Players */}
             <View className="mb-4 p-4 bg-background/60 rounded-lg">
               <View className="flex-row items-center mb-2">
-                <Ionicons name="people-outline" size={16} color="#1a7ebd" />
-                <Text className="ml-2 font-medium">Players ({teamComposition.totalPlayers}/4)</Text>
+                <Ionicons name="people-outline" size={16} color="#2148ce" />
+                <Text className="ml-2 font-medium">
+                  Players ({teamComposition.totalPlayers}/4)
+                </Text>
               </View>
               <View className="flex-row justify-between">
                 <View className="flex-1">
-                  <Text className="text-xs font-medium text-primary mb-1">Team 1</Text>
+                  <Text className="text-xs font-medium text-primary mb-1">
+                    Team 1
+                  </Text>
                   {teamComposition.team1Players.map((player, index) => (
-                    <Text key={player.id} className="text-sm text-muted-foreground">
+                    <Text
+                      key={player.id}
+                      className="text-sm text-muted-foreground"
+                    >
                       {player.isCurrentUser ? "You" : player.name}
                     </Text>
                   ))}
-                  {Array(2 - teamComposition.team1Players.length).fill(0).map((_, i) => (
-                    <Text key={`t1-empty-${i}`} className="text-sm text-muted-foreground/50 italic">
-                      Open slot
-                    </Text>
-                  ))}
+                  {Array(2 - teamComposition.team1Players.length)
+                    .fill(0)
+                    .map((_, i) => (
+                      <Text
+                        key={`t1-empty-${i}`}
+                        className="text-sm text-muted-foreground/50 italic"
+                      >
+                        Open slot
+                      </Text>
+                    ))}
                 </View>
                 <View className="flex-1">
-                  <Text className="text-xs font-medium text-indigo-600 mb-1">Team 2</Text>
+                  <Text className="text-xs font-medium text-indigo-600 mb-1">
+                    Team 2
+                  </Text>
                   {teamComposition.team2Players.map((player, index) => (
-                    <Text key={player.id} className="text-sm text-muted-foreground">
+                    <Text
+                      key={player.id}
+                      className="text-sm text-muted-foreground"
+                    >
                       {player.name}
                     </Text>
                   ))}
-                  {Array(2 - teamComposition.team2Players.length).fill(0).map((_, i) => (
-                    <Text key={`t2-empty-${i}`} className="text-sm text-muted-foreground/50 italic">
-                      Open slot
-                    </Text>
-                  ))}
+                  {Array(2 - teamComposition.team2Players.length)
+                    .fill(0)
+                    .map((_, i) => (
+                      <Text
+                        key={`t2-empty-${i}`}
+                        className="text-sm text-muted-foreground/50 italic"
+                      >
+                        Open slot
+                      </Text>
+                    ))}
                 </View>
               </View>
             </View>
@@ -2372,7 +2649,7 @@ export default function CreateMatchWizard() {
             {selectedCourt && (
               <View className="mb-4 p-4 bg-background/60 rounded-lg">
                 <View className="flex-row items-center mb-2">
-                  <Ionicons name="location-outline" size={16} color="#1a7ebd" />
+                  <Ionicons name="location-outline" size={16} color="#2148ce" />
                   <Text className="ml-2 font-medium">Location</Text>
                 </View>
                 <Text className="text-sm text-muted-foreground">
@@ -2384,11 +2661,15 @@ export default function CreateMatchWizard() {
                 <View className="flex-row items-center mt-1">
                   {selectedCourt.type === "indoor" ? (
                     <View className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 rounded">
-                      <Text className="text-xs text-blue-700 dark:text-blue-300">Indoor</Text>
+                      <Text className="text-xs text-blue-700 dark:text-blue-300">
+                        Indoor
+                      </Text>
                     </View>
                   ) : (
                     <View className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 rounded">
-                      <Text className="text-xs text-green-700 dark:text-green-300">Outdoor</Text>
+                      <Text className="text-xs text-green-700 dark:text-green-300">
+                        Outdoor
+                      </Text>
                     </View>
                   )}
                 </View>
@@ -2399,7 +2680,7 @@ export default function CreateMatchWizard() {
             {isPastMatch && isSet1Valid && isSet2Valid && (
               <View className="mb-4 p-4 bg-background/60 rounded-lg">
                 <View className="flex-row items-center mb-2">
-                  <Ionicons name="trophy-outline" size={16} color="#1a7ebd" />
+                  <Ionicons name="trophy-outline" size={16} color="#2148ce" />
                   <Text className="ml-2 font-medium">Match Result</Text>
                 </View>
                 <Text className="text-sm text-muted-foreground mb-2">
@@ -2423,7 +2704,7 @@ export default function CreateMatchWizard() {
             {!isPastMatch && (
               <View className="mb-4 p-4 bg-background/60 rounded-lg">
                 <View className="flex-row items-center mb-2">
-                  <Ionicons name="settings-outline" size={16} color="#1a7ebd" />
+                  <Ionicons name="settings-outline" size={16} color="#2148ce" />
                   <Text className="ml-2 font-medium">Settings</Text>
                 </View>
                 <Text className="text-sm text-muted-foreground">
@@ -2441,11 +2722,17 @@ export default function CreateMatchWizard() {
             {isPastMatch && (
               <View className="p-4 bg-background/60 rounded-lg">
                 <View className="flex-row items-center mb-2">
-                  <Ionicons name="shield-checkmark-outline" size={16} color="#1a7ebd" />
+                  <Ionicons
+                    name="shield-checkmark-outline"
+                    size={16}
+                    color="#2148ce"
+                  />
                   <Text className="ml-2 font-medium">Validation Mode</Text>
                 </View>
                 <Text className="text-sm text-muted-foreground">
-                  {useQuickValidation ? "Demo Mode: 1-hour validation" : "Standard: 24-hour validation"}
+                  {useQuickValidation
+                    ? "Demo Mode: 1-hour validation"
+                    : "Standard: 24-hour validation"}
                 </Text>
               </View>
             )}
@@ -2461,8 +2748,10 @@ export default function CreateMatchWizard() {
                 </Text>
               </View>
               <Text className="text-sm text-amber-700 dark:text-amber-300">
-                After recording, all players will have {useQuickValidation ? "1 hour" : "24 hours"} to dispute scores. 
-                Ratings will only be applied after the validation period expires.
+                After recording, all players will have{" "}
+                {useQuickValidation ? "1 hour" : "24 hours"} to dispute scores.
+                Ratings will only be applied after the validation period
+                expires.
               </Text>
             </View>
           )}
@@ -2470,27 +2759,53 @@ export default function CreateMatchWizard() {
           {/* Action Summary */}
           <View className="p-4 rounded-xl bg-primary/10 border border-primary/30">
             <View className="flex-row items-center mb-2">
-              <Ionicons name="information-circle-outline" size={20} color="#1a7ebd" />
+              <Ionicons
+                name="information-circle-outline"
+                size={20}
+                color="#2148ce"
+              />
               <Text className="ml-2 font-semibold text-primary">
                 What happens next?
               </Text>
             </View>
             {isPastMatch ? (
               <View className="space-y-1">
-                <Text className="text-sm text-primary/80">• Match will be recorded immediately</Text>
-                <Text className="text-sm text-primary/80">• All players will be notified</Text>
-                <Text className="text-sm text-primary/80">• {useQuickValidation ? "1-hour" : "24-hour"} validation period starts</Text>
-                <Text className="text-sm text-primary/80">• Ratings update after validation</Text>
+                <Text className="text-sm text-primary/80">
+                  • Match will be recorded immediately
+                </Text>
+                <Text className="text-sm text-primary/80">
+                  • All players will be notified
+                </Text>
+                <Text className="text-sm text-primary/80">
+                  • {useQuickValidation ? "1-hour" : "24-hour"} validation
+                  period starts
+                </Text>
+                <Text className="text-sm text-primary/80">
+                  • Ratings update after validation
+                </Text>
               </View>
             ) : (
               <View className="space-y-1">
-                <Text className="text-sm text-primary/80">• Match will be scheduled</Text>
-                {isPublicMatch && <Text className="text-sm text-primary/80">• Visible to all players in the area</Text>}
-                {!teamComposition.isComplete && <Text className="text-sm text-primary/80">• Open for players to join</Text>}
-                <Text className="text-sm text-primary/80">• Players will receive notifications</Text>
+                <Text className="text-sm text-primary/80">
+                  • Match will be scheduled
+                </Text>
+                {isPublicMatch && (
+                  <Text className="text-sm text-primary/80">
+                    • Visible to all players in the area
+                  </Text>
+                )}
+                {!teamComposition.isComplete && (
+                  <Text className="text-sm text-primary/80">
+                    • Open for players to join
+                  </Text>
+                )}
+                <Text className="text-sm text-primary/80">
+                  • Players will receive notifications
+                </Text>
               </View>
             )}
           </View>
+        </View>
         </View>
       </ScrollView>
     </SlideContainer>
@@ -2503,9 +2818,11 @@ export default function CreateMatchWizard() {
   const renderNavigationControls = () => {
     const currentStepValidation = validateCurrentStep();
     const canProceed = currentStepValidation.isValid;
-    const currentIndex = stepConfig.findIndex(step => step.id === currentStep);
+    const currentIndex = stepConfig.findIndex(
+      (step) => step.id === currentStep
+    );
     const isLastStep = currentIndex === stepConfig.length - 1;
-  
+
     return (
       <View className="px-6 py-4 bg-white/80 dark:bg-gray-900/80 border-t border-gray-200 dark:border-gray-700">
         <View className="flex-row gap-3">
@@ -2517,12 +2834,12 @@ export default function CreateMatchWizard() {
               onPress={goToPreviousStep}
             >
               <View className="flex-row items-center">
-                <Ionicons name="chevron-back" size={16} color="#1a7ebd" />
-                <Text className="ml-1 font-medium">Previous</Text>
+                <Ionicons name="chevron-back" size={16} color="#2148ce" />
+                <Text className="ml-1 text-black font-medium">Previous</Text>
               </View>
             </Button>
           )}
-  
+
           {/* Next/Submit Button */}
           {!isLastStep ? (
             <Button
@@ -2532,10 +2849,10 @@ export default function CreateMatchWizard() {
               disabled={!canProceed}
             >
               <View className="flex-row items-center">
-                <Text className="mr-1 font-medium text-primary-foreground">
+                <Text className="mr-1 font-extrabold text-white">
                   {stepConfig[currentIndex + 1]?.title || "Next"}
                 </Text>
-                <Ionicons name="chevron-forward" size={16} color="white" />
+                <Ionicons name="arrow-forward" size={22} color="white" />
               </View>
             </Button>
           ) : (
@@ -2564,54 +2881,82 @@ export default function CreateMatchWizard() {
             </Button>
           )}
         </View>
-  
+
         {/* Validation Errors */}
-        {!currentStepValidation.isValid && currentStepValidation.errors.length > 0 && (
-          <View className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-            <View className="flex-row items-start">
-              <Ionicons name="alert-circle" size={16} color="#ef4444" style={{ marginTop: 1 }} />
-              <View className="flex-1 ml-2">
-                {currentStepValidation.errors.map((error, index) => (
-                  <Text key={index} className="text-sm text-red-600 dark:text-red-400">
-                    {error}
-                  </Text>
-                ))}
+        {!currentStepValidation.isValid &&
+          currentStepValidation.errors.length > 0 && (
+            <View className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+              <View className="flex-row items-start">
+                <Ionicons
+                  name="alert-circle"
+                  size={16}
+                  color="#ef4444"
+                  style={{ marginTop: 1 }}
+                />
+                <View className="flex-1 ml-2">
+                  {currentStepValidation.errors.map((error, index) => (
+                    <Text
+                      key={index}
+                      className="text-sm text-red-600 dark:text-red-400"
+                    >
+                      {error}
+                    </Text>
+                  ))}
+                </View>
               </View>
             </View>
-          </View>
-        )}
+          )}
       </View>
     );
   };
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      {/* Header */}
-      <View className="flex-row items-center px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-        <TouchableOpacity
-          className="w-10 h-10 rounded-full items-center justify-center mr-3 bg-background dark:bg-card"
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#1a7ebd" />
-        </TouchableOpacity>
-        <View className="flex-1">
-          <H1>{isPastMatch ? "Record Match" : "Schedule Match"}</H1>
-          <Text className="text-sm text-muted-foreground">
-            {stepConfig.find(s => s.id === currentStep)?.description}
-          </Text>
-        </View>
+      {/* Background Image covering header + top content */}
+      <View
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 250,
+          zIndex: 0,
+        }}
+      >
+        <Image
+          source={require("../../../assets/padelcourt.jpg")} // Adjust path as needed
+          style={{
+            width: "100%",
+            height: "100%",
+          }}
+          resizeMode="cover"
+        />
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.3)",
+          }}
+        />
       </View>
 
-      {/* Progress Indicator */}
-      <ProgressIndicator
-        currentStep={currentStep}
-        totalSteps={totalSteps}
-        completedSteps={completedSteps}
-        stepConfig={stepConfig}
-      />
-
+      {/* Header */}
+        <View
+          className="flex-row  mx-auto  items-center"
+        >
+          <ProgressIndicator
+            currentStep={currentStep}
+            totalSteps={totalSteps}
+            completedSteps={completedSteps}
+            stepConfig={stepConfig}
+          />
+        </View>
       {/* Step Content */}
-      <View className="flex-1">
+      <View className="flex-1 relative z-10">
+
         {renderStep1MatchTypeTime()}
         {renderStep2PlayerSelection()}
         {renderStep3LocationSettings()}
@@ -2621,28 +2966,6 @@ export default function CreateMatchWizard() {
 
       {/* Navigation Controls */}
       {renderNavigationControls()}
-
-      {/* Player Selection Modal */}
-      <PlayerSelectionModal
-        visible={showPlayerModal}
-        onClose={() => setShowPlayerModal(false)}
-        friends={friends}
-        selectedFriends={selectedFriends}
-        onSelectFriends={setSelectedFriends}
-        loading={loading}
-        maxSelections={isPastMatch ? 3 : 3}
-      />
-
-      {/* Court Selection Modal */}
-      <CourtSelectionModal
-        visible={showCourtModal}
-        onClose={() => setShowCourtModal(false)}
-        onSelectCourt={(court) => {
-          setSelectedCourt(court);
-          setShowCourtModal(false);
-        }}
-        selectedCourt={selectedCourt}
-      />
     </SafeAreaView>
   );
 }

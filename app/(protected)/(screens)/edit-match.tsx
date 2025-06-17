@@ -518,7 +518,7 @@ export default function EditMatchScreen() {
     return (
       <SafeAreaView className="flex-1 bg-background">
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#1a7ebd" />
+          <ActivityIndicator size="large" color="#2148ce" />
           <Text className="mt-4 text-muted-foreground">Loading match details...</Text>
         </View>
       </SafeAreaView>
@@ -531,7 +531,7 @@ export default function EditMatchScreen() {
       <SafeAreaView className="flex-1 bg-background p-6">
         <View className="flex-row items-center mb-6">
           <TouchableOpacity onPress={() => router.back()} className="mr-3">
-            <Ionicons name="arrow-back" size={24} color="#1a7ebd" />
+            <Ionicons name="arrow-back" size={24} color="#2148ce" />
           </TouchableOpacity>
           <H1>Edit Match</H1>
         </View>
@@ -560,7 +560,7 @@ export default function EditMatchScreen() {
       <SafeAreaView className="flex-1 bg-background p-6">
         <View className="flex-row items-center mb-6">
           <TouchableOpacity onPress={() => router.back()} className="mr-3">
-            <Ionicons name="arrow-back" size={24} color="#1a7ebd" />
+            <Ionicons name="arrow-back" size={24} color="#2148ce" />
           </TouchableOpacity>
           <H1>Edit Match</H1>
         </View>
@@ -592,7 +592,7 @@ export default function EditMatchScreen() {
             className="w-10 h-10 rounded-full items-center justify-center mr-3"
             onPress={() => router.back()}
           >
-            <Ionicons name="arrow-back" size={24} color="#1a7ebd" />
+            <Ionicons name="arrow-back" size={24} color="#2148ce" />
           </TouchableOpacity>
           <H1>Edit Match</H1>
         </View>

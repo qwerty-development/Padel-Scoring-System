@@ -182,7 +182,7 @@ export function FriendCard({
               }}
               className="p-2 rounded-full bg-primary"
               style={{
-                shadowColor: "#1a7ebd",
+                shadowColor: "#2148ce",
                 shadowOffset: { width: 0, height: 2 },
                 shadowOpacity: 0.2,
                 shadowRadius: 3,

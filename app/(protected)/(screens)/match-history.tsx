@@ -1512,7 +1512,7 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
             color={
               filter === 'public' ? '#2563eb' :
               filter === 'private' ? '#6b7280' :
-              '#1a7ebd'
+              '#2148ce'
             } 
           />
         </View>
@@ -1580,7 +1580,7 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
     return (
       <SafeAreaView className="flex-1 bg-background">
         <View className="flex-1 items-center justify-center p-6">
-          <ActivityIndicator size="large" color="#1a7ebd" />
+          <ActivityIndicator size="large" color="#2148ce" />
           <Text className="mt-4 text-muted-foreground">Loading match history...</Text>
           {friendId && (
             <Text className="mt-2 text-sm text-muted-foreground">
@@ -1625,8 +1625,8 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
           <RefreshControl 
             refreshing={refreshing} 
             onRefresh={onRefresh}
-            tintColor="#1a7ebd"
-            colors={['#1a7ebd']}
+            tintColor="#2148ce"
+            colors={['#2148ce']}
           />
         }
         showsVerticalScrollIndicator={false}

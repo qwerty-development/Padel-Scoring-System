@@ -353,7 +353,7 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({
           style={{
             backgroundColor: canJoin
               ? teamNumber === 1
-                ? "#1a7ebd"
+                ? "#2148ce"
                 : "#6366f1"
               : undefined,
           }}
@@ -1213,7 +1213,7 @@ export default function ProductionBrowsePublicMatches() {
     return (
       <SafeAreaView className="flex-1 bg-background">
         <View className="flex-1 items-center justify-center p-6">
-          <ActivityIndicator size="large" color="#1a7ebd" />
+          <ActivityIndicator size="large" color="#2148ce" />
           <Text className="mt-4 text-muted-foreground">
             Loading public matches...
           </Text>
@@ -1238,8 +1238,8 @@ export default function ProductionBrowsePublicMatches() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#1a7ebd"
-            colors={["#1a7ebd"]}
+            tintColor="#2148ce"
+            colors={["#2148ce"]}
           />
         }
         showsVerticalScrollIndicator={false}

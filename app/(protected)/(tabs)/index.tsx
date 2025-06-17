@@ -111,7 +111,7 @@ function DashboardAvatar({
   user,
   size = "md",
   showBorder = false,
-  borderColor = "#1a7ebd",
+  borderColor = "#2148ce",
   showShadow = false,
 }: DashboardAvatarProps) {
   // State management for complex image loading lifecycle
@@ -422,7 +422,7 @@ export default function EnhancedHome() {
         .filter((match) => {
           const startTime = new Date(match.start_time);
           const isFuture = startTime > now;
-          console.log(`📅 Match ${match.id} upcoming check:`, {
+          console.log(`Match ${match.id} upcoming check:`, {
             startTime: startTime.toISOString(),
             isFuture,
             status: match.status,
@@ -1274,7 +1274,7 @@ const renderUserHeader = () => (
               size={14}
               style={{ marginRight: 6 }}
             />
-            <Text className="text-xs text-primary-foreground">
+            <Text className="text-5xl text-primary-foreground">
               {match.needsScores ? "Enter Scores" : "View Details"}
             </Text>
           </Button>
@@ -1298,7 +1298,7 @@ const renderUserHeader = () => (
             className="flex-row items-center"
           >
             <Text className="text-primary text-sm mr-1">See All</Text>
-            <Ionicons name="chevron-forward" size={14} color="#1a7ebd" />
+            <Ionicons name="chevron-forward" size={14} color="#2148ce" />
           </TouchableOpacity>
         </View>
 
@@ -1351,7 +1351,7 @@ const renderUserHeader = () => (
     return (
       <SafeAreaView className="flex-1 bg-background">
         <View className="flex-1 items-center justify-center p-6">
-          <ActivityIndicator size="large" color="#1a7ebd" />
+          <ActivityIndicator size="large" color="#2148ce" />
           <Text className="mt-4 text-muted-foreground">
             Loading your dashboard...
           </Text>
@@ -1369,8 +1369,8 @@ const renderUserHeader = () => (
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#1a7ebd"
-            colors={["#1a7ebd"]}
+            tintColor="#2148ce"
+            colors={["#2148ce"]}
           />
         }
         showsVerticalScrollIndicator={false}
@@ -1382,7 +1382,7 @@ const renderUserHeader = () => (
         {categorizedMatches.needsAttention.length > 0 && (
           <View className="mb-6">
             <View className="flex-row justify-between items-center mb-3">
-              <H2>⚠️ Needs Attention</H2>
+              <H2>Needs Attention</H2>
               <View className="bg-amber-100 dark:bg-amber-900/30 px-2 py-1 rounded-full">
                 <Text className="text-xs font-medium text-amber-800 dark:text-amber-300">
                   {categorizedMatches.needsAttention.length}
@@ -1400,14 +1400,14 @@ const renderUserHeader = () => (
         {categorizedMatches.upcoming.length > 0 && (
           <View className="mb-6">
             <View className="flex-row justify-between items-center mb-3">
-              <H2>📅 Upcoming Matches</H2>
+              <H2>Upcoming Matches</H2>
               {categorizedMatches.upcoming.length >= 3 && (
                 <TouchableOpacity
                   onPress={handleViewAllMatches}
                   className="flex-row items-center"
                 >
                   <Text className="text-primary text-sm mr-1">View All</Text>
-                  <Ionicons name="chevron-forward" size={14} color="#1a7ebd" />
+                  <Ionicons name="chevron-forward" size={14} color="#2148ce" />
                 </TouchableOpacity>
               )}
             </View>
@@ -1422,13 +1422,13 @@ const renderUserHeader = () => (
         {categorizedMatches.recent.length > 0 && (
           <View className="mb-6">
             <View className="flex-row justify-between items-center mb-3">
-              <H2>🏆 Recent Matches</H2>
+              <H2>Recent Matches</H2>
               <TouchableOpacity
                 onPress={handleViewAllMatches}
                 className="flex-row items-center"
               >
                 <Text className="text-primary text-sm mr-1">View All</Text>
-                <Ionicons name="chevron-forward" size={14} color="#1a7ebd" />
+                <Ionicons name="chevron-forward" size={14} color="#2148ce" />
               </TouchableOpacity>
             </View>
 
@@ -1451,7 +1451,7 @@ const renderUserHeader = () => (
             }}
           >
             <View className="w-20 h-20 rounded-full bg-primary/10 items-center justify-center mb-4">
-              <Ionicons name="tennisball-outline" size={40} color="#1a7ebd" />
+              <Ionicons name="tennisball-outline" size={40} color="#2148ce" />
             </View>
             <Text className="text-xl font-bold mb-2">
               Welcome to Padel Scoring!
@@ -1468,7 +1468,7 @@ const renderUserHeader = () => (
                 onPress={handleCreateMatch}
                 className="w-full"
                 style={{
-                  shadowColor: "#1a7ebd",
+                  shadowColor: "#2148ce",
                   shadowOffset: { width: 0, height: 2 },
                   shadowOpacity: 0.2,
                   shadowRadius: 4,
@@ -1500,7 +1500,7 @@ const renderUserHeader = () => (
         onPress={handleCreateMatch}
         className="absolute bottom-6 right-6 w-14 h-14 rounded-full bg-primary items-center justify-center shadow-lg"
         style={{
-          shadowColor: "#1a7ebd",
+          shadowColor: "#2148ce",
           shadowOffset: { width: 0, height: 4 },
           shadowOpacity: 0.3,
           shadowRadius: 8,

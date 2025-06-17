@@ -507,7 +507,7 @@ export default function Leaderboard() {
             <Ionicons 
               name="earth" 
               size={16} 
-              color={viewType === 'global' ? '#1a7ebd' : '#888'} 
+              color={viewType === 'global' ? '#2148ce' : '#888'} 
               style={{ marginRight: 6 }}
             />
             <Text className={`text-center font-medium ${viewType === 'global' ? 'text-primary' : 'text-muted-foreground'}`}>
@@ -525,7 +525,7 @@ export default function Leaderboard() {
             <Ionicons 
               name="people" 
               size={16} 
-              color={viewType === 'friends' ? '#1a7ebd' : '#888'} 
+              color={viewType === 'friends' ? '#2148ce' : '#888'} 
               style={{ marginRight: 6 }}
             />
             <Text className={`text-center font-medium ${viewType === 'friends' ? 'text-primary' : 'text-muted-foreground'}`}>
@@ -542,8 +542,8 @@ export default function Leaderboard() {
           <RefreshControl 
             refreshing={refreshing} 
             onRefresh={onRefresh}
-            colors={["#1a7ebd"]}
-            tintColor="#1a7ebd"
+            colors={["#2148ce"]}
+            tintColor="#2148ce"
           />
         }
         onScrollEndDrag={loadMoreUsers}
@@ -553,7 +553,7 @@ export default function Leaderboard() {
         {/* Loading State Management */}
         {loading && currentRankings.length === 0 ? (
           <View className="items-center justify-center py-12">
-            <ActivityIndicator size="large" color="#1a7ebd" />
+            <ActivityIndicator size="large" color="#2148ce" />
             <Text className="text-muted-foreground mt-4">Loading rankings...</Text>
           </View>
         ) : (
@@ -567,7 +567,7 @@ export default function Leaderboard() {
             {/* Pagination Loading Indicator */}
             {loading && currentRankings.length > 0 && (
               <View className="py-4 items-center">
-                <ActivityIndicator size="small" color="#1a7ebd" />
+                <ActivityIndicator size="small" color="#2148ce" />
                 <Text className="text-muted-foreground text-sm mt-2">Loading more users...</Text>
               </View>
             )}

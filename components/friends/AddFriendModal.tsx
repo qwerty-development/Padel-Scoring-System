@@ -281,7 +281,7 @@ export function AddFriendModal({
 
           {searchLoading ? (
             <View className="py-8 items-center">
-              <ActivityIndicator size="large" color="#1a7ebd" />
+              <ActivityIndicator size="large" color="#2148ce" />
               <Text className="text-muted-foreground mt-2">Searching users...</Text>
             </View>
           ) : (

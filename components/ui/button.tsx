@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { TextClassContext } from "@/components/ui/text";
 
 const buttonVariants = cva(
-	"group flex items-center justify-center rounded-lg web:ring-offset-background web:transition-all web:duration-200 web:ease-in-out web:focus-visible:outline-none web:focus-visible:ring-2 web:focus-visible:ring-ring web:focus-visible:ring-offset-2 web:shadow-sm",
+	"group flex items-center justify-center rounded-full web:ring-offset-background web:transition-all web:duration-200 web:ease-in-out web:focus-visible:outline-none web:focus-visible:ring-2 web:focus-visible:ring-ring web:focus-visible:ring-offset-2 web:shadow-sm",
 	{
 		variants: {
 			variant: {
@@ -24,9 +24,9 @@ const buttonVariants = cva(
 			},
 			size: {
 				default: "h-12 px-6 py-3 native:h-14 native:px-7 native:py-4 min-w-[100px]",
-				sm: "h-9 px-4 py-2 native:h-11 native:px-5 native:py-3 min-w-[80px] rounded-md",
-				lg: "h-14 px-8 py-4 native:h-16 native:px-10 native:py-5 min-w-[120px] rounded-xl",
-				icon: "h-12 w-12 native:h-14 native:w-14 rounded-xl shadow-md",
+				sm: "h-9 px-4 py-2 native:h-11 native:px-5 native:py-3 min-w-[80px]",
+				lg: "h-14 px-8 py-4 native:h-16 native:px-10 native:py-5 min-w-[120px]",
+				icon: "h-12 w-12 native:h-14 native:w-14 shadow-md",
 			},
 		},
 		defaultVariants: {
@@ -37,17 +37,16 @@ const buttonVariants = cva(
 );
 
 const buttonTextVariants = cva(
-	"web:whitespace-nowrap text-sm native:text-base font-semibold text-foreground web:transition-all web:duration-200 web:ease-in-out",
+	"web:whitespace-nowrap text-sm native:text-base font-semibold web:transition-all web:duration-200 web:ease-in-out",
 	{
 		variants: {
 			variant: {
-				default: "text-primary-foreground font-semibold tracking-wide",
-				destructive: "text-destructive-foreground font-semibold tracking-wide",
-				outline: "text-primary font-semibold group-active:text-primary group-hover:text-primary/90",
-				secondary:
-					"text-secondary-foreground font-semibold group-active:text-secondary-foreground/90",
-				ghost: "text-foreground font-medium group-active:text-accent-foreground group-hover:text-foreground/90",
-				link: "text-primary font-medium group-active:underline group-hover:text-primary/90 underline-offset-2",
+				default: "text-white font-semibold tracking-wide",
+				destructive: "text-white font-semibold tracking-wide",
+				outline: "text-white font-semibold",
+				secondary: "text-white font-semibold",
+				ghost: "text-white font-medium",
+				link: "text-white font-medium underline-offset-2",
 			},
 			size: {
 				default: "text-sm native:text-base",

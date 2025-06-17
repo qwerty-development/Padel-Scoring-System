@@ -231,7 +231,7 @@ export function FriendRequestsModal({
             onPress={() => onHandleRequest(request.id, "deny")}
           >
             <View className="flex-row items-center">
-              <Ionicons name="close-circle-outline" size={16} color="#1a7ebd" style={{ marginRight: 4 }} />
+              <Ionicons name="close-circle-outline" size={16} color="#2148ce" style={{ marginRight: 4 }} />
               <Text className="text-foreground font-medium">Decline</Text>
             </View>
           </Button>

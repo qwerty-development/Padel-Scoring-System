@@ -100,7 +100,7 @@ export function CustomDateTimePicker({
   // Enhanced styling for better visual feedback
   const getContainerStyling = () => {
     return {
-      shadowColor: "#1a7ebd",
+      shadowColor: "#2148ce",
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.1,
       shadowRadius: 4,
@@ -122,17 +122,12 @@ export function CustomDateTimePicker({
       >
         <View className="flex-1">
           <Text className="text-foreground font-medium">{getFormattedValue()}</Text>
-          {mode === "time" && (
-            <Text className="text-xs text-muted-foreground mt-1">
-              Tap to select time
-            </Text>
-          )}
         </View>
         <View className="ml-3 p-2 rounded-lg bg-primary/10">
           <Ionicons
             name={getIcon()}
             size={20}
-            color="#1a7ebd"
+            color="#2148ce"
           />
         </View>
       </TouchableOpacity>

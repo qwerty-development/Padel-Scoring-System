@@ -424,7 +424,7 @@ export function PlayerSelectionModal({
           {/* Friends list */}
           {loading ? (
             <View className="flex-1 justify-center items-center">
-              <ActivityIndicator size="large" color="#1a7ebd" />
+              <ActivityIndicator size="large" color="#2148ce" />
               <Text className="text-muted-foreground mt-3">Loading friends...</Text>
             </View>
           ) : (

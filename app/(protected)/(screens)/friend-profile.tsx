@@ -487,7 +487,7 @@ export default function FriendProfileScreen() {
       }}
     >
       <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center mr-4">
-        <Ionicons name={icon} size={20} color="#1a7ebd" />
+        <Ionicons name={icon} size={20} color="#2148ce" />
       </View>
       <View className="flex-1">
         <Text className="text-sm text-muted-foreground font-medium">{title}</Text>
@@ -764,7 +764,7 @@ export default function FriendProfileScreen() {
             elevation: 1,
           }}
         >
-          <ActivityIndicator size="small" color="#1a7ebd" />
+          <ActivityIndicator size="small" color="#2148ce" />
           <Text className="mt-2 text-muted-foreground">Loading match history...</Text>
         </View>
       );
@@ -990,7 +990,7 @@ export default function FriendProfileScreen() {
   if (loading && !refreshing) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#1a7ebd" />
+        <ActivityIndicator size="large" color="#2148ce" />
         <Text className="mt-4 text-muted-foreground">Loading profile...</Text>
       </View>
     );
@@ -1005,7 +1005,7 @@ export default function FriendProfileScreen() {
             onPress={() => router.back()}
             className="mr-2"
           >
-            <Ionicons name="arrow-back" size={24} color="#1a7ebd" />
+            <Ionicons name="arrow-back" size={24} color="#2148ce" />
           </Button>
           <H1>Profile Not Found</H1>
         </View>
@@ -1028,8 +1028,8 @@ export default function FriendProfileScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={["#1a7ebd"]}
-            tintColor="#1a7ebd"
+            colors={["#2148ce"]}
+            tintColor="#2148ce"
           />
         }
         showsVerticalScrollIndicator={false}
@@ -1041,7 +1041,7 @@ export default function FriendProfileScreen() {
             onPress={() => router.back()}
             className="mr-2"
           >
-            <Ionicons name="arrow-back" size={24} color="#1a7ebd" />
+            <Ionicons name="arrow-back" size={24} color="#2148ce" />
           </Button>
         </View>
 
@@ -1088,7 +1088,7 @@ export default function FriendProfileScreen() {
                 });
               }}
               style={{
-                shadowColor: "#1a7ebd",
+                shadowColor: "#2148ce",
                 shadowOffset: { width: 0, height: 2 },
                 shadowOpacity: 0.2,
                 shadowRadius: 4,

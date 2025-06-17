@@ -1091,7 +1091,7 @@ export default function Profile() {
       
       {(avatarState.uploading || avatarState.deleting) && (
         <View className="mt-2 flex-row items-center">
-          <ActivityIndicator size="small" color="#1a7ebd" style={{ marginRight: 8 }} />
+          <ActivityIndicator size="small" color="#2148ce" style={{ marginRight: 8 }} />
           <Text className="text-sm text-muted-foreground">
             {avatarState.uploading ? 'Uploading picture...' : 'Removing picture...'}
           </Text>
@@ -1223,7 +1223,7 @@ export default function Profile() {
   const renderInfoCard = (title: string, value: string | null, icon: keyof typeof Ionicons.glyphMap) => (
     <View className="bg-card rounded-lg p-4 mb-3 flex-row items-center">
       <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center mr-4">
-        <Ionicons name={icon} size={20} color="#1a7ebd" />
+        <Ionicons name={icon} size={20} color="#2148ce" />
       </View>
       <View className="flex-1">
         <Text className="text-sm text-muted-foreground">{title}</Text>
@@ -1238,7 +1238,7 @@ export default function Profile() {
       <View className="flex-row justify-between items-center mb-4">
         <H3>Match Statistics</H3>
         <TouchableOpacity onPress={shareProfile}>
-          <Ionicons name="share-outline" size={20} color="#1a7ebd" />
+          <Ionicons name="share-outline" size={20} color="#2148ce" />
         </TouchableOpacity>
       </View>
       
@@ -1338,7 +1338,7 @@ export default function Profile() {
           }}
         >
           <Text className="text-primary text-sm mr-1">Full History</Text>
-          <Ionicons name="chevron-forward" size={14} color="#1a7ebd" />
+          <Ionicons name="chevron-forward" size={14} color="#2148ce" />
         </TouchableOpacity>
       </View>
     </View>
@@ -1420,7 +1420,7 @@ export default function Profile() {
                 className="flex-row items-center"
               >
                 <Text className="text-primary text-sm mr-1">View All</Text>
-                <Ionicons name="chevron-forward" size={12} color="#1a7ebd" />
+                <Ionicons name="chevron-forward" size={12} color="#2148ce" />
               </TouchableOpacity>
             </View>
             <View className="flex-row justify-around mt-2">
@@ -1452,7 +1452,7 @@ export default function Profile() {
   if (!componentReady) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#1a7ebd" />
+        <ActivityIndicator size="large" color="#2148ce" />
         <Text className="mt-4 text-muted-foreground">Loading profile...</Text>
       </View>
     );
@@ -1481,7 +1481,7 @@ export default function Profile() {
         <View className="px-6 pb-8 pt-6">
           {loading && (
             <View className="py-4 items-center">
-              <ActivityIndicator size="small" color="#1a7ebd" />
+              <ActivityIndicator size="small" color="#2148ce" />
               <Text className="mt-2 text-xs text-muted-foreground">Loading statistics...</Text>
             </View>
           )}
