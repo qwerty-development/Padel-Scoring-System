@@ -1126,99 +1126,6 @@ export default function Profile() {
     </View>
   );
 
-  // **ENHANCED RATING COMPONENT - PRODUCTION RULE 12: Prominent Rating Display System**
-  const renderProminentRatingBadge = () => {
-    const getRatingFromProfile = () => {
-      try {
-        return profile?.glicko_rating ? parseInt(profile.glicko_rating.toString()) : null;
-      } catch {
-        return null;
-      }
-    };
-
-    const rating = getRatingFromProfile();
-    
-    // Rating level classification system
-    const getRatingLevel = (rating: number | null) => {
-      if (!rating) return { level: 'Unrated', color: '#6b7280', bgColor: '#f3f4f6' };
-      if (rating >= 2100) return { level: 'Elite', color: '#7c2d12', bgColor: '#fbbf24' };
-      if (rating >= 1900) return { level: 'Expert', color: '#7c3aed', bgColor: '#c4b5fd' };
-      if (rating >= 1700) return { level: 'Advanced', color: '#059669', bgColor: '#6ee7b7' };
-      if (rating >= 1500) return { level: 'Intermediate', color: '#2563eb', bgColor: '#93c5fd' };
-      if (rating >= 1300) return { level: 'Beginner', color: '#dc2626', bgColor: '#fca5a5' };
-      return { level: 'Novice', color: '#6b7280', bgColor: '#d1d5db' };
-    };
-
-    const ratingLevel = getRatingLevel(rating);
-    
-    // Trend calculation for visual indicator
-    const getTrendIndicator = () => {
-      if (playerStats.recentPerformance === 'improving') {
-        return { icon: 'trending-up', color: '#10b981' };
-      } else if (playerStats.recentPerformance === 'declining') {
-        return { icon: 'trending-down', color: '#ef4444' };
-      }
-      return { icon: 'remove', color: '#6b7280' };
-    };
-
-    const trend = getTrendIndicator();
-
-    return (
-      <View className="items-center mb-6">
-        {/* Primary Rating Badge */}
-        <View 
-          className="px-8 py-4 rounded-2xl mb-3 border-2 min-w-[200px] items-center"
-          style={{
-            backgroundColor: ratingLevel.bgColor,
-            borderColor: ratingLevel.color,
-            shadowColor: ratingLevel.color,
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.25,
-            shadowRadius: 8,
-            elevation: 8,
-          }}
-        >
-          <View className="flex-row items-center mb-2">
-            <View className="mr-3">
-              <Ionicons name="trophy" size={24} color={ratingLevel.color} />
-            </View>
-            <View className="items-center">
-              <Text 
-                className="text-3xl font-bold"
-                style={{ color: ratingLevel.color }}
-              >
-                {rating || '-'}
-              </Text>
-              <Text 
-                className="text-xs font-semibold tracking-wider uppercase"
-                style={{ color: ratingLevel.color, opacity: 0.8 }}
-              >
-                Glicko Rating
-              </Text>
-            </View>
-            <View className="ml-3">
-              <Ionicons 
-                name={trend.icon as any} 
-                size={20} 
-                color={trend.color} 
-              />
-            </View>
-          </View>
-          
-          {/* Rating Level Badge */}
-          <View 
-            className="px-4 py-1 rounded-full"
-            style={{ backgroundColor: ratingLevel.color }}
-          >
-            <Text className="text-white text-sm font-bold">
-              {ratingLevel.level}
-            </Text>
-          </View>
-        </View>
-
-      </View>
-    );
-  };
 
   const renderInfoCard = (title: string, value: string | null, icon: keyof typeof Ionicons.glyphMap) => (
     <View className="bg-card rounded-lg p-4 mb-3 flex-row items-center">
@@ -1232,223 +1139,216 @@ export default function Profile() {
     </View>
   );
 
-  // **MODIFIED STATS CARD - PRODUCTION RULE 13: Remove redundant rating display**
-  const renderStatsCard = () => (
-    <View className="bg-card rounded-lg p-6 mb-6">
-      <View className="flex-row justify-between items-center mb-4">
-        <H3>Match Statistics</H3>
-        <TouchableOpacity onPress={shareProfile}>
-          <Ionicons name="share-outline" size={20} color="#2148ce" />
-        </TouchableOpacity>
-      </View>
-      
-      <View className="flex-row justify-around mb-4">
-        <View className="items-center">
-          <Text className="text-2xl font-bold text-primary">{playerStats.matches}</Text>
-          <Text className="text-sm text-muted-foreground">Matches</Text>
-        </View>
-        <View className="items-center">
-          <Text className="text-2xl font-bold text-green-500">{playerStats.wins}</Text>
-          <Text className="text-sm text-muted-foreground">Wins</Text>
-        </View>
-        <View className="items-center">
-          <Text className="text-2xl font-bold text-red-500">{playerStats.losses}</Text>
-          <Text className="text-sm text-muted-foreground">Losses</Text>
-        </View>
-        <View className="items-center">
-          <Text className="text-2xl font-bold text-primary">{playerStats.winRate}%</Text>
-          <Text className="text-sm text-muted-foreground">Win Rate</Text>
-        </View>
-      </View>
-      
-      <View className="bg-muted/20 rounded-lg p-3 mb-4">
-        <View className="flex-row justify-around">
-          <View className="items-center">
-            <Text className="text-lg font-bold">{playerStats.thisWeekMatches}</Text>
-            <Text className="text-xs text-muted-foreground">This Week</Text>
-          </View>
-          <View className="items-center">
-            <Text className="text-lg font-bold">{playerStats.thisMonthMatches}</Text>
-            <Text className="text-xs text-muted-foreground">This Month</Text>
-          </View>
-          <View className="items-center">
-            <Text className={`text-lg font-bold ${
-              playerStats.longestStreak > 0 ? 'text-green-500' : 
-              playerStats.longestStreak < 0 ? 'text-red-500' : ''
-            }`}>
-              {Math.abs(playerStats.longestStreak)}
-            </Text>
-            <Text className="text-xs text-muted-foreground">Best Streak</Text>
-          </View>
-          <View className="items-center">
-            <Text className="text-lg font-bold">
-              {playerStats.averageMatchDuration > 0 
-                ? Math.round(playerStats.averageMatchDuration / (1000 * 60)) + 'm'
-                : '-'
-              }
-            </Text>
-            <Text className="text-xs text-muted-foreground">Avg Duration</Text>
-          </View>
-        </View>
-      </View>
-      
-      <View className="h-px bg-border mb-4" />
-      
-      <View className="flex-row justify-between items-center">
-        <View className="flex-row items-center">
-          <Ionicons 
-            name={
-              playerStats.recentPerformance === 'improving' ? 'trending-up' :
-              playerStats.recentPerformance === 'declining' ? 'trending-down' : 'remove'
-            } 
-            size={20} 
-            color={
-              playerStats.recentPerformance === 'improving' ? '#10b981' :
-              playerStats.recentPerformance === 'declining' ? '#ef4444' : '#6b7280'
-            } 
-            style={{ marginRight: 8 }} 
-          />
-          <View>
-            <Text className="text-sm text-muted-foreground">
-              Current Streak: 
-              <Text className={`font-medium ${
-                playerStats.streak > 0 ? 'text-green-500' : 
-                playerStats.streak < 0 ? 'text-red-500' : ''
-              }`}>
-                {' '}{playerStats.streak > 0 ? `${playerStats.streak}W` : 
-                     playerStats.streak < 0 ? `${Math.abs(playerStats.streak)}L` : '0'}
-              </Text>
-            </Text>
-            <Text className={`text-xs ${
-              playerStats.recentPerformance === 'improving' ? 'text-green-500' :
-              playerStats.recentPerformance === 'declining' ? 'text-red-500' : 'text-muted-foreground'
-            }`}>
-              Recent form: {playerStats.recentPerformance}
-            </Text>
-          </View>
-        </View>
-        <TouchableOpacity 
-          className="flex-row items-center"
-          onPress={() => {
-            try {
-              router.push('/(protected)/(screens)/match-history');
-            } catch (error) {
-              console.error('🚨 PRODUCTION: Navigation error:', error);
-            }
-          }}
-        >
-          <Text className="text-primary text-sm mr-1">Full History</Text>
-          <Ionicons name="chevron-forward" size={14} color="#2148ce" />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  const renderMatchesSection = () => {
-    if (playerStats.recentMatches.length === 0 && playerStats.scheduledMatches.length === 0 && playerStats.needsAttention === 0) {
+const renderEnhancedCombinedCard = () => {
+  const getRatingFromProfile = () => {
+    try {
+      return profile?.glicko_rating ? parseInt(profile.glicko_rating.toString()) : null;
+    } catch {
       return null;
     }
-    
-    return (
-      <View className="bg-card rounded-lg p-4 mb-6">
-        <H3 className="mb-3">Match Overview</H3>
-        
-        {playerStats.needsAttention > 0 && (
-          <TouchableOpacity 
-            className="mb-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700"
-            onPress={() => {
-              try {
-                router.push({
-                  pathname: '/(protected)/(screens)/match-history',
-                  params: { filter: 'attention' }
-                });
-              } catch (error) {
-                console.error('🚨 PRODUCTION: Navigation error:', error);
-              }
-            }}
-          >
-            <View className="flex-row justify-between items-center">
-              <View className="flex-row items-center">
-                <Ionicons name="alert-circle-outline" size={20} color="#d97706" style={{ marginRight: 8 }} />
-                <Text className="text-amber-800 dark:text-amber-300 font-medium">
-                  {playerStats.needsAttention} match{playerStats.needsAttention !== 1 ? 'es' : ''} need{playerStats.needsAttention === 1 ? 's' : ''} attention
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color="#d97706" />
-            </View>
-          </TouchableOpacity>
-        )}
-        
-        {playerStats.upcomingMatches > 0 && (
-          <TouchableOpacity 
-            className="mb-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700"
-            onPress={() => {
-              try {
-                router.push({
-                  pathname: '/(protected)/(screens)/match-history',
-                  params: { filter: 'upcoming' }
-                });
-              } catch (error) {
-                console.error('🚨 PRODUCTION: Navigation error:', error);
-              }
-            }}
-          >
-            <View className="flex-row justify-between items-center">
-              <View className="flex-row items-center">
-                <Ionicons name="calendar-outline" size={20} color="#2563eb" style={{ marginRight: 8 }} />
-                <Text className="text-blue-800 dark:text-blue-300 font-medium">
-                  {playerStats.upcomingMatches} upcoming match{playerStats.upcomingMatches !== 1 ? 'es' : ''}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color="#2563eb" />
-            </View>
-          </TouchableOpacity>
-        )}
+  };
 
-        {playerStats.matches > 0 && (
-          <View className="p-3 rounded-lg bg-primary/5 dark:bg-primary/10">
-            <View className="flex-row justify-between items-center">
-              <Text className="text-sm text-muted-foreground">Recent Activity</Text>
-              <TouchableOpacity 
-                onPress={() => {
-                  try {
-                    router.push('/(protected)/(screens)/match-history');
-                  } catch (error) {
-                    console.error('🚨 PRODUCTION: Navigation error:', error);
-                  }
-                }}
-                className="flex-row items-center"
+  const rating = getRatingFromProfile();
+  
+  // Rating level classification system
+  const getRatingLevel = (rating: number | null) => {
+    if (!rating) return { level: 'Unrated', color: '#6b7280', bgColor: '#f3f4f6' };
+    if (rating >= 2100) return { level: 'Elite', color: '#7c2d12', bgColor: '#fbbf24' };
+    if (rating >= 1900) return { level: 'Expert', color: '#7c3aed', bgColor: '#c4b5fd' };
+    if (rating >= 1700) return { level: 'Advanced', color: '#059669', bgColor: '#6ee7b7' };
+    if (rating >= 1500) return { level: 'Intermediate', color: '#2563eb', bgColor: '#93c5fd' };
+    if (rating >= 1300) return { level: 'Beginner', color: '#dc2626', bgColor: '#fca5a5' };
+    return { level: 'Novice', color: '#6b7280', bgColor: '#d1d5db' };
+  };
+
+  const ratingLevel = getRatingLevel(rating);
+  
+  // Trend calculation for visual indicator
+  const getTrendIndicator = () => {
+    if (playerStats.recentPerformance === 'improving') {
+      return { icon: 'trending-up', color: '#10b981' };
+    } else if (playerStats.recentPerformance === 'declining') {
+      return { icon: 'trending-down', color: '#ef4444' };
+    }
+    return { icon: 'remove', color: '#6b7280' };
+  };
+
+  const trend = getTrendIndicator();
+
+  return (
+    <View className="bg-card rounded-2xl mx-6 mb-6 overflow-hidden"
+          style={{
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 8,
+            elevation: 4,
+          }}>
+      
+      {/* Header with gradient background */}
+      <View className="px-6 pt-5 pb-4 bg-primary/5">
+        <View className="flex-row justify-between items-center">
+          <View className="flex-row items-center">
+            <Ionicons name="analytics" size={22} color="#2148ce" style={{ marginRight: 8 }} />
+            <H3 className="text-lg">Performance Overview</H3>
+          </View>
+          <TouchableOpacity onPress={shareProfile}>
+            <Ionicons name="share-outline" size={20} color="#2148ce" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View className="px-6 pb-6">
+        {/* Compact Rating Badge */}
+        <View className="items-center mb-5 -mt-2">
+          <View 
+            className="px-6 py-3 rounded-xl border-2 flex-row items-center"
+            style={{
+              backgroundColor: ratingLevel.bgColor,
+              borderColor: ratingLevel.color,
+              shadowColor: ratingLevel.color,
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.3,
+              shadowRadius: 4,
+              elevation: 4,
+            }}
+          >
+            <Ionicons name="trophy" size={20} color={ratingLevel.color} style={{ marginRight: 8 }} />
+            <View className="items-center">
+              <Text 
+                className="text-2xl font-bold"
+                style={{ color: ratingLevel.color }}
               >
-                <Text className="text-primary text-sm mr-1">View All</Text>
-                <Ionicons name="chevron-forward" size={12} color="#2148ce" />
-              </TouchableOpacity>
+                {rating || '-'}
+              </Text>
+              <Text 
+                className="text-xs font-medium"
+                style={{ color: ratingLevel.color, opacity: 0.8 }}
+              >
+                Glicko Rating
+              </Text>
             </View>
-            <View className="flex-row justify-around mt-2">
-              <View className="items-center">
-                <Text className="font-bold text-primary">{playerStats.thisWeekMatches}</Text>
-                <Text className="text-xs text-muted-foreground">This Week</Text>
-              </View>
-              <View className="items-center">
-                <Text className="font-bold">{playerStats.winRate}%</Text>
-                <Text className="text-xs text-muted-foreground">Win Rate</Text>
-              </View>
-              <View className="items-center">
-                <Text className={`font-bold ${
+            <View className="ml-8 px-3 py-1 rounded-full" style={{ backgroundColor: ratingLevel.color }}>
+              <Text className="text-white text-xs font-bold">{ratingLevel.level}</Text>
+            </View>
+            <Ionicons 
+              name={trend.icon as any} 
+              size={18} 
+              color={trend.color}
+              style={{ marginLeft: 8 }}
+            />
+          </View>
+        </View>
+
+        {/* Main Statistics Grid */}
+        <View className="flex-row justify-around mb-5">
+          <View className="items-center">
+            <Text className="text-xl font-bold text-primary">{playerStats.matches}</Text>
+            <Text className="text-xs text-muted-foreground">Matches</Text>
+          </View>
+          <View className="items-center">
+            <Text className="text-xl font-bold text-green-500">{playerStats.wins}</Text>
+            <Text className="text-xs text-muted-foreground">Wins</Text>
+          </View>
+          <View className="items-center">
+            <Text className="text-xl font-bold text-red-500">{playerStats.losses}</Text>
+            <Text className="text-xs text-muted-foreground">Losses</Text>
+          </View>
+          <View className="items-center">
+            <Text className="text-xl font-bold text-primary">{playerStats.winRate}%</Text>
+            <Text className="text-xs text-muted-foreground">Win Rate</Text>
+          </View>
+        </View>
+        
+        {/* Additional Stats - More Compact */}
+        <View className="bg-muted/10 rounded-xl p-3 mb-4">
+          <View className="flex-row justify-around">
+            <View className="items-center">
+              <Text className="text-base font-bold">{playerStats.thisWeekMatches}</Text>
+              <Text className="text-xs text-muted-foreground">This Week</Text>
+            </View>
+            <View className="items-center">
+              <Text className="text-base font-bold">{playerStats.thisMonthMatches}</Text>
+              <Text className="text-xs text-muted-foreground">This Month</Text>
+            </View>
+            <View className="items-center">
+              <Text className={`text-base font-bold ${
+                playerStats.longestStreak > 0 ? 'text-green-500' : 
+                playerStats.longestStreak < 0 ? 'text-red-500' : ''
+              }`}>
+                {Math.abs(playerStats.longestStreak)}
+              </Text>
+              <Text className="text-xs text-muted-foreground">Best Streak</Text>
+            </View>
+            <View className="items-center">
+              <Text className="text-base font-bold">
+                {playerStats.averageMatchDuration > 0 
+                  ? Math.round(playerStats.averageMatchDuration / (1000 * 60)) + 'm'
+                  : '-'
+                }
+              </Text>
+              <Text className="text-xs text-muted-foreground">Avg Duration</Text>
+            </View>
+          </View>
+        </View>
+        
+        {/* Separator */}
+        <View className="h-px bg-border mb-4" />
+        
+        {/* Current Form and Navigation - More Compact */}
+        <View className="flex-row justify-between items-center">
+          <View className="flex-row items-center flex-1">
+            <Ionicons 
+              name={
+                playerStats.recentPerformance === 'improving' ? 'trending-up' :
+                playerStats.recentPerformance === 'declining' ? 'trending-down' : 'remove'
+              } 
+              size={18} 
+              color={
+                playerStats.recentPerformance === 'improving' ? '#10b981' :
+                playerStats.recentPerformance === 'declining' ? '#ef4444' : '#6b7280'
+              } 
+              style={{ marginRight: 8 }} 
+            />
+            <View className="flex-1">
+              <Text className="text-sm text-muted-foreground">
+                Streak: 
+                <Text className={`font-medium ${
                   playerStats.streak > 0 ? 'text-green-500' : 
                   playerStats.streak < 0 ? 'text-red-500' : ''
                 }`}>
-                  {playerStats.streak || 0}
+                  {' '}{playerStats.streak > 0 ? `${playerStats.streak}W` : 
+                       playerStats.streak < 0 ? `${Math.abs(playerStats.streak)}L` : '0'}
                 </Text>
-                <Text className="text-xs text-muted-foreground">Streak</Text>
-              </View>
+                {' • '}
+                <Text className={`${
+                  playerStats.recentPerformance === 'improving' ? 'text-green-500' :
+                  playerStats.recentPerformance === 'declining' ? 'text-red-500' : 'text-muted-foreground'
+                }`}>
+                  {playerStats.recentPerformance}
+                </Text>
+              </Text>
             </View>
           </View>
-        )}
+          <TouchableOpacity 
+            className="flex-row items-center ml-4"
+            onPress={() => {
+              try {
+                router.push('/(protected)/(screens)/match-history');
+              } catch (error) {
+                console.error('🚨 PRODUCTION: Navigation error:', error);
+              }
+            }}
+          >
+            <Text className="text-primary text-sm mr-1">History</Text>
+            <Ionicons name="chevron-forward" size={14} color="#2148ce" />
+          </TouchableOpacity>
+        </View>
       </View>
-    );
-  };
+    </View>
+  );
+};
 
-  // PRODUCTION RULE 12: Progressive loading and crash protection
   if (!componentReady) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
@@ -1458,74 +1358,81 @@ export default function Profile() {
     );
   }
 
-  return (
-    <View className="flex-1 bg-background">
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}> 
-        <View className="relative pt-12 pb-4 px-6 bg-primary/10">
-          <View className="items-center mt-10">
+ return (
+  <View className="flex-1 bg-background">
+    <ScrollView contentContainerStyle={{ paddingBottom: 40 }}> 
+      
+      {/* **COMPACT PROFILE HEADER** */}
+      <View className="relative pt-16 pb-6 px-6 bg-gradient-to-b from-primary/10 to-background">
+        <View className="items-center">
+          {/* Avatar with compact styling */}
+          <View className="mb-3">
             {safeRender(() => renderBulletproofAvatar())}
-            <View className="flex-row justify-between items-start">
-              <View className="flex-1 items-center">
-                <H1 className="mb-1 text-center">{profile?.full_name || 'Anonymous Player'}</H1>
-                {profile?.nickname && (
-                  <H2 className="text-muted-foreground text-center">"{profile.nickname}"</H2>
-                )}
-              </View>
-            </View>
-            
-            {/* **PROMINENT RATING DISPLAY - PRODUCTION RULE 14: Header Integration** */}
-            {safeRender(() => renderProminentRatingBadge())}
+          </View>
+          
+          {/* Name and Nickname - More Compact */}
+          <View className="items-center mb-2">
+            <H1 className="text-2xl font-bold mb-1 text-center leading-tight">
+              {profile?.full_name || 'Anonymous Player'}
+            </H1>
+            {profile?.nickname && (
+              <Text className="text-base text-muted-foreground italic text-center">
+                "{profile.nickname}"
+              </Text>
+            )}
           </View>
         </View>
+      </View>
 
-        <View className="px-6 pb-8 pt-6">
-          {loading && (
-            <View className="py-4 items-center">
-              <ActivityIndicator size="small" color="#2148ce" />
-              <Text className="mt-2 text-xs text-muted-foreground">Loading statistics...</Text>
-            </View>
-          )}
-        
-          {safeRender(() => renderMatchesSection())}
-          {safeRender(() => renderStatsCard())}
+      {/* Loading Indicator */}
+      {loading && (
+        <View className="py-3 items-center">
+          <ActivityIndicator size="small" color="#2148ce" />
+          <Text className="mt-2 text-xs text-muted-foreground">Loading statistics...</Text>
+        </View>
+      )}
 
-          <View className="mb-6">
-            <View className="flex-row justify-between items-center mb-3">
-              <H3>Personal Information</H3>
-              <TouchableOpacity onPress={() => {
-                try {
-                  router.push('/(protected)/(screens)/edit-profile');
-                } catch (error) {
-                  console.error('🚨 PRODUCTION: Navigation error:', error);
-                }
-              }}>
-                <Ionicons name="create-outline" size={20} color={colorScheme === 'dark' ? '#a1a1aa' : '#777'} />
-              </TouchableOpacity>
-            </View>
-            {safeRender(() => renderInfoCard("Age", profile?.age ? profile.age.toString() : null, "person-outline"))}
-            {safeRender(() => renderInfoCard("Gender", profile?.sex, "body-outline"))}
-            {safeRender(() => renderInfoCard("Email", profile?.email, "mail-outline"))}
+      {/* **ENHANCED COMBINED RATING AND STATS CARD** */}
+      {safeRender(() => renderEnhancedCombinedCard())}
+
+      <View className="px-6 pb-8 pt-2">
+        <View className="mb-6">
+          <View className="flex-row justify-between items-center mb-3">
+            <H3>Personal Information</H3>
+            <TouchableOpacity onPress={() => {
+              try {
+                router.push('/(protected)/(screens)/edit-profile');
+              } catch (error) {
+                console.error('🚨 PRODUCTION: Navigation error:', error);
+              }
+            }}>
+              <Ionicons name="create-outline" size={20} color={colorScheme === 'dark' ? '#a1a1aa' : '#777'} />
+            </TouchableOpacity>
           </View>
-
-          <View className="mb-6">
-            <H3 className="mb-3">Playing Preferences</H3>
-            {safeRender(() => renderInfoCard("Preferred Hand", profile?.preferred_hand, "hand-left-outline"))}
-            {safeRender(() => renderInfoCard("Court Position", profile?.court_playing_side, "tennisball-outline"))}
-            {safeRender(() => renderInfoCard("Preferred Area", profile?.preferred_area, "location-outline"))}
-          </View>
+          {safeRender(() => renderInfoCard("Age", profile?.age ? profile.age.toString() : null, "person-outline"))}
+          {safeRender(() => renderInfoCard("Gender", profile?.sex, "body-outline"))}
+          {safeRender(() => renderInfoCard("Email", profile?.email, "mail-outline"))}
         </View>
 
-        <View className="px-6 mb-6">
-          <Button 
-            variant="destructive"
-            className="w-full py-3 flex-row justify-center items-center"
-            onPress={handleSignOut}
-          >
-            <Ionicons name="log-out-outline" size={20} color="white" style={{ marginRight: 8 }} />
-            <Text className="text-white font-medium">Sign Out</Text>
-          </Button>
+        <View className="mb-6">
+          <H3 className="mb-3">Playing Preferences</H3>
+          {safeRender(() => renderInfoCard("Preferred Hand", profile?.preferred_hand, "hand-left-outline"))}
+          {safeRender(() => renderInfoCard("Court Position", profile?.court_playing_side, "tennisball-outline"))}
+          {safeRender(() => renderInfoCard("Preferred Area", profile?.preferred_area, "location-outline"))}
         </View>
-      </ScrollView>
-    </View>
-  );
+      </View>
+
+      <View className="px-6 mb-6">
+        <Button 
+          variant="destructive"
+          className="w-full py-3 flex-row justify-center items-center"
+          onPress={handleSignOut}
+        >
+          <Ionicons name="log-out-outline" size={20} color="white" style={{ marginRight: 8 }} />
+          <Text className="text-white font-medium">Sign Out</Text>
+        </Button>
+      </View>
+    </ScrollView>
+  </View>
+);
 }
