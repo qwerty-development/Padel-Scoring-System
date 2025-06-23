@@ -11,13 +11,13 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-
 import { H1, H2, H3 } from "@/components/ui/typography";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/supabase-provider";
 import { supabase } from "@/config/supabase";
 import { SafeAreaView } from "@/components/safe-area-view";
+import { useNotifications } from '@/context/notification-provider';
 
 // Enhanced match status enumeration with comprehensive coverage
 export enum MatchStatus {
@@ -395,6 +395,16 @@ export default function EnhancedHome() {
   const [friendsActivity, setFriendsActivity] = useState<FriendActivity[]>([]);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const { profile, session } = useAuth();
+  const { hasPermission, requestPermission,sendTestNotification } = useNotifications();
+
+useEffect(() => {
+  // Request notification permission on first load
+  if (!hasPermission) {
+    setTimeout(() => {
+      requestPermission();
+    }, 2000); // Delay to not overwhelm user
+  }
+}, []);
 
   // Time-based match categorization - FIXED LOGIC
   const categorizedMatches = useMemo(() => {
@@ -1493,6 +1503,10 @@ const renderUserHeader = () => (
 
         {/* Enhanced Friends Activity with Avatar Integration */}
         {renderFriendsActivity()}
+
+        <Button onPress={sendTestNotification}>
+  <Text>Test Notification</Text>
+</Button>
       </ScrollView>
 
       {/* Enhanced Floating Action Button for Quick Match Creation */}
@@ -1510,6 +1524,8 @@ const renderUserHeader = () => (
       >
         <Ionicons name="add" size={28} color="white" />
       </TouchableOpacity>
+
+
     </SafeAreaView>
   );
 }

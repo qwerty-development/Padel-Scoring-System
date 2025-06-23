@@ -11,6 +11,12 @@
       "**/*"
     ],
     "newArchEnabled": true,
+    "notification": {
+      "icon": "./assets/favicon.png",
+      "color": "#2148ce",
+      "androidMode": "default",
+      "androidCollapsedTitle": "Padel Scoring Updates"
+    },
     "ios": {
       "supportsTablet": true,
       "config": {
@@ -33,14 +39,16 @@
       "bundleIdentifier": "com.qwertyapp.padel-scoring-app",
       "infoPlist": {
         "CFBundleAllowMixedLocalizations": true,
-          "NSCameraUsageDescription": "This app needs access to camera to take profile pictures",
-  "NSPhotoLibraryUsageDescription": "This app needs access to photo library to select profile pictures"
+        "NSCameraUsageDescription": "This app needs access to camera to take profile pictures",
+        "NSPhotoLibraryUsageDescription": "This app needs access to photo library to select profile pictures",
+        "NSUserNotificationsUsageDescription": "This app sends notifications about match updates, friend requests, and score confirmations"
       },
       "entitlements": {
         "com.apple.developer.applesignin": [
           "Default",
           "Default"
-        ]
+        ],
+        "aps-environment": "production"
       }
     },
     "android": {
@@ -59,10 +67,14 @@
       },
       "package": "com.qwertyapp.padel_scoring_app",
       "permissions": [
-  "CAMERA",
-  "READ_EXTERNAL_STORAGE",
-  "WRITE_EXTERNAL_STORAGE"
-]
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "com.google.android.c2dm.permission.RECEIVE"
+      ],
+      "googleServicesFile": "./google-services.json"
     },
     "experiments": {
       "typedRoutes": true
@@ -76,7 +88,17 @@
           "serviceId": "com.qwertyapp.padel-scoring-app"
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#2148ce",
+          "sounds": [
+            "./assets/notification-sound.wav"
+          ]
+        }
+      ]
     ],
     "extra": {
       "router": {},

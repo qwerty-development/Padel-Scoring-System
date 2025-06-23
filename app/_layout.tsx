@@ -6,6 +6,7 @@ import { useEffect, useRef } from "react";
 import { Stack } from "expo-router";
 import { AppState } from "react-native";
 import { AuthProvider } from "@/context/supabase-provider";
+import { NotificationProvider } from "@/context/notification-provider";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { colors } from "@/constants/colors";
 
@@ -86,64 +87,63 @@ export default function AppLayout() {
 
   return (
     <AuthProvider>
-      <Stack screenOptions={{ headerShown: false, gestureEnabled: false }}>
-        <Stack.Screen name="(protected)" />
-        <Stack.Screen name="welcome" />
-        <Stack.Screen
-          name="(auth)/sign-up"
-          options={{
-            headerShown: false,
-            headerTitle: "Sign Up",
-            headerStyle: {
-              backgroundColor:
+      <NotificationProvider>
+        <Stack screenOptions={{ headerShown: false, gestureEnabled: false }}>
+          <Stack.Screen name="(protected)" />
+          <Stack.Screen name="welcome" />
+          <Stack.Screen
+            name="(auth)/sign-up"
+            options={{
+              headerShown: false,
+              headerTitle: "Sign Up",
+              headerStyle: {
+                backgroundColor:
+                  colorScheme === "dark"
+                    ? colors.dark.card
+                    : colors.light.card,
+              },
+              headerTintColor:
                 colorScheme === "dark"
-                  ? colors.dark.background
-                  : colors.light.background,
-            },
-            headerTintColor:
-              colorScheme === "dark"
-                ? colors.dark.foreground
-                : colors.light.foreground,
-            gestureEnabled: true,
-          }}
-        />
-        <Stack.Screen
-          name="(auth)/sign-in"
-          options={{
-            headerShown: false,
-            headerTitle: "Sign In",
-            headerStyle: {
-              backgroundColor:
+                  ? colors.dark.foreground
+                  : colors.light.foreground,
+            }}
+          />
+          <Stack.Screen
+            name="(auth)/sign-in"
+            options={{
+              headerShown: false,
+              headerTitle: "Sign In",
+              headerStyle: {
+                backgroundColor:
+                  colorScheme === "dark"
+                    ? colors.dark.card
+                    : colors.light.card,
+              },
+              headerTintColor:
                 colorScheme === "dark"
-                  ? colors.dark.background
-                  : colors.light.background,
-            },
-            headerTintColor:
-              colorScheme === "dark"
-                ? colors.dark.foreground
-                : colors.light.foreground,
-            gestureEnabled: true,
-          }}
-        />
-        <Stack.Screen
-          name="(auth)/forgot-password"
-          options={{
-            headerShown: false,
-            headerTitle: "Forgot Password",
-            headerStyle: {
-              backgroundColor:
+                  ? colors.dark.foreground
+                  : colors.light.foreground,
+            }}
+          />
+          <Stack.Screen
+            name="(auth)/onboarding"
+            options={{
+              headerShown: false,
+              headerTitle: "Profile Setup",
+              headerStyle: {
+                backgroundColor:
+                  colorScheme === "dark"
+                    ? colors.dark.card
+                    : colors.light.card,
+              },
+              headerTintColor:
                 colorScheme === "dark"
-                  ? colors.dark.background
-                  : colors.light.background,
-            },
-            headerTintColor:
-              colorScheme === "dark"
-                ? colors.dark.foreground
-                : colors.light.foreground,
-            gestureEnabled: true,
-          }}
-        />
-      </Stack>
+                  ? colors.dark.foreground
+                  : colors.light.foreground,
+            }}
+          />
+        </Stack>
+      </NotificationProvider>
     </AuthProvider>
   );
 }

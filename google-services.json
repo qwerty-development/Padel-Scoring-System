@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "36481747943",
+    "project_id": "padel-a5244",
+    "storage_bucket": "padel-a5244.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:36481747943:android:7ac17ec92680810a2c0b42",
+        "android_client_info": {
+          "package_name": "com.qwertyapp.padel_scoring_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAze4pFBpostRwtUIvuYnVPK_Fgo0wwrEE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

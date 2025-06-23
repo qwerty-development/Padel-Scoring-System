@@ -31,6 +31,7 @@ import {
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useMatchReporting } from "@/hooks/useMatchReporting";
 import { ReportReason, ValidationStatus } from "@/types/match-reporting";
+import { NotificationHelpers } from '@/services/notificationHelpers';
 
 // CORRECTED: Enhanced match status enumeration with proper TEXT database handling
 export enum MatchStatus {
@@ -1126,6 +1127,16 @@ export default function RefactoredMatchDetails() {
           { text: "OK" }
         ]
       );
+
+      if (!error && match.created_at && profile?.full_name) {
+        // Send notification to match creator
+        await NotificationHelpers.sendPublicMatchJoinedNotification(
+          match.player1_id,
+          profile.full_name,
+          match.id
+        );
+      }
+      
     } catch (error) {
       console.error("❌ Enhanced Match Details: Error joining match:", error);
       Vibration.vibrate(200); // Error haptic
@@ -1264,6 +1275,24 @@ export default function RefactoredMatchDetails() {
           { text: 'OK' }
         ]
       );
+
+      if (!error && profile?.full_name) {
+        // Get all player IDs
+        const playerIds = [
+          match.player1_id,
+          match.player2_id,
+          match.player3_id,
+          match.player4_id
+        ].filter(Boolean);
+        
+        // Send score confirmed notification
+        await NotificationHelpers.sendMatchScoreConfirmedNotification(
+          playerIds,
+          session.user.id,
+          profile.full_name,
+          match.id
+        );
+      }
     } catch (error) {
       console.error("❌ Enhanced Match Details: Error saving match scores:", error);
       Vibration.vibrate(300); // Error haptic
@@ -1275,6 +1304,8 @@ export default function RefactoredMatchDetails() {
     } finally {
       setSaving(false);
     }
+
+
   };
 
   // ENHANCED: Advanced match cancellation with confirmation
@@ -1320,6 +1351,24 @@ export default function RefactoredMatchDetails() {
                   }
                 ]
               );
+
+              if (!error && profile?.full_name) {
+                const playerIds = [
+                  match.player1_id,
+                  match.player2_id,
+                  match.player3_id,
+                  match.player4_id
+                ].filter(Boolean);
+                
+                // Send match cancelled notification
+                await NotificationHelpers.sendMatchCancelledNotification(
+                  playerIds,
+                  session.user.id,
+                  profile.full_name,
+                  match.id
+                );
+              }
+
             } catch (error) {
               console.error("❌ Enhanced Match Details: Error deleting match:", error);
               Vibration.vibrate(300);
@@ -2416,6 +2465,20 @@ export default function RefactoredMatchDetails() {
                   setShowReportModal(false);
                   setReportReason(ReportReason.INCORRECT_SCORE);
                   setReportDetails('');
+                  const playerIds = [
+                    match.player1_id,
+                    match.player2_id,
+                    match.player3_id,
+                    match.player4_id
+                  ].filter(Boolean);
+                  
+                  // Send score disputed notification
+                  await NotificationHelpers.sendMatchScoreDisputedNotification(
+                    playerIds,
+                    session.user.id,
+                    profile.full_name,
+                    match.id
+                  );
                 } else {
                   Vibration.vibrate(200);
                   
@@ -2428,6 +2491,8 @@ export default function RefactoredMatchDetails() {
                     ]
                   );
                 }
+
+    
               } catch (error) {
                 console.error('Critical error submitting report:', error);
                 Vibration.vibrate(300);

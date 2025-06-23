@@ -24,6 +24,8 @@ import { FriendLeaderboard } from "@/components/friends/FriendLeaderboard";
 import { FriendRequestsModal } from "@/components/friends/FriendRequestModal";
 import { Friend, FriendRequest } from "@/types";
 
+// NOTIFICATION INTEGRATION: Import notification helpers
+import { NotificationHelpers } from '@/services/notificationHelpers';
 
 // Get screen dimensions for layout calculations
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -313,6 +315,12 @@ const [showRequestsModal, setShowRequestsModal] = useState(false);
             .eq('id', profile.id);
             
           if (updateError) throw updateError;
+          if (profile.full_name) {
+            await NotificationHelpers.sendFriendAcceptedNotification(
+              data.from_user.id,
+              profile.full_name
+            );
+          }
         }
 
         // Add to local friends list immediately for UI responsiveness
@@ -680,13 +688,21 @@ const [showRequestsModal, setShowRequestsModal] = useState(false);
         </View>
       </View>
 
-      {/* Add Friend Modal */}
       <AddFriendModal
         visible={showAddModal}
         onClose={() => setShowAddModal(false)}
         userId={session?.user?.id || ""}
         userProfile={profile}
-        onRequestSent={fetchSentRequests}
+        onRequestSent={async (toUserId: string) => {
+          // NOTIFICATION INTEGRATION: Send friend request notification
+          if (profile?.full_name) {
+            await NotificationHelpers.sendFriendRequestNotification(
+              toUserId,
+              profile.full_name
+            );
+          }
+          fetchSentRequests();
+        }}
       />
 
       {/* Friend Requests Modal */}

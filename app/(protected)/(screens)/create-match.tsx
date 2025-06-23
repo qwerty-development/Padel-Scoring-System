@@ -39,6 +39,9 @@ import {
   SetScore,
 } from "@/components/create-match/SetScoreInput";
 
+// NOTIFICATION INTEGRATION: Import notification helpers
+import { NotificationHelpers } from '@/services/notificationHelpers';
+
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // ENHANCEMENT: Add validation status enum
@@ -1802,6 +1805,12 @@ export default function CreateMatchWizard() {
 
         if (matchError) throw matchError;
 
+        // NOTIFICATION INTEGRATION: Send match confirmation notifications
+        await NotificationHelpers.sendMatchConfirmationNotifications(
+          playerIds,
+          matchResult.id
+        );
+
         console.log(
           "✅ Match created successfully. PostgreSQL cron job will process ratings after validation period."
         );
@@ -1868,6 +1877,25 @@ export default function CreateMatchWizard() {
           .single();
 
         if (matchError) throw matchError;
+
+        // NOTIFICATION INTEGRATION: Send match invitations and schedule reminders
+        if (profile?.full_name && session?.user?.id) {
+          const playerIds = [session.user.id, ...selectedFriends].filter(Boolean) as string[];
+          
+          await NotificationHelpers.sendMatchInvitationNotifications(
+            playerIds,
+            session.user.id,
+            profile.full_name,
+            matchResult.id,
+            matchData.start_time
+          );
+
+          await NotificationHelpers.scheduleMatchReminder(
+            playerIds,
+            matchResult.id,
+            matchData.start_time
+          );
+        }
 
         let statusMessage = "";
         if (teamComposition.isComplete) {
@@ -2526,8 +2554,7 @@ export default function CreateMatchWizard() {
   const renderStep5ReviewSubmit = () => (
     <SlideContainer
       isActive={currentStep === WizardStep.REVIEW_SUBMIT}
-      direction={slideDirection}
-    >
+      direction={slideDirection}    >
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 40, paddingTop: 100 }}

@@ -22,20 +22,20 @@ SplashScreen.preventAutoHideAsync();
 // Configure WebBrowser for OAuth flows
 WebBrowser.maybeCompleteAuthSession();
 
-// Define the UserProfile type
+// FIXED: Updated UserProfile type to match actual database schema
 export interface UserProfile {
 	id: string;
 	email: string;
 	full_name: string | null;
-	age: string | null;
+	age: number | null;  // FIXED: Database stores as integer
 	nickname: string | null;
 	sex: string | null;
 	preferred_hand: string | null;
 	preferred_area: string | null;
-	glicko_rating: number | null;
-	glicko_rd: number | null;
-	glicko_vol: number | null;
-	friends_list: string | null;
+	glicko_rating: string | null;  // FIXED: Database stores as text
+	glicko_rd: string | null;      // FIXED: Database stores as text
+	glicko_vol: string | null;     // FIXED: Database stores as text
+	friends_list: string[] | null; // FIXED: Database stores as array of text
 	court_playing_side: string | null;
 	avatar_url: string | null;
 	created_at: string;
@@ -147,14 +147,14 @@ const updatePassword = async (email: string, code: string, newPassword: string) 
 	}
 };
 
-// Helper function to check if profile is complete
+// FIXED: Helper function to check if profile is complete with proper type handling
 const checkProfileComplete = (profile: UserProfile | null): boolean => {
 	if (!profile) return false;
 	
-	// Check required fields are filled
+	// Check required fields are filled - handle both string and number for age
 	return !!(
 		profile.full_name &&
-		profile.age &&
+		profile.age && // This is now number | null, so truthy check works
 		profile.sex &&
 		profile.preferred_hand &&
 		profile.preferred_area &&
@@ -183,6 +183,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
 	const fetchProfile = async (userId: string) => {
 		try {
 			setIsLoadingProfile(true);
+			console.log('📄 [AUTH] Fetching profile for user:', userId);
+			
 			const { data, error } = await supabase
 				.from('profiles')
 				.select('*')
@@ -190,13 +192,23 @@ export function AuthProvider({ children }: PropsWithChildren) {
 				.single();
 			
 			if (error) {
-				console.error("Error fetching profile:", error);
+				console.error("❌ [AUTH] Error fetching profile:", error);
 				return;
 			}
 			
+			console.log('✅ [AUTH] Profile fetched successfully:', data);
+			console.log('🔍 [AUTH] Profile completeness check:', {
+				full_name: !!data.full_name,
+				age: !!data.age,
+				sex: !!data.sex,
+				preferred_hand: !!data.preferred_hand,
+				preferred_area: !!data.preferred_area,
+				court_playing_side: !!data.court_playing_side
+			});
+			
 			setProfile(data);
 		} catch (error) {
-			console.error("Error fetching profile:", error);
+			console.error("💥 [AUTH] Error fetching profile:", error);
 		} finally {
 			setIsLoadingProfile(false);
 		}
@@ -220,6 +232,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 								session.user.user_metadata.name ||
 								null;
 
+				// FIXED: Use correct types for database schema
 				const newProfile: Partial<UserProfile> = {
 					id: session.user.id,
 					email: session.user.email || '',
@@ -229,10 +242,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
 					sex: null,
 					preferred_hand: null,
 					preferred_area: null,
-					glicko_rating: 1500, // Default Glicko rating
-					glicko_rd: 350,     // Default rating deviation
-					glicko_vol: 0.06,   // Default volatility
-					friends_list: [],
+					glicko_rating: "1500",  // FIXED: Store as string to match database
+					glicko_rd: "350",       // FIXED: Store as string to match database
+					glicko_vol: "0.06",     // FIXED: Store as string to match database
+					friends_list: [],       // FIXED: Store as array to match database
 					court_playing_side: null,
 					avatar_url: session.user.user_metadata.avatar_url || null,
 					created_at: new Date().toISOString(),
@@ -314,11 +327,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
 				
 				// Create a profile when the user signs up
 				if (data.user) {
+					// FIXED: Use correct types for new profile creation
 					const { error: profileError } = await supabase
 						.from('profiles')
 						.insert({
 							id: data.user.id,
 							email: data.user.email,
+							glicko_rating: "1500",  // FIXED: Store as string
+							glicko_rd: "350",       // FIXED: Store as string
+							glicko_vol: "0.06",     // FIXED: Store as string
+							friends_list: [],       // FIXED: Store as array
 							created_at: new Date().toISOString(),
 						});
 
@@ -374,11 +392,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
 				// Create profile if it doesn't exist
 				if (!existingProfile) {
 					console.log("Creating new profile after verification");
+					// FIXED: Use correct types for profile creation
 					const { error: createError } = await supabase
 						.from('profiles')
 						.insert({
 							id: data.user.id,
 							email: data.user.email,
+							glicko_rating: "1500",  // FIXED: Store as string
+							glicko_rd: "350",       // FIXED: Store as string
+							glicko_vol: "0.06",     // FIXED: Store as string
+							friends_list: [],       // FIXED: Store as array
 							created_at: new Date().toISOString(),
 						});
 
@@ -531,7 +554,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 						}
 
 						if (!existingProfile) {
-							// Create minimal profile if none exists
+							// FIXED: Create minimal profile with correct types
 							const { error: createError } = await supabase
 								.from('profiles')
 								.insert({
@@ -541,6 +564,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
 									full_name: credential.fullName?.givenName && credential.fullName?.familyName
 										? `${credential.fullName.givenName} ${credential.fullName.familyName}`
 										: null,
+									glicko_rating: "1500",  // FIXED: Store as string
+									glicko_rd: "350",       // FIXED: Store as string
+									glicko_vol: "0.06",     // FIXED: Store as string
+									friends_list: [],       // FIXED: Store as array
 									created_at: new Date().toISOString(),
 								});
 
@@ -741,18 +768,19 @@ export function AuthProvider({ children }: PropsWithChildren) {
 			SplashScreen.hideAsync();
 			
 			if (session) {
-				console.log('Session exists, checking profile...');
-				console.log('Profile:', profile);
-				console.log('Is profile complete:', checkProfileComplete(profile));
+				console.log('🔐 [AUTH] Session exists, checking profile...');
+				console.log('👤 [AUTH] Profile:', profile);
+				console.log('✅ [AUTH] Is profile complete:', checkProfileComplete(profile));
 				
 				// Don't navigate if still loading profile
 				if (isLoadingProfile) {
+					console.log('⏳ [AUTH] Still loading profile, waiting...');
 					return;
 				}
 				
 				// Special handling for just-completed verification - always go to onboarding
 				if (isVerificationComplete) {
-					console.log('Verification just completed - redirecting to onboarding');
+					console.log('📧 [AUTH] Verification just completed - redirecting to onboarding');
 					setIsVerificationComplete(false); // Reset the flag after navigation
 					router.replace("/onboarding");
 					return;
@@ -760,11 +788,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
 				
 				// Standard navigation logic for non-verification flows
 				if (!checkProfileComplete(profile)) {
+					console.log('📝 [AUTH] Profile incomplete - redirecting to onboarding');
 					router.replace("/onboarding");
 				} else {
+					console.log('🏠 [AUTH] Profile complete - redirecting to main app');
 					router.replace("/(protected)/(tabs)");
 				}
 			} else {
+				console.log('👋 [AUTH] No session - redirecting to welcome');
 				router.replace("/welcome");
 			}
 		}
