@@ -282,7 +282,7 @@ const [showRequestsModal, setShowRequestsModal] = useState(false);
     });
   };
 
-  const handleFriendRequest = async (
+const handleFriendRequest = async (
     requestId: string,
     action: "accept" | "deny"
   ) => {
@@ -301,20 +301,49 @@ const [showRequestsModal, setShowRequestsModal] = useState(false);
 
         if (error) throw error;
 
-        // Also update the user's friends_list
+        // Add friend relationship for both users
         if (data?.from_user?.id && profile?.id) {
-          // Get current friends list
-          const currentFriendsList = profile.friends_list || [];
-          
-          // Update friends list with new friend
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update({
-              friends_list: [...currentFriendsList, data.from_user.id]
-            })
-            .eq('id', profile.id);
+          // Get both users' current friends lists
+          const [receiverProfile, senderProfile] = await Promise.all([
+            supabase
+              .from('profiles')
+              .select('friends_list')
+              .eq('id', profile.id)
+              .single(),
+            supabase
+              .from('profiles')
+              .select('friends_list')
+              .eq('id', data.from_user.id)
+              .single()
+          ]);
+
+          if (receiverProfile.error || senderProfile.error) {
+            throw receiverProfile.error || senderProfile.error;
+          }
+
+          const receiverFriendsList = receiverProfile.data.friends_list || [];
+          const senderFriendsList = senderProfile.data.friends_list || [];
+
+          // Update both users' friends lists in parallel
+          await Promise.all([
+            // Add sender to receiver's friends list (if not already there)
+            !receiverFriendsList.includes(data.from_user.id) && supabase
+              .from('profiles')
+              .update({
+                friends_list: [...receiverFriendsList, data.from_user.id]
+              })
+              .eq('id', profile.id),
             
-          if (updateError) throw updateError;
+            // Add receiver to sender's friends list (if not already there)
+            !senderFriendsList.includes(profile.id) && supabase
+              .from('profiles')
+              .update({
+                friends_list: [...senderFriendsList, profile.id]
+              })
+              .eq('id', data.from_user.id)
+          ]);
+          
+          // Send notification to the original sender
           if (profile.full_name) {
             await NotificationHelpers.sendFriendAcceptedNotification(
               data.from_user.id,
