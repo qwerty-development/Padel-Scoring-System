@@ -1805,7 +1805,6 @@ export default function CreateMatchWizard() {
 
         if (matchError) throw matchError;
 
-        // NOTIFICATION INTEGRATION: Send match confirmation notifications
         await NotificationHelpers.sendMatchConfirmationNotifications(
           playerIds,
           matchResult.id
