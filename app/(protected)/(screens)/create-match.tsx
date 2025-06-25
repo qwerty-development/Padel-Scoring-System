@@ -2989,6 +2989,25 @@ export default function CreateMatchWizard() {
         {renderStep4ScoreEntry()}
         {renderStep5ReviewSubmit()}
       </View>
+<PlayerSelectionModal
+        visible={showPlayerModal}
+        onClose={() => setShowPlayerModal(false)}
+        friends={friends}
+        selectedFriends={selectedFriends}
+        onSelectFriends={setSelectedFriends}
+        loading={loading}
+        maxSelections={3}
+      />
+
+      <CourtSelectionModal
+        visible={showCourtModal}
+        onClose={() => setShowCourtModal(false)}
+        onSelectCourt={setSelectedCourt}
+        selectedCourt={selectedCourt}
+      />
+
+      {/* Navigation Controls */}
+  
 
       {/* Navigation Controls */}
       {renderNavigationControls()}

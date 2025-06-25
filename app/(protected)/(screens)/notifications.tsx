@@ -9,15 +9,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from '@/components/safe-area-view';
 import { Text } from '@/components/ui/text';
-import { H1, H3 } from '@/components/ui/typography';
+import { H1 } from '@/components/ui/typography';
 import { Button } from '@/components/ui/button';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '@/context/supabase-provider';
-import { useNotifications } from '@/context/notification-provider';
 import { supabase } from '@/config/supabase';
 import { format, formatDistanceToNow, isToday, isYesterday } from 'date-fns';
 import { useColorScheme } from '@/lib/useColorScheme';
+import * as Notifications from 'expo-notifications';
 
 interface Notification {
   id: string;
@@ -56,15 +56,37 @@ const NotificationIcon = ({ type }: { type: string }) => {
 
 export default function NotificationsScreen() {
   const { session } = useAuth();
-  const { markAsRead, refreshUnreadCount, hasPermission, requestPermission } = useNotifications();
   const { isDarkColorScheme } = useColorScheme();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
 
   useEffect(() => {
-    fetchNotifications();
+    checkNotificationPermission();
+    if (session?.user?.id) {
+      fetchNotifications();
+    }
   }, [session?.user?.id]);
+
+  const checkNotificationPermission = async () => {
+    try {
+      const { status } = await Notifications.getPermissionsAsync();
+      setHasPermission(status === 'granted');
+    } catch (error) {
+      console.error('Error checking notification permission:', error);
+      setHasPermission(false);
+    }
+  };
+
+  const requestPermission = async () => {
+    try {
+      const { status } = await Notifications.requestPermissionsAsync();
+      setHasPermission(status === 'granted');
+    } catch (error) {
+      console.error('Error requesting notification permission:', error);
+    }
+  };
 
   const fetchNotifications = async () => {
     try {
@@ -82,6 +104,8 @@ export default function NotificationsScreen() {
       setNotifications(data || []);
     } catch (error) {
       console.error('Error fetching notifications:', error);
+      // Show empty array on error to prevent white screen
+      setNotifications([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -91,7 +115,19 @@ export default function NotificationsScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     fetchNotifications();
-    refreshUnreadCount();
+  };
+
+  const markAsRead = async (notificationId: string) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('id', notificationId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
   };
 
   const handleNotificationPress = async (notification: Notification) => {
@@ -145,8 +181,6 @@ export default function NotificationsScreen() {
       setNotifications(prev =>
         prev.map(n => ({ ...n, read: true }))
       );
-      
-      refreshUnreadCount();
     } catch (error) {
       console.error('Error marking all as read:', error);
     }
@@ -171,7 +205,6 @@ export default function NotificationsScreen() {
               if (error) throw error;
 
               setNotifications([]);
-              refreshUnreadCount();
             } catch (error) {
               console.error('Error clearing notifications:', error);
             }
@@ -217,7 +250,18 @@ export default function NotificationsScreen() {
     return groups;
   };
 
-  if (!hasPermission) {
+  // Don't render anything while checking permissions to prevent flash
+  if (hasPermission === null) {
+    return (
+      <SafeAreaView>
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (hasPermission === false) {
     return (
       <SafeAreaView>
         <View className="flex-1 p-4">
@@ -252,8 +296,20 @@ export default function NotificationsScreen() {
   if (loading) {
     return (
       <SafeAreaView>
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" />
+        <View className="flex-1">
+          <View className="flex-row items-center p-4 border-b border-gray-200 dark:border-gray-700">
+            <TouchableOpacity onPress={() => router.back()} className="mr-3">
+              <Ionicons
+                name="arrow-back"
+                size={24}
+                color={isDarkColorScheme ? '#fff' : '#000'}
+              />
+            </TouchableOpacity>
+            <H1>Notifications</H1>
+          </View>
+          <View className="flex-1 items-center justify-center">
+            <ActivityIndicator size="large" />
+          </View>
         </View>
       </SafeAreaView>
     );
