@@ -1,266 +1,281 @@
-import React from 'react';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useMemo } from "react";
+import { View, TouchableOpacity, Image } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { format } from "date-fns";
+import { useRouter } from "expo-router";
 
-import { Text } from '@/components/ui/text';
-import { MatchData } from '@/types';
+import { Text } from "@/components/ui/text";
+import { useAuth } from "@/context/supabase-provider";
 
-interface MatchCardProps {
-  match: MatchData;
-  userId: string;
+interface Player {
+  id: string;
+  full_name: string | null;
+  email: string;
+  avatar_url: string | null;
 }
 
-export function MatchCard({ match, userId }: MatchCardProps) {
-  const isTeam1 = match.player1_id === userId || match.player2_id === userId;
-  const teamWon = match.winner_team === (isTeam1 ? 1 : 2);
-  const isTied = match.winner_team === 0;
-  
-  // Your team's players
-  const yourTeam = isTeam1 
-    ? [match.player1, match.player2]
-    : [match.player3, match.player4];
-  
-  // Opponent team's players
-  const opponentTeam = isTeam1 
-    ? [match.player3, match.player4]
-    : [match.player1, match.player2];
+interface MatchCardProps {
+  match: {
+    id: string;
+    player1: Player;
+    player2: Player | null;
+    player3: Player | null;
+    player4: Player | null;
+    player1_id: string;
+    player2_id: string | null;
+    player3_id: string | null;
+    player4_id: string | null;
+    team1_score_set1: number | null;
+    team2_score_set1: number | null;
+    team1_score_set2: number | null;
+    team2_score_set2: number | null;
+    team1_score_set3: number | null;
+    team2_score_set3: number | null;
+    winner_team: number | null;
+    start_time: string;
+    status: string | number;
+    region: string | null;
+    court: string | null;
+    validation_status?: string;
+    all_confirmed?: boolean;
+    confirmation_status?: string;
+    rating_applied?: boolean;
+  };
+  showConfirmationBadge?: boolean;
+}
 
-  // Format the date
-  const matchDate = new Date(match.created_at);
-  const formattedDate = matchDate.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric'
-  });
+export const MatchCard: React.FC<MatchCardProps> = ({ match, showConfirmationBadge = true }) => {
+  const router = useRouter();
+  const { profile } = useAuth();
 
-  // Format time and duration
-  const getTimeAndDuration = () => {
-    if (!match.start_time) return formattedDate;
+  // Check if user is participant
+  const isParticipant = useMemo(() => {
+    return [match.player1_id, match.player2_id, match.player3_id, match.player4_id]
+      .filter(Boolean)
+      .includes(profile?.id || '');
+  }, [match, profile]);
+
+  // Determine match status
+  const matchStatus = useMemo(() => {
+    const statusNum = typeof match.status === 'string' ? parseInt(match.status, 10) : match.status;
+    const hasScores = match.team1_score_set1 !== null;
+    const isCompleted = statusNum === 4;
+    const isPending = statusNum === 1;
     
-    const startTime = new Date(match.start_time);
-    const formattedTime = startTime.toLocaleTimeString(undefined, {
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: true
-    });
-    
-    if (!match.end_time) return formattedTime;
-    
-    const endTime = new Date(match.end_time);
-    const durationMs = endTime.getTime() - startTime.getTime();
-    const durationMinutes = Math.floor(durationMs / (1000 * 60));
-    
-    if (durationMinutes < 60) {
-      return `${formattedTime} · ${durationMinutes}m`;
-    } else {
-      const hours = Math.floor(durationMinutes / 60);
-      const minutes = durationMinutes % 60;
-      return `${formattedTime} · ${hours}h${minutes > 0 ? ` ${minutes}m` : ''}`;
+    return {
+      statusNum,
+      hasScores,
+      isCompleted,
+      isPending,
+      displayStatus: getStatusDisplay(statusNum)
+    };
+  }, [match]);
+
+  // Determine confirmation status
+  const confirmationStatus = useMemo(() => {
+    if (!matchStatus.isCompleted || !matchStatus.hasScores) {
+      return null;
+    }
+
+    if (match.all_confirmed) {
+      return {
+        type: 'confirmed',
+        label: 'Confirmed',
+        color: 'text-green-600',
+        bgColor: 'bg-green-100 dark:bg-green-900/30',
+        icon: 'checkmark-circle'
+      };
+    }
+
+    if (match.confirmation_status === 'rejected' || match.validation_status === 'disputed') {
+      return {
+        type: 'rejected',
+        label: 'Disputed',
+        color: 'text-red-600',
+        bgColor: 'bg-red-100 dark:bg-red-900/30',
+        icon: 'close-circle'
+      };
+    }
+
+    if (match.rating_applied) {
+      return {
+        type: 'validated',
+        label: 'Validated',
+        color: 'text-blue-600',
+        bgColor: 'bg-blue-100 dark:bg-blue-900/30',
+        icon: 'shield-checkmark'
+      };
+    }
+
+    return {
+      type: 'pending',
+      label: 'Pending',
+      color: 'text-amber-600',
+      bgColor: 'bg-amber-100 dark:bg-amber-900/30',
+      icon: 'time'
+    };
+  }, [match, matchStatus]);
+
+  const getStatusDisplay = (status: number): string => {
+    switch (status) {
+      case 1: return "Upcoming";
+      case 2: return "Needs Confirmation";
+      case 3: return "Cancelled";
+      case 4: return "Completed";
+      case 5: return "Recruiting";
+      default: return "Unknown";
     }
   };
 
-  // Get scores for each set
-  const getSetScores = () => {
-    const sets = [
-      {
-        yourScore: isTeam1 ? match.team1_score_set1 : match.team2_score_set1,
-        opponentScore: isTeam1 ? match.team2_score_set1 : match.team1_score_set1
-      },
-      {
-        yourScore: isTeam1 ? match.team1_score_set2 : match.team2_score_set2,
-        opponentScore: isTeam1 ? match.team2_score_set2 : match.team1_score_set2
-      },
-      {
-        yourScore: isTeam1 ? match.team1_score_set3 : match.team2_score_set3,
-        opponentScore: isTeam1 ? match.team2_score_set3 : match.team1_score_set3
-      }
-    ];
+  const getPlayerAvatar = (player: Player | null) => {
+    if (!player) return null;
 
-    // Ensure third set always has some value
-    if (!sets[2].yourScore && !sets[2].opponentScore) {
-      sets[2] = { yourScore: '-', opponentScore: '-' };
+    if (player.avatar_url) {
+      return (
+        <Image
+          source={{ uri: player.avatar_url }}
+          className="w-8 h-8 rounded-full"
+        />
+      );
     }
-    
-    return sets;
-  };
 
-  // Get player initials for avatar
-  const getInitials = (player: { full_name: string | null; email: string }) => {
-    if (player.full_name) {
-      const nameParts = player.full_name.split(' ');
-      if (nameParts.length > 1) {
-        return `${nameParts[0][0]}${nameParts[1][0]}`;
-      }
-      return player.full_name.substring(0, 2).toUpperCase();
-    }
-    return player.email.substring(0, 2).toUpperCase();
+    return (
+      <View className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 items-center justify-center">
+        <Text className="text-xs font-semibold">
+          {player.full_name?.[0] || player.email[0].toUpperCase()}
+        </Text>
+      </View>
+    );
   };
-
-  const resultColorClass = teamWon ? 'bg-green-500' : (isTied ? 'bg-yellow-500' : 'bg-red-500');
-  const resultBorderClass = teamWon ? styles.greenBorder : (isTied ? styles.yellowBorder : styles.redBorder);
 
   return (
     <TouchableOpacity
-      style={[styles.cardContainer, resultBorderClass]}
-      className="bg-card rounded-xl p-4 mb-3 overflow-hidden"
-      onPress={() => {
-        router.push({
-          pathname: '/(protected)/(screens)/match-details',
-          params: { matchId: match.id }
-        });
-      }}
+      onPress={() => router.push(`/match-details?id=${match.id}`)}
+      className="bg-background/80 rounded-xl p-4 mb-3"
+      activeOpacity={0.7}
     >
-      {/* Result badge */}
-      <View className={`absolute top-0 right-0 px-3 py-1 rounded-bl-lg ${resultColorClass}`}>
-        <Text className="text-white font-medium text-xs">
-          {teamWon ? 'Victory' : (isTied ? 'Tie' : 'Defeat')}
-        </Text>
-      </View>
-      
-      {/* Match Scores - Full width with sets */}
-      <View className="mt-4 mb-6 w-full flex-row justify-between">
-        {getSetScores().map((set, index) => (
-          <View key={`set-${index}`} className="flex-1 items-center">
-            <View style={styles.scoreContainer}>
-              <Text style={styles.yourScore} className="text-3xl font-bold">
-                {set.yourScore}
-              </Text>
-              <View style={styles.scoreDivider} />
-              <Text style={styles.opponentScore} className="text-3xl font-bold">
-                {set.opponentScore}
+      {/* Header with date and status */}
+      <View className="flex-row items-center justify-between mb-3">
+        <View className="flex-1">
+          <Text className="text-sm text-muted-foreground">
+            {format(new Date(match.start_time), "EEE, MMM d")} at {format(new Date(match.start_time), "h:mm a")}
+          </Text>
+          {match.region && (
+            <View className="flex-row items-center mt-1">
+              <Ionicons name="location-outline" size={14} color="#666" />
+              <Text className="text-xs text-muted-foreground ml-1">
+                {match.region} {match.court ? `- ${match.court}` : ''}
               </Text>
             </View>
-            {index < 2 && <View style={styles.setDivider} />}
+          )}
+        </View>
+        
+        <View className="flex-row items-center gap-2">
+          {/* Confirmation Badge */}
+          {showConfirmationBadge && confirmationStatus && (
+            <View className={`px-2 py-1 rounded-full ${confirmationStatus.bgColor}`}>
+              <View className="flex-row items-center">
+                <Ionicons 
+                  name={confirmationStatus.icon as any} 
+                  size={12} 
+                  color={confirmationStatus.color.replace('text-', '').replace('600', '')} 
+                />
+                <Text className={`text-xs font-medium ml-1 ${confirmationStatus.color}`}>
+                  {confirmationStatus.label}
+                </Text>
+              </View>
+            </View>
+          )}
+          
+          {/* Match Status Badge */}
+          <View className={`px-2 py-1 rounded-full ${
+            matchStatus.isCompleted ? 'bg-green-100 dark:bg-green-900/30' :
+            matchStatus.statusNum === 3 ? 'bg-red-100 dark:bg-red-900/30' :
+            'bg-blue-100 dark:bg-blue-900/30'
+          }`}>
+            <Text className={`text-xs font-medium ${
+              matchStatus.isCompleted ? 'text-green-700 dark:text-green-300' :
+              matchStatus.statusNum === 3 ? 'text-red-700 dark:text-red-300' :
+              'text-blue-700 dark:text-blue-300'
+            }`}>
+              {matchStatus.displayStatus}
+            </Text>
           </View>
-        ))}
+        </View>
       </View>
 
-      <View className="h-px bg-border mb-4" />
-      
-      {/* Location and Time */}
-      <View className="flex-row justify-between items-center mb-5">
-        <View className="flex-row items-center">
-          <Ionicons name="location-outline" size={14} color="#9ca3af" />
-          <Text className="text-sm text-muted-foreground ml-1">
-            {match.region || 'Unknown'}{match.court ? `, Court ${match.court}` : ''}
-          </Text>
+      {/* Teams */}
+      <View className="space-y-3">
+        {/* Team 1 */}
+        <View>
+          <Text className="text-xs text-muted-foreground mb-1">TEAM 1</Text>
+          <View className="flex-row items-center gap-2">
+            <View className="flex-row -space-x-2">
+              {getPlayerAvatar(match.player1)}
+              {match.player2 && getPlayerAvatar(match.player2)}
+            </View>
+            <Text className="text-sm flex-1" numberOfLines={1}>
+              {match.player1?.full_name || match.player1?.email.split('@')[0]}
+              {match.player2 && ` & ${match.player2.full_name || match.player2.email.split('@')[0]}`}
+            </Text>
+          </View>
         </View>
-        
-        <View className="flex-row items-center">
-          <Ionicons name="time-outline" size={14} color="#9ca3af" />
-          <Text className="text-sm text-muted-foreground ml-1">
-            {getTimeAndDuration()}
-          </Text>
+
+        {/* Team 2 */}
+        <View>
+          <Text className="text-xs text-muted-foreground mb-1">TEAM 2</Text>
+          <View className="flex-row items-center gap-2">
+            <View className="flex-row -space-x-2">
+              {match.player3 && getPlayerAvatar(match.player3)}
+              {match.player4 && getPlayerAvatar(match.player4)}
+            </View>
+            <Text className="text-sm flex-1" numberOfLines={1}>
+              {match.player3 ? (match.player3.full_name || match.player3.email.split('@')[0]) : 'TBD'}
+              {match.player4 && ` & ${match.player4.full_name || match.player4.email.split('@')[0]}`}
+            </Text>
+          </View>
         </View>
       </View>
-      
-      {/* Divider */} 
-      
-      {/* Player Avatars */}
-      <View className="flex-row justify-between">
-        {/* Your Team */}
-        <View className="flex-row">
-          {yourTeam.map((player, index) => (
-            <View 
-              key={`your-team-${index}`}
-              style={[
-                styles.avatar, 
-                styles.yourTeamAvatar,
-                index === 1 ? { marginLeft: -10 } : {}
-              ]}
-            >
-              <Text className="text-xs text-white font-bold">
-                {getInitials(player)}
-              </Text>
+
+      {/* Scores */}
+      {matchStatus.hasScores && (
+        <View className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+          <View className="flex-row items-center justify-between">
+            <View className="flex-row items-center gap-3">
+              <Text className="text-xs text-muted-foreground">Score:</Text>
+              <View className="flex-row items-center gap-2">
+                <Text className="text-sm font-medium">
+                  {match.team1_score_set1}-{match.team2_score_set1}
+                </Text>
+                <Text className="text-sm font-medium">
+                  {match.team1_score_set2}-{match.team2_score_set2}
+                </Text>
+                {match.team1_score_set3 !== null && (
+                  <Text className="text-sm font-medium">
+                    {match.team1_score_set3}-{match.team2_score_set3}
+                  </Text>
+                )}
+              </View>
             </View>
-          ))}
-          <Text className="text-sm text-muted-foreground ml-2 self-center">You & Partner</Text>
+            
+            {match.winner_team && (
+              <View className="flex-row items-center">
+                <Ionicons name="trophy" size={14} color="#f59e0b" />
+                <Text className="text-sm font-medium ml-1">
+                  Team {match.winner_team}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
-        
-        {/* vs */}
-        <Text className="text-sm text-muted-foreground self-center mx-1">vs</Text>
-        
-        {/* Opponent Team */}
-        <View className="flex-row">
-          <Text className="text-sm text-muted-foreground mr-2 self-center">Opponents</Text>
-          {opponentTeam.map((player, index) => (
-            <View 
-              key={`opponent-team-${index}`}
-              style={[
-                styles.avatar, 
-                styles.opponentTeamAvatar,
-                index === 0 ? { marginRight: -10 } : {}
-              ]}
-            >
-              <Text className="text-xs text-white font-bold">
-                {getInitials(player)}
-              </Text>
-            </View>
-          ))}
+      )}
+
+      {/* Participation Indicator */}
+      {isParticipant && (
+        <View className="absolute top-2 right-2">
+          <View className="w-2 h-2 rounded-full bg-primary" />
         </View>
-      </View>
+      )}
     </TouchableOpacity>
   );
-}
-
-const styles = StyleSheet.create({
-  cardContainer: {
-    borderLeftWidth: 4,
-  },
-  greenBorder: {
-    borderLeftColor: '#10b981', // Green 500
-  },
-  redBorder: {
-    borderLeftColor: '#ef4444', // Red 500
-  },
-  yellowBorder: {
-    borderLeftColor: '#f59e0b', // Yellow 500
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'white',
-  },
-  yourTeamAvatar: {
-    backgroundColor: '#2148ce', // Primary color
-  },
-  opponentTeamAvatar: {
-    backgroundColor: '#6b7280', // Gray color
-  },
-  scoreContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    height: 65,
-  },
-  yourScore: {
-    marginBottom: 4,
-    alignSelf: 'flex-start',
-    marginLeft: -32,
-  },
-  opponentScore: {
-    marginTop: 4,
-    opacity: 0.8,
-    alignSelf: 'flex-end',
-    marginRight: -32,
-  },
-  scoreDivider: {
-    height: 2,
-    width: 32,
-    backgroundColor: '#F2B602', // Gray-300
-    transform: [{ rotate: '-45deg' }],
-  },
-  setDivider: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: 1,
-    backgroundColor: '#e5e7eb', // Gray-200
-    height: '100%',
-  }
-});
+};

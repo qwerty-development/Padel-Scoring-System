@@ -1,18 +1,14 @@
-// services/enhanced-rating.service.ts
+import { supabase } from "@/config/supabase";
+import { calculateMatchRatings } from "@/lib/glicko";
 
-import { supabase } from '@/config/supabase';
-import { calculateMatchRatings } from '@/utils/glickoUtils';
-
-
-
-export interface PlayerRating {
-  id: string;
-  rating: number;
-  rd: number;
-  vol: number;
+interface MatchRatingResult {
+  success: boolean;
+  message: string;
+  error?: string;
+  rating_changes?: any[];
 }
 
-export interface RatingChangeRecord {
+interface RatingChangeRecord {
   player_id: string;
   rating_before: number;
   rd_before: number;
@@ -22,38 +18,33 @@ export interface RatingChangeRecord {
   vol_after: number;
 }
 
-export interface MatchRatingResult {
-  success: boolean;
-  message: string;
-  rating_changes?: RatingChangeRecord[];
-  error?: string;
-}
-
+/**
+ * Enhanced Rating Service with Validation and Dispute Handling
+ * 
+ * ARCHITECTURE OVERVIEW:
+ * 1. Deferred rating calculation at match completion
+ * 2. 24-hour validation window for disputes (or immediate if all confirm)
+ * 3. Automatic rating application after validation
+ * 4. Dispute handling with rating reversion
+ * 5. Audit trail for all rating changes
+ */
 export class EnhancedRatingService {
-  
   /**
-   * STEP 2.1.1.1: Calculate and Store Deferred Ratings
+   * STEP 2.1.1.1: Calculate and Store Ratings (Deferred Application)
    * 
-   * PURPOSE: Calculate new ratings but don't apply until validation passes
-   * VALIDATION INTEGRATION: Respects validation_status and validation_deadline
-   * AUDIT TRAIL: Records all changes for potential reversal
+   * PURPOSE: Calculate rating changes immediately but defer application
+   * TIMING: Called when match is marked as completed
+   * STORAGE: Saves changes to match_rating_changes table
+   * APPLICATION: Deferred until validation period expires OR all players confirm
    * 
    * @param matchId - UUID of the completed match
-   * @param winnerTeam - Team number (1 or 2) that won the match
-   * @param validationDeadline - When validation period expires
    * @returns Promise<MatchRatingResult>
    */
-  static async calculateAndStoreMatchRatings(
-    matchId: string,
-    winnerTeam: number,
-    validationDeadline: Date
-  ): Promise<MatchRatingResult> {
+  static async calculateAndStoreRatings(matchId: string): Promise<MatchRatingResult> {
     try {
-      console.log(`🔄 [RATING] Starting deferred rating calculation for match: ${matchId}`);
-      console.log(`🏆 [RATING] Winner team: ${winnerTeam}`);
-      console.log(`⏰ [RATING] Validation deadline: ${validationDeadline.toISOString()}`);
+      console.log(`🎯 [RATING] Starting deferred rating calculation for match: ${matchId}`);
 
-      // STEP 2.1.1.1.1: Fetch match details with player information
+      // STEP 2.1.1.1.1: Fetch match details with full player information
       const { data: match, error: matchError } = await supabase
         .from('matches')
         .select(`
@@ -67,39 +58,50 @@ export class EnhancedRatingService {
         .single();
 
       if (matchError || !match) {
-        console.error(`❌ [RATING] Failed to fetch match data:`, matchError);
+        console.error(`❌ [RATING] Match fetch error:`, matchError);
         return {
           success: false,
-          message: 'Failed to fetch match data',
+          message: 'Failed to fetch match details',
           error: matchError?.message || 'Match not found'
         };
       }
 
-      // STEP 2.1.1.1.2: Extract and validate player ratings
-      const players = [match.player1, match.player2, match.player3, match.player4]
-        .filter(Boolean) as PlayerRating[];
-
-      if (players.length !== 4) {
-        console.error(`❌ [RATING] Incomplete player data. Expected 4, got ${players.length}`);
+      // STEP 2.1.1.1.2: Validation checks
+      if (match.rating_applied) {
+        console.log(`ℹ️ [RATING] Ratings already applied for match: ${matchId}`);
         return {
-          success: false,
-          message: 'Incomplete player data for rating calculation',
-          error: `Missing player data. Found ${players.length}/4 players`
+          success: true,
+          message: 'Ratings already calculated and applied'
         };
       }
 
-      // STEP 2.1.1.1.3: Convert database strings to numbers for calculation
-      const playerRatings: PlayerRating[] = players.map(player => ({
+      if (!match.winner_team || match.team1_score_set1 === null) {
+        console.error(`❌ [RATING] Match incomplete - missing scores or winner`);
+        return {
+          success: false,
+          message: 'Match scores incomplete',
+          error: 'Cannot calculate ratings for incomplete match'
+        };
+      }
+
+      // STEP 2.1.1.1.3: Prepare player ratings for calculation
+      const playerRatings = [
+        match.player1,
+        match.player2,
+        match.player3,
+        match.player4
+      ].map(player => ({
         id: player.id,
-        rating: parseFloat(player.glicko_rating || '1500'),
-        rd: parseFloat(player.glicko_rd || '350'),
-        vol: parseFloat(player.glicko_vol || '0.06')
+        rating: parseFloat(player.glicko_rating) || 1500,
+        rd: parseFloat(player.glicko_rd) || 350,
+        vol: parseFloat(player.glicko_vol) || 0.06
       }));
 
-      console.log(`📊 [RATING] Player ratings before calculation:`, 
-        playerRatings.map(p => `${p.id}: ${p.rating}`));
+      console.log(`📊 [RATING] Current ratings:`, 
+        playerRatings.map(p => `${p.id.substring(0, 8)}: ${p.rating}`));
 
-      // STEP 2.1.1.1.4: Calculate new ratings using existing Glicko utility
+      // STEP 2.1.1.1.4: Calculate new ratings
+      const winnerTeam = match.winner_team;
       const team1Wins = winnerTeam === 1 ? 1 : 0;
       const team2Wins = winnerTeam === 2 ? 1 : 0;
 
@@ -158,11 +160,14 @@ export class EnhancedRatingService {
 
       console.log(`✅ [RATING] Successfully stored rating changes for future application`);
 
-      // STEP 2.1.1.1.7: Update match with validation metadata
+      // STEP 2.1.1.1.7: Update match with validation metadata (if not already set)
+      const validationDeadline = new Date();
+      validationDeadline.setHours(validationDeadline.getHours() + 24);
+
       const { error: matchUpdateError } = await supabase
         .from('matches')
         .update({
-          validation_deadline: validationDeadline.toISOString(),
+          validation_deadline: match.validation_deadline || validationDeadline.toISOString(),
           validation_status: 'pending',
           rating_applied: false, // CRITICAL: Ratings not yet applied
           report_count: 0
@@ -178,7 +183,8 @@ export class EnhancedRatingService {
         };
       }
 
-      console.log(`🎯 [RATING] Match prepared for validation period. Ratings will apply after: ${validationDeadline.toISOString()}`);
+      console.log(`🎯 [RATING] Match prepared for validation period.
+Ratings will apply after: ${validationDeadline.toISOString()}`);
 
       return {
         success: true,
@@ -199,7 +205,7 @@ export class EnhancedRatingService {
   /**
    * STEP 2.1.1.2: Apply Pre-calculated Ratings After Validation
    * 
-   * PURPOSE: Apply stored rating changes after validation period expires
+   * PURPOSE: Apply stored rating changes after validation period expires OR all players confirm
    * SAFETY: Only applies if match is still in 'pending' status and not disputed
    * ATOMICITY: All rating updates succeed or all fail
    * 
@@ -213,7 +219,7 @@ export class EnhancedRatingService {
       // STEP 2.1.1.2.1: Verify match is ready for rating application
       const { data: match, error: matchError } = await supabase
         .from('matches')
-        .select('validation_status, validation_deadline, rating_applied, report_count')
+        .select('validation_status, validation_deadline, rating_applied, report_count, all_confirmed, confirmation_status')
         .eq('id', matchId)
         .single();
 
@@ -235,8 +241,23 @@ export class EnhancedRatingService {
         };
       }
 
-      if (match.validation_status !== 'pending') {
-        console.log(`⚠️ [RATING] Match not in pending status: ${match.validation_status}`);
+      // Check if all players confirmed (immediate application)
+      const canApplyImmediately = match.all_confirmed && match.confirmation_status === 'confirmed';
+      
+      // Check if validation period has expired
+      const validationExpired = match.validation_deadline && new Date(match.validation_deadline) <= new Date();
+      
+      if (!canApplyImmediately && !validationExpired) {
+        console.log(`⚠️ [RATING] Cannot apply ratings yet. All confirmed: ${match.all_confirmed}, Validation expired: ${validationExpired}`);
+        return {
+          success: false,
+          message: 'Validation conditions not met',
+          error: 'Waiting for all confirmations or validation period to expire'
+        };
+      }
+
+      if (match.validation_status !== 'pending' && match.validation_status !== 'validated') {
+        console.log(`⚠️ [RATING] Match not in valid status for rating application: ${match.validation_status}`);
         return {
           success: false,
           message: `Cannot apply ratings. Match status: ${match.validation_status}`,
@@ -244,17 +265,8 @@ export class EnhancedRatingService {
         };
       }
 
-      if (match.validation_deadline && new Date(match.validation_deadline) > new Date()) {
-        console.log(`⚠️ [RATING] Validation period still active until: ${match.validation_deadline}`);
-        return {
-          success: false,
-          message: 'Validation period has not expired yet',
-          error: 'Validation window still open'
-        };
-      }
-
-      if (match.report_count >= 2) {
-        console.log(`⚠️ [RATING] Match has reports: ${match.report_count}, marking as disputed`);
+      if (match.report_count >= 2 || match.confirmation_status === 'rejected') {
+        console.log(`⚠️ [RATING] Match has been disputed/rejected`);
         await supabase
           .from('matches')
           .update({
@@ -265,8 +277,8 @@ export class EnhancedRatingService {
         
         return {
           success: false,
-          message: 'Match has been disputed due to reports',
-          error: 'Too many reports received'
+          message: 'Match has been disputed due to reports or rejections',
+          error: 'Too many reports/rejections received'
         };
       }
 
@@ -312,33 +324,56 @@ export class EnhancedRatingService {
         .from('matches')
         .update({
           validation_status: 'validated',
-          rating_applied: true
+          rating_applied: true,
+          validation_completed_at: new Date().toISOString()
         })
         .eq('id', matchId);
 
       if (finalUpdateError) {
-        console.error(`❌ [RATING] Failed to mark match as validated:`, finalUpdateError);
-        throw new Error(`Failed to finalize match validation: ${finalUpdateError.message}`);
+        console.error(`❌ [RATING] Failed to finalize match status:`, finalUpdateError);
+        throw new Error(`Match finalization failed: ${finalUpdateError.message}`);
       }
 
-      console.log(`🎉 [RATING] Successfully applied validated ratings for match: ${matchId}`);
+      // STEP 2.1.1.2.6: Mark rating changes as applied
+      const { error: markAppliedError } = await supabase
+        .from('match_rating_changes')
+        .update({
+          applied_at: new Date().toISOString()
+        })
+        .eq('match_id', matchId)
+        .eq('is_reverted', false);
 
+      if (markAppliedError) {
+        console.warn(`⚠️ [RATING] Failed to mark changes as applied:`, markAppliedError);
+        // Non-critical error, continue
+      }
+
+      console.log(`🎉 [RATING] Successfully applied all rating changes for match: ${matchId}`);
+      
+      const appliedVia = canApplyImmediately ? 'all player confirmations' : 'validation period expiry';
+      
       return {
         success: true,
-        message: `Successfully applied ratings for ${ratingChanges.length} players`,
-        rating_changes: ratingChanges.map(change => ({
-          player_id: change.player_id,
-          rating_before: change.rating_before,
-          rd_before: change.rd_before,
-          vol_before: change.vol_before,
-          rating_after: change.rating_after,
-          rd_after: change.rd_after,
-          vol_after: change.vol_after
-        }))
+        message: `Ratings successfully applied via ${appliedVia}`,
+        rating_changes: ratingChanges
       };
 
     } catch (error) {
-      console.error(`💥 [RATING] Critical error applying validated ratings:`, error);
+      console.error(`💥 [RATING] Critical error in rating application:`, error);
+      
+      // Attempt to mark match as having rating errors
+      try {
+        await supabase
+          .from('matches')
+          .update({
+            rating_error: true,
+            rating_error_message: error instanceof Error ? error.message : 'Unknown error'
+          })
+          .eq('id', matchId);
+      } catch (updateError) {
+        console.error(`💥 [RATING] Failed to mark rating error:`, updateError);
+      }
+
       return {
         success: false,
         message: 'Critical error during rating application',
@@ -348,148 +383,53 @@ export class EnhancedRatingService {
   }
 
   /**
-   * STEP 2.1.1.3: Process Multiple Expired Validations in Batch
-   * 
-   * PURPOSE: Efficiently process multiple matches that have passed validation deadline
-   * PERFORMANCE: Batch processing for cron job or background task execution
-   * ERROR ISOLATION: Individual match failures don't affect batch processing
-   * 
-   * @param limit - Maximum number of matches to process in one batch
-   * @returns Promise<{ processed: number; succeeded: number; failed: number; errors: string[] }>
+   * Process all matches that need rating application
+   * This should be called periodically by a cron job or background worker
    */
-  static async processBatchValidationExpiry(limit: number = 50): Promise<{
+  static async processAllPendingRatings(): Promise<{
     processed: number;
-    succeeded: number;
+    successful: number;
     failed: number;
-    errors: string[];
   }> {
     try {
-      console.log(`🔄 [RATING] Starting batch validation processing (limit: ${limit})`);
+      console.log(`🔄 [RATING] Processing all pending ratings...`);
 
-      // STEP 2.1.1.3.1: Find matches ready for validation processing
-      const { data: expiredMatches, error: fetchError } = await supabase
+      // Find matches that need rating application
+      const { data: pendingMatches, error } = await supabase
         .from('matches')
-        .select('id, validation_deadline, report_count')
-        .eq('validation_status', 'pending')
+        .select('id')
         .eq('rating_applied', false)
-        .not('validation_deadline', 'is', null)
-        .lt('validation_deadline', new Date().toISOString())
-        .limit(limit);
+        .eq('validation_status', 'pending')
+        .or('validation_deadline.lte.now(),all_confirmed.eq.true')
+        .not('confirmation_status', 'eq', 'rejected');
 
-      if (fetchError) {
-        console.error(`❌ [RATING] Failed to fetch expired validations:`, fetchError);
-        return { processed: 0, succeeded: 0, failed: 1, errors: [fetchError.message] };
+      if (error) {
+        console.error(`❌ [RATING] Failed to fetch pending matches:`, error);
+        return { processed: 0, successful: 0, failed: 0 };
       }
 
-      if (!expiredMatches || expiredMatches.length === 0) {
-        console.log(`ℹ️ [RATING] No expired validations to process`);
-        return { processed: 0, succeeded: 0, failed: 0, errors: [] };
-      }
-
-      console.log(`📋 [RATING] Processing ${expiredMatches.length} expired validations`);
-
-      // STEP 2.1.1.3.2: Process each match individually with error isolation
-      let succeeded = 0;
+      let successful = 0;
       let failed = 0;
-      const errors: string[] = [];
 
-      for (const match of expiredMatches) {
-        try {
-          console.log(`🔄 [RATING] Processing match: ${match.id} (reports: ${match.report_count})`);
-          
-          const result = await this.applyValidatedRatings(match.id);
-          
-          if (result.success) {
-            succeeded++;
-            console.log(`✅ [RATING] Successfully processed match: ${match.id}`);
-          } else {
-            failed++;
-            const errorMsg = `Match ${match.id}: ${result.message}`;
-            errors.push(errorMsg);
-            console.log(`⚠️ [RATING] Failed to process match: ${errorMsg}`);
-          }
-        } catch (error) {
+      for (const match of pendingMatches || []) {
+        const result = await this.applyValidatedRatings(match.id);
+        if (result.success) {
+          successful++;
+        } else {
           failed++;
-          const errorMsg = `Match ${match.id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-          errors.push(errorMsg);
-          console.error(`💥 [RATING] Critical error processing match ${match.id}:`, error);
         }
       }
 
-      console.log(`📊 [RATING] Batch processing complete: ${succeeded} succeeded, ${failed} failed`);
+      console.log(`✅ [RATING] Batch processing complete. Successful: ${successful}, Failed: ${failed}`);
 
       return {
-        processed: expiredMatches.length,
-        succeeded,
-        failed,
-        errors
+        processed: pendingMatches?.length || 0,
+        successful,
+        failed
       };
-
     } catch (error) {
       console.error(`💥 [RATING] Critical error in batch processing:`, error);
-      return {
-        processed: 0,
-        succeeded: 0,
-        failed: 1,
-        errors: [error instanceof Error ? error.message : 'Unknown critical error']
-      };
-    }
-  }
-
-  /**
-   * STEP 2.1.1.4: Revert Disputed Match Ratings
-   * 
-   * PURPOSE: Handle rating reversal for disputed matches
-   * SAFETY: Only reverts ratings that were actually applied
-   * AUDIT: Marks rating changes as reverted for historical tracking
-   * 
-   * @param matchId - UUID of the disputed match
-   * @returns Promise<MatchRatingResult>
-   */
-  static async revertDisputedMatchRatings(matchId: string): Promise<MatchRatingResult> {
-    try {
-      console.log(`🔄 [RATING] Starting rating reversal for disputed match: ${matchId}`);
-
-      // Use the database function for atomic reversal
-      const { data: result, error: revertError } = await supabase
-        .rpc('revert_match_ratings', {
-          p_match_id: matchId
-        });
-
-      if (revertError) {
-        console.error(`❌ [RATING] Rating reversal failed:`, revertError);
-        return {
-          success: false,
-          message: 'Failed to revert match ratings',
-          error: revertError.message
-        };
-      }
-
-      const revertResult = result?.[0];
-      
-      if (!revertResult?.success) {
-        console.log(`⚠️ [RATING] Rating reversal conditions not met: ${revertResult?.message}`);
-        return {
-          success: false,
-          message: revertResult?.message || 'Reversal conditions not met',
-          error: 'Cannot revert ratings'
-        };
-      }
-
-      console.log(`✅ [RATING] Successfully reverted ${revertResult.reverted_count} rating changes`);
-
-      return {
-        success: true,
-        message: `Successfully reverted ratings for ${revertResult.reverted_count} players`
-      };
-
-    } catch (error) {
-      console.error(`💥 [RATING] Critical error reverting ratings:`, error);
-      return {
-        success: false,
-        message: 'Critical error during rating reversal',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
+      return { processed: 0, successful: 0, failed: 0 };
     }
   }
 }

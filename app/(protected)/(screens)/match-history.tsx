@@ -9,7 +9,7 @@ import { useAuth } from '@/context/supabase-provider';
 import { supabase } from '@/config/supabase';
 import { SafeAreaView } from '@/components/safe-area-view';
 
-// **TECHNICAL SPECIFICATION 1: Enhanced match status enumeration**
+// **TECHNICAL SPECIFICATION 1: Enhanced match status enumeration with confirmations**
 export enum MatchStatus {
   PENDING = 1,
   NEEDS_CONFIRMATION = 2,
@@ -19,7 +19,7 @@ export enum MatchStatus {
   RECRUITING = 6,   // Enhanced for public matches
 }
 
-// **TECHNICAL SPECIFICATION 2: Comprehensive match data interface with avatar support**
+// **TECHNICAL SPECIFICATION 2: Comprehensive match data interface with confirmation and avatar support**
 interface EnhancedMatchData {
   id: string;
   player1_id: string;
@@ -42,6 +42,11 @@ interface EnhancedMatchData {
   court: string | null;
   is_public: boolean;
   description: string | null;
+  // **NEW: Confirmation and validation fields**
+  validation_status?: string;
+  all_confirmed?: boolean;
+  confirmation_status?: string;
+  rating_applied?: boolean;
   player1: { id: string; full_name: string | null; email: string; glicko_rating: string | null; avatar_url: string | null; } | null;
   player2: { id: string; full_name: string | null; email: string; glicko_rating: string | null; avatar_url: string | null; } | null;
   player3: { id: string; full_name: string | null; email: string; glicko_rating: string | null; avatar_url: string | null; } | null;
@@ -52,6 +57,8 @@ interface EnhancedMatchData {
   isFuture?: boolean;
   isPast?: boolean;
   isCompleted?: boolean;
+  needsConfirmation?: boolean;
+  isDisputed?: boolean;
   teammate?: any;
   opponents?: any[];
   team1Sets?: number;
@@ -69,17 +76,20 @@ interface EnhancedMatchData {
   userIsPlayer4?: boolean;
 }
 
-// **TECHNICAL SPECIFICATION 3: Enhanced filter type definition with visibility options**
-type FilterType = 'all' | 'upcoming' | 'completed' | 'attention' | 'recent' | 'public' | 'private';
+// **TECHNICAL SPECIFICATION 3: Enhanced filter type definition with confirmation options**
+type FilterType = 'all' | 'upcoming' | 'completed' | 'attention' | 'recent' | 'public' | 'private' | 'needs_confirmation' | 'disputed';
 
-// **TECHNICAL SPECIFICATION 4: Visibility statistics interface**
-interface VisibilityStats {
+// **TECHNICAL SPECIFICATION 4: Visibility and confirmation statistics interface**
+interface MatchStatistics {
   totalPublic: number;
   totalPrivate: number;
   publicCompleted: number;
   privateCompleted: number;
   publicUpcoming: number;
   privateUpcoming: number;
+  needsConfirmation: number;
+  disputed: number;
+  pendingRating: number;
 }
 
 // **TECHNICAL SPECIFICATION 5: UserAvatar Component Interface and Implementation**
@@ -296,12 +306,12 @@ const EmptySlotAvatar: React.FC<EmptySlotAvatarProps> = ({
   );
 };
 
-export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
+export default function EnhancedMatchHistoryWithConfirmations() {
   const { friendId } = useLocalSearchParams();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
-  // **TECHNICAL SPECIFICATION 7: Enhanced state management with visibility-aware data structures**
+  // **TECHNICAL SPECIFICATION 7: Enhanced state management with confirmation-aware data structures**
   const [allMatches, setAllMatches] = useState<EnhancedMatchData[]>([]);
   const [filteredMatches, setFilteredMatches] = useState<{
     all: EnhancedMatchData[];
@@ -311,6 +321,8 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
     recent: EnhancedMatchData[];
     public: EnhancedMatchData[];
     private: EnhancedMatchData[];
+    needs_confirmation: EnhancedMatchData[];
+    disputed: EnhancedMatchData[];
   }>({
     all: [],
     upcoming: [],
@@ -318,20 +330,25 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
     attention: [],
     recent: [],
     public: [],
-    private: []
+    private: [],
+    needs_confirmation: [],
+    disputed: []
   });
   
   const [filter, setFilter] = useState<FilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'date' | 'opponent' | 'result' | 'visibility'>('date');
+  const [sortBy, setSortBy] = useState<'date' | 'opponent' | 'result' | 'visibility' | 'confirmation'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [visibilityStats, setVisibilityStats] = useState<VisibilityStats>({
+  const [matchStats, setMatchStats] = useState<MatchStatistics>({
     totalPublic: 0,
     totalPrivate: 0,
     publicCompleted: 0,
     privateCompleted: 0,
     publicUpcoming: 0,
-    privateUpcoming: 0
+    privateUpcoming: 0,
+    needsConfirmation: 0,
+    disputed: 0,
+    pendingRating: 0
   });
   const { session } = useAuth();
 
@@ -346,20 +363,23 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
     applyFilters();
   }, [filter, allMatches, searchQuery, sortBy, sortOrder]);
 
-  // **TECHNICAL SPECIFICATION 9: Calculate visibility statistics**
+  // **TECHNICAL SPECIFICATION 9: Calculate comprehensive match statistics**
   useEffect(() => {
-    calculateVisibilityStats();
+    calculateMatchStatistics();
   }, [allMatches]);
 
-  // **TECHNICAL SPECIFICATION 10: Visibility statistics calculation**
-  const calculateVisibilityStats = () => {
-    const stats: VisibilityStats = {
+  // **TECHNICAL SPECIFICATION 10: Comprehensive match statistics calculation**
+  const calculateMatchStatistics = () => {
+    const stats: MatchStatistics = {
       totalPublic: 0,
       totalPrivate: 0,
       publicCompleted: 0,
       privateCompleted: 0,
       publicUpcoming: 0,
-      privateUpcoming: 0
+      privateUpcoming: 0,
+      needsConfirmation: 0,
+      disputed: 0,
+      pendingRating: 0
     };
 
     allMatches.forEach(match => {
@@ -372,14 +392,19 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
         if (match.isCompleted) stats.privateCompleted++;
         if (match.isFuture) stats.privateUpcoming++;
       }
+
+      // **NEW: Confirmation-related statistics**
+      if (match.needsConfirmation) stats.needsConfirmation++;
+      if (match.isDisputed) stats.disputed++;
+      if (match.isCompleted && !match.rating_applied) stats.pendingRating++;
     });
 
-    setVisibilityStats(stats);
+    setMatchStats(stats);
   };
 
-  // **TECHNICAL SPECIFICATION 11: Enhanced filter application with visibility-based logic**
+  // **TECHNICAL SPECIFICATION 11: Enhanced filter application with confirmation-based logic**
   const applyFilters = () => {
-    console.log('🔍 Match History: Applying filters with visibility support', {
+    console.log('🔍 Match History: Applying filters with confirmation support', {
       totalMatches: allMatches.length,
       activeFilter: filter,
       searchQuery,
@@ -390,7 +415,7 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
     const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     
-    // **ENHANCED: Visibility-aware base filtering**
+    // **ENHANCED: Confirmation-aware base filtering**
     const baseFiltered = {
       all: allMatches,
       
@@ -398,7 +423,7 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
       upcoming: allMatches.filter(match => {
         const startTime = new Date(match.start_time);
         const isFuture = startTime > now;
-        return isFuture;
+        return isFuture && match.status !== MatchStatus.CANCELLED;
       }),
       
       // Completed matches based on score existence
@@ -418,7 +443,9 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
         const isPast = endTime ? endTime < now : startTime < now;
         const hasNoScores = !match.team1_score_set1 && !match.team2_score_set1;
         const needsAttention = (isPast && hasNoScores && match.status !== MatchStatus.CANCELLED) || 
-                              match.status === MatchStatus.NEEDS_CONFIRMATION;
+                              match.status === MatchStatus.NEEDS_CONFIRMATION ||
+                              match.needsConfirmation ||
+                              match.isDisputed;
         return needsAttention;
       }),
       
@@ -430,18 +457,38 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
         return isRecent;
       }),
 
-      // **ENHANCEMENT: NEW visibility-based filters**
+      // Visibility-based filters
       public: allMatches.filter(match => match.is_public === true),
-      private: allMatches.filter(match => match.is_public === false)
+      private: allMatches.filter(match => match.is_public === false),
+
+      // **NEW: Confirmation-based filters**
+      needs_confirmation: allMatches.filter(match => {
+        const statusNum = typeof match.status === 'string' ? parseInt(match.status, 10) : match.status;
+        const hasScores = match.team1_score_set1 !== null && match.team2_score_set1 !== null;
+        const isCompleted = statusNum === 4 && hasScores;
+        
+        if (!isCompleted || !session?.user?.id) return false;
+        
+        // Show matches where user hasn't confirmed yet
+        return match.confirmation_status === 'pending' && !match.all_confirmed;
+      }),
+
+      disputed: allMatches.filter(match => {
+        return match.validation_status === 'disputed' || 
+               match.confirmation_status === 'rejected';
+      })
     };
 
-    // **TECHNICAL SPECIFICATION 12: Enhanced search filtering with visibility context**
+    // **TECHNICAL SPECIFICATION 12: Enhanced search filtering with confirmation context**
     let searchFiltered = baseFiltered;
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       Object.keys(searchFiltered).forEach(key => {
         searchFiltered[key as keyof typeof searchFiltered] = searchFiltered[key as keyof typeof searchFiltered].filter(match => {
           const visibilityText = match.is_public ? 'public open' : 'private invitation';
+          const confirmationText = match.needsConfirmation ? 'needs confirmation' : 
+                                 match.isDisputed ? 'disputed rejected' : 
+                                 match.all_confirmed ? 'confirmed' : '';
           const searchableText = [
             match.region,
             match.court,
@@ -454,7 +501,8 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
             match.player2?.email,
             match.player3?.email,
             match.player4?.email,
-            visibilityText // **ENHANCEMENT: Include visibility in search**
+            visibilityText,
+            confirmationText // **NEW: Include confirmation status in search**
           ].filter(Boolean).join(' ').toLowerCase();
           
           return searchableText.includes(query);
@@ -462,7 +510,7 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
       });
     }
 
-    // **TECHNICAL SPECIFICATION 13: Enhanced sorting algorithms with visibility support**
+    // **TECHNICAL SPECIFICATION 13: Enhanced sorting algorithms with confirmation support**
     Object.keys(searchFiltered).forEach(key => {
       searchFiltered[key as keyof typeof searchFiltered].sort((a, b) => {
         let comparison = 0;
@@ -491,12 +539,34 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
             }
             break;
 
-          // **ENHANCEMENT: NEW visibility-based sorting**
           case 'visibility':
             if (a.is_public !== b.is_public) {
               comparison = a.is_public ? 1 : -1; // Public matches first when ascending
             } else {
               // Secondary sort by date if visibility is same
+              const dateA = new Date(a.start_time);
+              const dateB = new Date(b.start_time);
+              comparison = dateB.getTime() - dateA.getTime();
+            }
+            break;
+
+          // **NEW: Confirmation-based sorting**
+          case 'confirmation':
+            // Priority: disputed > needs confirmation > confirmed > no confirmation needed
+            const getPriority = (match: EnhancedMatchData) => {
+              if (match.isDisputed) return 4;
+              if (match.needsConfirmation) return 3;
+              if (match.all_confirmed) return 2;
+              return 1;
+            };
+            
+            const priorityA = getPriority(a);
+            const priorityB = getPriority(b);
+            
+            if (priorityA !== priorityB) {
+              comparison = priorityB - priorityA; // Higher priority first
+            } else {
+              // Secondary sort by date
               const dateA = new Date(a.start_time);
               const dateB = new Date(b.start_time);
               comparison = dateB.getTime() - dateA.getTime();
@@ -508,20 +578,22 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
       });
     });
 
-    console.log('📊 Match History: Filter results with visibility', {
+    console.log('📊 Match History: Filter results with confirmation support', {
       all: searchFiltered.all.length,
       upcoming: searchFiltered.upcoming.length,
       completed: searchFiltered.completed.length,
       attention: searchFiltered.attention.length,
       recent: searchFiltered.recent.length,
       public: searchFiltered.public.length,
-      private: searchFiltered.private.length
+      private: searchFiltered.private.length,
+      needs_confirmation: searchFiltered.needs_confirmation.length,
+      disputed: searchFiltered.disputed.length
     });
 
     setFilteredMatches(searchFiltered);
   };
 
-  // **TECHNICAL SPECIFICATION 14: Enhanced data fetching with comprehensive processing and avatar support**
+  // **TECHNICAL SPECIFICATION 14: Enhanced data fetching with confirmation fields and avatar support**
   const fetchMatches = async (shouldRefresh = false) => {
     try {
       if (shouldRefresh) {
@@ -530,13 +602,13 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
         setLoading(true);
       }
       
-      console.log('🚀 Match History: Fetching matches with visibility data and avatars', {
+      console.log('🚀 Match History: Fetching matches with confirmation data and avatars', {
         userId: session?.user?.id,
         friendId,
         shouldRefresh
       });
       
-      // **ENHANCED query with comprehensive player data including avatars**
+      // **ENHANCED query with confirmation fields and comprehensive player data**
       let query = supabase
         .from('matches')
         .select(`
@@ -573,18 +645,16 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
         throw error;
       }
 
-      console.log('📊 Match History: Raw data received with visibility info and avatars:', {
+      console.log('📊 Match History: Raw data received with confirmation info and avatars:', {
         count: data?.length || 0,
         sampleMatch: data?.[0],
         publicMatches: data?.filter(m => m.is_public).length || 0,
         privateMatches: data?.filter(m => !m.is_public).length || 0,
-        playersWithAvatars: data?.filter(m => 
-          m.player1?.avatar_url || m.player2?.avatar_url || 
-          m.player3?.avatar_url || m.player4?.avatar_url
-        ).length || 0
+        needsConfirmation: data?.filter(m => m.confirmation_status === 'pending' && !m.all_confirmed).length || 0,
+        disputed: data?.filter(m => m.validation_status === 'disputed' || m.confirmation_status === 'rejected').length || 0
       });
 
-      // **TECHNICAL SPECIFICATION 15: Comprehensive match data processing with visibility context and avatar support**
+      // **TECHNICAL SPECIFICATION 15: Comprehensive match data processing with confirmation context and avatar support**
       const now = new Date();
       const processedData: EnhancedMatchData[] = (data || []).map(match => {
         const userId = session?.user?.id;
@@ -600,6 +670,14 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
         const hasScores = match.team1_score_set1 !== null && match.team2_score_set1 !== null;
         const isCompleted = hasScores && isPast;
         const needsScores = isPast && !hasScores && match.status !== MatchStatus.CANCELLED;
+        
+        // **NEW: Confirmation-based classifications**
+        const statusNum = typeof match.status === 'string' ? parseInt(match.status, 10) : match.status;
+        const needsConfirmation = statusNum === 4 && hasScores && 
+                                 match.confirmation_status === 'pending' && 
+                                 !match.all_confirmed;
+        const isDisputed = match.validation_status === 'disputed' || 
+                          match.confirmation_status === 'rejected';
         
         // Enhanced teammate and opponent identification
         let teammate = null;
@@ -699,6 +777,8 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
           isFuture,
           isPast,
           isCompleted,
+          needsConfirmation, // **NEW**
+          isDisputed, // **NEW**
           teammate,
           opponents,
           team1Sets,
@@ -710,29 +790,27 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
           matchDuration,
           timeUntilMatch,
           daysAgo,
-          // **ENHANCEMENT: User position flags for avatar rendering**
+          // User position flags for avatar rendering
           userIsPlayer1: match.player1_id === userId,
           userIsPlayer2: match.player2_id === userId,
           userIsPlayer3: match.player3_id === userId,
           userIsPlayer4: match.player4_id === userId
         };
 
-        console.log(`🔄 Match History: Processed match ${match.id} with visibility ${match.is_public ? 'PUBLIC' : 'PRIVATE'} and avatar data`, {
+        console.log(`🔄 Match History: Processed match ${match.id} with confirmation data`, {
           isTeam1,
           hasScores,
           userWon,
           team1Sets,
           team2Sets,
           needsScores,
+          needsConfirmation,
+          isDisputed,
           isFuture,
           isCompleted,
           is_public: match.is_public,
-          avatarsPresent: {
-            player1: !!match.player1?.avatar_url,
-            player2: !!match.player2?.avatar_url,
-            player3: !!match.player3?.avatar_url,
-            player4: !!match.player4?.avatar_url
-          }
+          confirmation_status: match.confirmation_status,
+          validation_status: match.validation_status
         });
 
         return enhancedMatch;
@@ -762,7 +840,7 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
     setSearchQuery(query);
   };
 
-  const handleSort = (by: 'date' | 'opponent' | 'result' | 'visibility') => {
+  const handleSort = (by: 'date' | 'opponent' | 'result' | 'visibility' | 'confirmation') => {
     if (sortBy === by) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
@@ -800,7 +878,66 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
     );
   };
 
-  // **TECHNICAL SPECIFICATION 18: Enhanced filter buttons with visibility indicators**
+  // **NEW: Confirmation badge component**
+  const renderConfirmationBadge = (match: EnhancedMatchData, size: 'small' | 'medium' = 'small') => {
+    if (!match.isCompleted) return null;
+
+    const iconSize = size === 'medium' ? 16 : 12;
+    const textClass = size === 'medium' ? 'text-sm' : 'text-xs';
+    const paddingClass = size === 'medium' ? 'px-3 py-2' : 'px-2 py-1';
+    
+    if (match.isDisputed) {
+      return (
+        <View className={`flex-row items-center ${paddingClass} rounded-full bg-red-100 dark:bg-red-900/30`}>
+          <Ionicons 
+            name="alert-circle-outline" 
+            size={iconSize} 
+            color="#dc2626" 
+            style={{ marginRight: 4 }}
+          />
+          <Text className={`${textClass} font-medium text-red-700 dark:text-red-300`}>
+            Disputed
+          </Text>
+        </View>
+      );
+    }
+    
+    if (match.needsConfirmation) {
+      return (
+        <View className={`flex-row items-center ${paddingClass} rounded-full bg-amber-100 dark:bg-amber-900/30`}>
+          <Ionicons 
+            name="time-outline" 
+            size={iconSize} 
+            color="#d97706" 
+            style={{ marginRight: 4 }}
+          />
+          <Text className={`${textClass} font-medium text-amber-700 dark:text-amber-300`}>
+            Needs Confirmation
+          </Text>
+        </View>
+      );
+    }
+    
+    if (match.all_confirmed) {
+      return (
+        <View className={`flex-row items-center ${paddingClass} rounded-full bg-green-100 dark:bg-green-900/30`}>
+          <Ionicons 
+            name="checkmark-circle-outline" 
+            size={iconSize} 
+            color="#059669" 
+            style={{ marginRight: 4 }}
+          />
+          <Text className={`${textClass} font-medium text-green-700 dark:text-green-300`}>
+            Confirmed
+          </Text>
+        </View>
+      );
+    }
+
+    return null;
+  };
+
+  // **TECHNICAL SPECIFICATION 18: Enhanced filter buttons with confirmation indicators**
   const renderFilterButtons = () => (
     <View className="bg-background border-b border-border">
       <ScrollView 
@@ -809,17 +946,41 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
         className="flex-row"
         contentContainerStyle={{ paddingHorizontal: 4 }}
       >
-        {(['all', 'upcoming', 'completed', 'attention', 'recent', 'public', 'private'] as FilterType[]).map((filterType) => {
+        {(['all', 'upcoming', 'completed', 'attention', 'recent', 'public', 'private', 'needs_confirmation', 'disputed'] as FilterType[]).map((filterType) => {
           const count = filteredMatches[filterType]?.length || 0;
           const isActive = filter === filterType;
           
-          // **ENHANCEMENT: Special styling for visibility filters**
+          // Enhanced styling for confirmation filters
+          const isConfirmationFilter = filterType === 'needs_confirmation' || filterType === 'disputed';
           const isVisibilityFilter = filterType === 'public' || filterType === 'private';
+          
           const baseClasses = isActive 
-            ? (isVisibilityFilter 
-                ? (filterType === 'public' ? 'bg-blue-600' : 'bg-gray-600')
-                : 'bg-primary')
+            ? (isConfirmationFilter 
+                ? (filterType === 'needs_confirmation' ? 'bg-amber-600' : 'bg-red-600')
+                : isVisibilityFilter 
+                  ? (filterType === 'public' ? 'bg-blue-600' : 'bg-gray-600')
+                  : 'bg-primary')
             : 'bg-muted/30';
+          
+          const getFilterIcon = () => {
+            switch (filterType) {
+              case 'needs_confirmation': return 'time-outline';
+              case 'disputed': return 'alert-circle-outline';
+              case 'public': return 'globe-outline';
+              case 'private': return 'lock-closed-outline';
+              default: return null;
+            }
+          };
+
+          const getFilterLabel = () => {
+            switch (filterType) {
+              case 'needs_confirmation': return 'Needs Confirmation';
+              case 'attention': return 'Needs Attention';
+              default: return filterType.charAt(0).toUpperCase() + filterType.slice(1);
+            }
+          };
+
+          const icon = getFilterIcon();
           
           return (
             <TouchableOpacity
@@ -828,33 +989,42 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
               onPress={() => handleFilterChange(filterType)}
             >
               <View className="flex-row items-center">
-                {/* **ENHANCEMENT: Add icons for visibility filters** */}
-                {isVisibilityFilter && (
+                {icon && (
                   <Ionicons 
-                    name={filterType === 'public' ? 'globe-outline' : 'lock-closed-outline'} 
+                    name={icon as any} 
                     size={14} 
-                    color={isActive ? '#fff' : (filterType === 'public' ? '#2563eb' : '#6b7280')}
+                    color={isActive ? '#fff' : (
+                      isConfirmationFilter 
+                        ? (filterType === 'needs_confirmation' ? '#d97706' : '#dc2626')
+                        : isVisibilityFilter 
+                          ? (filterType === 'public' ? '#2563eb' : '#6b7280')
+                          : '#666'
+                    )}
                     style={{ marginRight: 6 }}
                   />
                 )}
-                <Text className={`font-medium capitalize ${
+                <Text className={`font-medium ${
                   isActive ? 'text-primary-foreground' : 'text-foreground'
                 }`}>
-                  {filterType === 'attention' ? 'Needs Attention' : filterType}
+                  {getFilterLabel()}
                 </Text>
                 {count > 0 && (
                   <View className={`ml-2 px-2 py-0.5 rounded-full ${
                     isActive 
                       ? 'bg-primary-foreground/20' 
-                      : (isVisibilityFilter 
-                          ? (filterType === 'public' ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-gray-100 dark:bg-gray-800/40')
-                          : 'bg-primary/20')
+                      : (isConfirmationFilter 
+                          ? (filterType === 'needs_confirmation' ? 'bg-amber-100 dark:bg-amber-900/40' : 'bg-red-100 dark:bg-red-900/40')
+                          : isVisibilityFilter 
+                            ? (filterType === 'public' ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-gray-100 dark:bg-gray-800/40')
+                            : 'bg-primary/20')
                   }`}>
                     <Text className={`text-xs font-bold ${
                       isActive ? 'text-primary-foreground' : 
-                      (isVisibilityFilter 
-                        ? (filterType === 'public' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400')
-                        : 'text-primary')
+                      (isConfirmationFilter 
+                        ? (filterType === 'needs_confirmation' ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400')
+                        : isVisibilityFilter 
+                          ? (filterType === 'public' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400')
+                          : 'text-primary')
                     }`}>
                       {count}
                     </Text>
@@ -868,15 +1038,15 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
     </View>
   );
 
-  // **TECHNICAL SPECIFICATION 19: Enhanced search and sort controls with visibility options**
+  // **TECHNICAL SPECIFICATION 19: Enhanced search and sort controls with confirmation options**
   const renderSearchAndSort = () => (
     <View className="p-4 bg-background border-b border-border">
-      {/* Search Bar with visibility hint */}
+      {/* Search Bar with confirmation hint */}
       <View className="flex-row items-center bg-muted/30 rounded-lg px-3 py-2 mb-3">
         <Ionicons name="search" size={20} color="#888" />
         <TextInput
           className="flex-1 ml-2 text-foreground"
-          placeholder="Search matches, opponents, locations, visibility..."
+          placeholder="Search matches, opponents, locations, confirmation status..."
           value={searchQuery}
           onChangeText={handleSearch}
           placeholderTextColor="#888"
@@ -888,24 +1058,32 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
         )}
       </View>
       
-      {/* Sort Controls with visibility option */}
+      {/* Sort Controls with confirmation option */}
       <View className="flex-row justify-between items-center">
         <Text className="text-sm text-muted-foreground">Sort by:</Text>
         <View className="flex-row gap-2">
-          {['date', 'opponent', 'result', 'visibility'].map((sortType) => (
+          {['date', 'opponent', 'result', 'visibility', 'confirmation'].map((sortType) => (
             <TouchableOpacity
               key={sortType}
               onPress={() => handleSort(sortType as any)}
               className={`px-3 py-1 rounded-full flex-row items-center ${
                 sortBy === sortType 
-                  ? (sortType === 'visibility' ? 'bg-blue-600' : 'bg-primary')
+                  ? (sortType === 'confirmation' ? 'bg-amber-600' : 
+                     sortType === 'visibility' ? 'bg-blue-600' : 'bg-primary')
                   : 'bg-muted/30'
               }`}
             >
-              {/* **ENHANCEMENT: Add icon for visibility sort** */}
               {sortType === 'visibility' && (
                 <Ionicons 
                   name="eye-outline" 
+                  size={12} 
+                  color={sortBy === sortType ? '#fff' : '#666'} 
+                  style={{ marginRight: 4 }}
+                />
+              )}
+              {sortType === 'confirmation' && (
+                <Ionicons 
+                  name="checkmark-circle-outline" 
                   size={12} 
                   color={sortBy === sortType ? '#fff' : '#666'} 
                   style={{ marginRight: 4 }}
@@ -931,7 +1109,7 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
     </View>
   );
 
-  // **TECHNICAL SPECIFICATION 20: Enhanced match card rendering with comprehensive visibility information and avatars**
+  // **TECHNICAL SPECIFICATION 20: Enhanced match card rendering with confirmation information and avatars**
   const renderMatchCard = (match: EnhancedMatchData) => {
     const matchDate = new Date(match.start_time);
     const now = new Date();
@@ -956,9 +1134,24 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
       minute: '2-digit'
     });
 
-    // **Enhanced status styling with visibility context**
+    // **Enhanced status styling with confirmation context**
     const getMatchStyle = () => {
-      if (match.isFuture) {
+      // Priority: disputed > needs confirmation > regular status
+      if (match.isDisputed) {
+        return {
+          bgColor: 'bg-red-50 dark:bg-red-900/30',
+          iconName: 'alert-circle-outline',
+          iconColor: '#dc2626',
+          status: 'Disputed Match'
+        };
+      } else if (match.needsConfirmation) {
+        return {
+          bgColor: 'bg-amber-50 dark:bg-amber-900/30',
+          iconName: 'time-outline',
+          iconColor: '#d97706',
+          status: 'Needs Confirmation'
+        };
+      } else if (match.isFuture) {
         return {
           bgColor: match.is_public ? 'bg-blue-50 dark:bg-blue-900/30' : 'bg-indigo-50 dark:bg-indigo-900/30',
           iconName: 'calendar-outline',
@@ -985,21 +1178,21 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
             bgColor: 'bg-green-50 dark:bg-green-900/30',
             iconName: 'trophy-outline',
             iconColor: '#059669',
-            status: 'Victory'
+            status: match.all_confirmed ? 'Confirmed Victory' : 'Victory'
           };
         } else if (match.isTied) {
           return {
             bgColor: 'bg-yellow-50 dark:bg-yellow-900/30',
             iconName: 'remove-circle-outline',
             iconColor: '#d97706',
-            status: 'Draw'
+            status: match.all_confirmed ? 'Confirmed Draw' : 'Draw'
           };
         } else {
           return {
             bgColor: 'bg-red-50 dark:bg-red-900/30',
             iconName: 'close-circle-outline',
             iconColor: '#dc2626',
-            status: 'Defeat'
+            status: match.all_confirmed ? 'Confirmed Defeat' : 'Defeat'
           };
         }
       } else {
@@ -1030,12 +1223,12 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
             pathname: '/(protected)/(screens)/match-details',
             params: { 
               matchId: match.id,
-              mode: match.needsScores ? 'score-entry' : undefined
+              mode: match.needsScores ? 'score-entry' : match.needsConfirmation ? 'confirmation' : undefined
             }
           });
         }}
       >
-        {/* **ENHANCED header with status, metadata, and visibility indicator** */}
+        {/* **ENHANCED header with status, metadata, confirmation, and visibility indicators** */}
         <View className={`px-4 py-3 ${style.bgColor}`}>
           <View className="flex-row items-center justify-between">
             <View className="flex-row items-center flex-1">
@@ -1043,12 +1236,13 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
                 <Ionicons name={style.iconName as any} size={18} color={style.iconColor} />
               </View>
               <View className="flex-1">
-                <View className="flex-row items-center">
-                  <Text className="font-medium mr-2" style={{ color: style.iconColor }}>
+                <View className="flex-row items-center flex-wrap gap-2">
+                  <Text className="font-medium" style={{ color: style.iconColor }}>
                     {style.status}
                   </Text>
-                  {/* **ENHANCEMENT: Visibility badge in header** */}
+                  {/* **ENHANCEMENT: Both visibility and confirmation badges** */}
                   {renderVisibilityBadge(match.is_public)}
+                  {renderConfirmationBadge(match)}
                 </View>
                 <Text className="text-xs opacity-75">
                   {formattedDate} • {formattedTime}
@@ -1056,7 +1250,7 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
               </View>
             </View>
             
-            {/* Enhanced metadata display with visibility context */}
+            {/* Enhanced metadata display with confirmation context */}
             <View className="items-end">
               {(match.region || match.court) && (
                 <View className="flex-row items-center">
@@ -1071,19 +1265,41 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
                   {Math.round(match.matchDuration / (1000 * 60))}min
                 </Text>
               )}
-              {/* **ENHANCEMENT: Show open slots for public matches** */}
-              {match.is_public && match.isFuture && (
+              {/* **ENHANCEMENT: Show rating status** */}
+              {match.isCompleted && !match.rating_applied && (
                 <Text className="text-xs opacity-75 mt-1">
-                  {getOpenSlotsText(match)}
+                  Rating pending
                 </Text>
               )}
             </View>
           </View>
         </View>
         
-        {/* **Enhanced match content with visibility-aware information and avatars** */}
+        {/* **Enhanced match content with confirmation-aware information and avatars** */}
         <View className="p-5 bg-card dark:bg-card/90">
-          {/* **ENHANCEMENT: Visibility-specific information banner** */}
+          {/* **ENHANCEMENT: Confirmation-specific information banner** */}
+          {match.isDisputed && (
+            <View className="mb-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border-l-4 border-red-500">
+              <View className="flex-row items-center">
+                <Ionicons name="alert-circle" size={16} color="#dc2626" style={{ marginRight: 8 }} />
+                <Text className="text-sm text-red-800 dark:text-red-300 font-medium">
+                  This match result is disputed and requires review
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {match.needsConfirmation && (
+            <View className="mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border-l-4 border-amber-500">
+              <View className="flex-row items-center">
+                <Ionicons name="time" size={16} color="#d97706" style={{ marginRight: 8 }} />
+                <Text className="text-sm text-amber-800 dark:text-amber-300 font-medium">
+                  Waiting for all players to confirm this match result
+                </Text>
+              </View>
+            </View>
+          )}
+
           {match.is_public && (
             <View className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-l-4 border-blue-500">
               <View className="flex-row items-center">
@@ -1200,6 +1416,18 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
                   <Text className="text-xs text-muted-foreground mt-1">
                     {match.setScores}
                   </Text>
+                  {/* **NEW: Confirmation status in score area** */}
+                  {match.isCompleted && (
+                    <Text className={`text-xs mt-1 ${
+                      match.all_confirmed ? 'text-green-600 dark:text-green-400' :
+                      match.needsConfirmation ? 'text-amber-600 dark:text-amber-400' :
+                      match.isDisputed ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'
+                    }`}>
+                      {match.all_confirmed ? 'Confirmed' :
+                       match.needsConfirmation ? 'Pending' :
+                       match.isDisputed ? 'Disputed' : 'Unconfirmed'}
+                    </Text>
+                  )}
                 </View>
               ) : (
                 <View className="items-center">
@@ -1296,7 +1524,7 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
             </View>
           )}
           
-          {/* **Enhanced result display for completed matches** */}
+          {/* **Enhanced result display for completed matches with confirmation status** */}
           {match.isCompleted && (
             <View className={`p-3 rounded-lg flex-row items-center justify-center mt-3 ${
               match.userWon 
@@ -1337,14 +1565,15 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
                   ({match.setScores})
                 </Text>
               )}
-              {/* **ENHANCEMENT: Show visibility context in results** */}
-              <View className="ml-2">
+              {/* **ENHANCEMENT: Show badges in results** */}
+              <View className="ml-2 flex-row gap-1">
                 {renderVisibilityBadge(match.is_public, 'small')}
+                {renderConfirmationBadge(match, 'small')}
               </View>
             </View>
           )}
           
-          {/* **ENHANCED action indicators for non-completed matches with visibility context** */}
+          {/* **ENHANCED action indicators for non-completed matches with confirmation context** */}
           {!match.isCompleted && (
             <View className="flex-row justify-between items-center mt-3 pt-3 border-t border-border/30">
               <View className="flex-row items-center">
@@ -1388,7 +1617,7 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
             </View>
           )}
           
-          {/* **Enhanced quick stats for completed matches with visibility info** */}
+          {/* **Enhanced quick stats for completed matches with confirmation info** */}
           {match.isCompleted && match.matchDuration > 0 && (
             <View className="flex-row justify-around mt-3 pt-3 border-t border-border/30">
               <View className="items-center">
@@ -1410,11 +1639,15 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
                 </Text>
               </View>
               <View className="items-center">
-                <Text className="text-xs text-muted-foreground">Visibility</Text>
+                <Text className="text-xs text-muted-foreground">Status</Text>
                 <Text className={`text-sm font-medium ${
-                  match.is_public ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'
+                  match.all_confirmed ? 'text-green-600 dark:text-green-400' :
+                  match.needsConfirmation ? 'text-amber-600 dark:text-amber-400' :
+                  match.isDisputed ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'
                 }`}>
-                  {match.is_public ? 'Public' : 'Private'}
+                  {match.all_confirmed ? 'Confirmed' :
+                   match.needsConfirmation ? 'Pending' :
+                   match.isDisputed ? 'Disputed' : 'Final'}
                 </Text>
               </View>
             </View>
@@ -1433,7 +1666,7 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
     return `${openSlots} open slots`;
   };
 
-  // **TECHNICAL SPECIFICATION 21: Enhanced empty state with visibility-aware contextual messaging**
+  // **TECHNICAL SPECIFICATION 21: Enhanced empty state with confirmation-aware contextual messaging**
   const renderEmptyMatches = () => {
     const getEmptyMessage = () => {
       switch (filter) {
@@ -1469,7 +1702,6 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
             message: "Play some matches this week to see them here",
             icon: "time-outline"
           };
-        // **ENHANCEMENT: NEW visibility-specific empty states**
         case 'public':
           return {
             title: "No public matches found",
@@ -1481,6 +1713,19 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
             title: "No private matches found",
             message: "Create private matches for invitation-only games with specific friends",
             icon: "lock-closed-outline"
+          };
+        // **NEW: Confirmation-specific empty states**
+        case 'needs_confirmation':
+          return {
+            title: "No matches need confirmation",
+            message: "All completed matches have been confirmed by all players",
+            icon: "checkmark-circle-outline"
+          };
+        case 'disputed':
+          return {
+            title: "No disputed matches",
+            message: "All match results are accepted by all players",
+            icon: "shield-checkmark-outline"
           };
         default:
           return {
@@ -1504,6 +1749,8 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
         <View className={`w-16 h-16 rounded-full items-center justify-center mb-4 ${
           filter === 'public' ? 'bg-blue-100 dark:bg-blue-900/30' :
           filter === 'private' ? 'bg-gray-100 dark:bg-gray-800/30' :
+          filter === 'needs_confirmation' ? 'bg-amber-100 dark:bg-amber-900/30' :
+          filter === 'disputed' ? 'bg-red-100 dark:bg-red-900/30' :
           'bg-primary/10'
         }`}>
           <Ionicons 
@@ -1512,6 +1759,8 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
             color={
               filter === 'public' ? '#2563eb' :
               filter === 'private' ? '#6b7280' :
+              filter === 'needs_confirmation' ? '#d97706' :
+              filter === 'disputed' ? '#dc2626' :
               '#2148ce'
             } 
           />
@@ -1521,7 +1770,7 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
           {emptyState.message}
         </Text>
         
-        {/* **ENHANCEMENT: Visibility-specific action buttons** */}
+        {/* **Enhanced action buttons for all filter types** */}
         {(filter === 'all' || filter === 'upcoming' || filter === 'public' || filter === 'private') && (
           <View className="w-full space-y-3">
             <Button
@@ -1537,7 +1786,7 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
               </Text>
             </Button>
             
-            {/* **Show alternative option for visibility filters** */}
+            {/* **Show alternative options** */}
             {filter === 'public' && (
               <Button
                 variant="outline"
@@ -1559,6 +1808,29 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
                 <Text>View Public Matches</Text>
               </Button>
             )}
+          </View>
+        )}
+        
+        {/* **Show filter alternatives for confirmation states** */}
+        {(filter === 'needs_confirmation' || filter === 'disputed') && (
+          <View className="w-full space-y-3">
+            <Button
+              variant="outline"
+              onPress={() => setFilter('completed')}
+              className="w-full"
+            >
+              <Ionicons name="checkmark-done-outline" size={18} style={{ marginRight: 8 }} />
+              <Text>View All Completed Matches</Text>
+            </Button>
+            
+            <Button
+              variant="outline"
+              onPress={() => setFilter('all')}
+              className="w-full"
+            >
+              <Ionicons name="list-outline" size={18} style={{ marginRight: 8 }} />
+              <Text>View All Matches</Text>
+            </Button>
           </View>
         )}
         
@@ -1600,6 +1872,12 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
               </View>
               <Text className="text-xs text-muted-foreground mt-1">Private</Text>
             </View>
+            <View className="items-center">
+              <View className="w-6 h-6 bg-amber-100 dark:bg-amber-900/30 rounded-full items-center justify-center">
+                <Ionicons name="time" size={12} color="#d97706" />
+              </View>
+              <Text className="text-xs text-muted-foreground mt-1">Pending</Text>
+            </View>
           </View>
         </View>
       </SafeAreaView>
@@ -1611,10 +1889,10 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      {/* **Enhanced filter buttons with visibility options** */}
+      {/* **Enhanced filter buttons with confirmation options** */}
       {renderFilterButtons()}
       
-      {/* **Search and sort controls with visibility features** */}
+      {/* **Search and sort controls with confirmation features** */}
       {renderSearchAndSort()}
       
       {/* **Enhanced content area** */}
@@ -1631,7 +1909,7 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* **ENHANCED summary statistics with visibility breakdown** */}
+        {/* **ENHANCED summary statistics with confirmation breakdown** */}
         {currentMatches.length > 0 && filter === 'all' && (
           <View className="bg-card rounded-xl p-4 mb-4 border border-border/30" style={{
             shadowColor: "#000",
@@ -1664,16 +1942,17 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
               </View>
               <View className="items-center">
                 <Text className="text-2xl font-bold text-amber-500">
-                  {allMatches.filter(m => m.needsScores || m.status === MatchStatus.NEEDS_CONFIRMATION).length}
+                  {matchStats.needsConfirmation}
                 </Text>
-                <Text className="text-xs text-muted-foreground">Attention</Text>
+                <Text className="text-xs text-muted-foreground">Pending</Text>
               </View>
             </View>
 
-            {/* **ENHANCEMENT: Visibility breakdown** */}
+            {/* **ENHANCEMENT: Multi-section breakdown** */}
             <View className="border-t border-border/30 pt-4">
+              {/* **Visibility Section** */}
               <Text className="text-sm font-medium mb-3 text-center">Visibility Breakdown</Text>
-              <View className="flex-row justify-around">
+              <View className="flex-row justify-around mb-4">
                 <TouchableOpacity 
                   onPress={() => setFilter('public')}
                   className="items-center p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20"
@@ -1681,12 +1960,12 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
                   <View className="flex-row items-center mb-1">
                     <Ionicons name="globe" size={16} color="#2563eb" />
                     <Text className="text-lg font-bold text-blue-600 dark:text-blue-400 ml-1">
-                      {visibilityStats.totalPublic}
+                      {matchStats.totalPublic}
                     </Text>
                   </View>
                   <Text className="text-xs text-blue-600 dark:text-blue-400 font-medium">Public Matches</Text>
                   <Text className="text-xs text-muted-foreground">
-                    {visibilityStats.publicCompleted} completed • {visibilityStats.publicUpcoming} upcoming
+                    {matchStats.publicCompleted} completed • {matchStats.publicUpcoming} upcoming
                   </Text>
                 </TouchableOpacity>
                 
@@ -1697,12 +1976,48 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
                   <View className="flex-row items-center mb-1">
                     <Ionicons name="lock-closed" size={16} color="#6b7280" />
                     <Text className="text-lg font-bold text-gray-600 dark:text-gray-400 ml-1">
-                      {visibilityStats.totalPrivate}
+                      {matchStats.totalPrivate}
                     </Text>
                   </View>
                   <Text className="text-xs text-gray-600 dark:text-gray-400 font-medium">Private Matches</Text>
                   <Text className="text-xs text-muted-foreground">
-                    {visibilityStats.privateCompleted} completed • {visibilityStats.privateUpcoming} upcoming
+                    {matchStats.privateCompleted} completed • {matchStats.privateUpcoming} upcoming
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* **NEW: Confirmation Section** */}
+              <Text className="text-sm font-medium mb-3 text-center">Confirmation Status</Text>
+              <View className="flex-row justify-around">
+                <TouchableOpacity 
+                  onPress={() => setFilter('needs_confirmation')}
+                  className="items-center p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20"
+                >
+                  <View className="flex-row items-center mb-1">
+                    <Ionicons name="time" size={16} color="#d97706" />
+                    <Text className="text-lg font-bold text-amber-600 dark:text-amber-400 ml-1">
+                      {matchStats.needsConfirmation}
+                    </Text>
+                  </View>
+                  <Text className="text-xs text-amber-600 dark:text-amber-400 font-medium">Needs Confirmation</Text>
+                  <Text className="text-xs text-muted-foreground">
+                    Awaiting player confirmation
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  onPress={() => setFilter('disputed')}
+                  className="items-center p-3 rounded-lg bg-red-50 dark:bg-red-900/20"
+                >
+                  <View className="flex-row items-center mb-1">
+                    <Ionicons name="alert-circle" size={16} color="#dc2626" />
+                    <Text className="text-lg font-bold text-red-600 dark:text-red-400 ml-1">
+                      {matchStats.disputed}
+                    </Text>
+                  </View>
+                  <Text className="text-xs text-red-600 dark:text-red-400 font-medium">Disputed Matches</Text>
+                  <Text className="text-xs text-muted-foreground">
+                    Require admin review
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1710,7 +2025,68 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
           </View>
         )}
 
-        {/* **ENHANCED visibility-specific summary for filter-specific views** */}
+        {/* **ENHANCED filter-specific summary displays** */}
+        {currentMatches.length > 0 && (filter === 'needs_confirmation' || filter === 'disputed') && (
+          <View className={`rounded-xl p-4 mb-4 border ${
+            filter === 'needs_confirmation' 
+              ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
+              : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+          }`} style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
+          }}>
+            <View className="flex-row items-center mb-3">
+              <Ionicons 
+                name={filter === 'needs_confirmation' ? 'time' : 'alert-circle'} 
+                size={20} 
+                color={filter === 'needs_confirmation' ? '#d97706' : '#dc2626'} 
+              />
+              <Text className={`text-lg font-semibold ml-2 ${
+                filter === 'needs_confirmation' ? 'text-amber-800 dark:text-amber-300' : 'text-red-700 dark:text-red-300'
+              }`}>
+                {filter === 'needs_confirmation' ? 'Matches Needing Confirmation' : 'Disputed Matches'}
+              </Text>
+            </View>
+            <Text className={`text-sm mb-3 ${
+              filter === 'needs_confirmation' ? 'text-amber-700 dark:text-amber-400' : 'text-red-600 dark:text-red-400'
+            }`}>
+              {filter === 'needs_confirmation' 
+                ? 'These matches are waiting for all players to confirm the results before ratings are applied'
+                : 'These matches have disputed results and require admin review to resolve'}
+            </Text>
+            <View className="flex-row justify-around">
+              <View className="items-center">
+                <Text className={`text-xl font-bold ${
+                  filter === 'needs_confirmation' ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'
+                }`}>
+                  {filter === 'needs_confirmation' ? matchStats.needsConfirmation : matchStats.disputed}
+                </Text>
+                <Text className="text-xs text-muted-foreground">Total</Text>
+              </View>
+              <View className="items-center">
+                <Text className={`text-xl font-bold ${
+                  filter === 'needs_confirmation' ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'
+                }`}>
+                  {matchStats.pendingRating}
+                </Text>
+                <Text className="text-xs text-muted-foreground">Rating Pending</Text>
+              </View>
+              <View className="items-center">
+                <Text className={`text-xl font-bold ${
+                  filter === 'needs_confirmation' ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'
+                }`}>
+                  {currentMatches.length}
+                </Text>
+                <Text className="text-xs text-muted-foreground">Showing</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* **Enhanced visibility-specific summary for public/private filters** */}
         {currentMatches.length > 0 && (filter === 'public' || filter === 'private') && (
           <View className={`rounded-xl p-4 mb-4 border ${
             filter === 'public' 
@@ -1747,7 +2123,7 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
                 <Text className={`text-xl font-bold ${
                   filter === 'public' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'
                 }`}>
-                  {filter === 'public' ? visibilityStats.totalPublic : visibilityStats.totalPrivate}
+                  {filter === 'public' ? matchStats.totalPublic : matchStats.totalPrivate}
                 </Text>
                 <Text className="text-xs text-muted-foreground">Total</Text>
               </View>
@@ -1755,7 +2131,7 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
                 <Text className={`text-xl font-bold ${
                   filter === 'public' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'
                 }`}>
-                  {filter === 'public' ? visibilityStats.publicCompleted : visibilityStats.privateCompleted}
+                  {filter === 'public' ? matchStats.publicCompleted : matchStats.privateCompleted}
                 </Text>
                 <Text className="text-xs text-muted-foreground">Completed</Text>
               </View>
@@ -1763,7 +2139,7 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
                 <Text className={`text-xl font-bold ${
                   filter === 'public' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'
                 }`}>
-                  {filter === 'public' ? visibilityStats.publicUpcoming : visibilityStats.privateUpcoming}
+                  {filter === 'public' ? matchStats.publicUpcoming : matchStats.privateUpcoming}
                 </Text>
                 <Text className="text-xs text-muted-foreground">Upcoming</Text>
               </View>
@@ -1771,7 +2147,7 @@ export default function EnhancedMatchHistoryWithVisibilityAndAvatars() {
           </View>
         )}
 
-        {/* **Match list with enhanced visibility features and avatars** */}
+        {/* **Match list with enhanced confirmation features and avatars** */}
         {currentMatches.length > 0 
           ? currentMatches.map(renderMatchCard)
           : renderEmptyMatches()

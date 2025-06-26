@@ -32,6 +32,9 @@ import { useColorScheme } from "@/lib/useColorScheme";
 import { useMatchReporting } from "@/hooks/useMatchReporting";
 import { ReportReason, ValidationStatus } from "@/types/match-reporting";
 import { NotificationHelpers } from '@/services/notificationHelpers';
+import { MatchConfirmationSection } from "@/components/MatchConfirmationSection";
+import { useMatchConfirmation } from "@/hooks/useMatchConfirmation";
+import { EnhancedRatingService } from "@/services/enhanced-rating.service";
 
 // CORRECTED: Enhanced match status enumeration with proper TEXT database handling
 export enum MatchStatus {
@@ -134,8 +137,11 @@ interface MatchDetail {
   region: string | null;
   court: string | null;
   validation_deadline: string | null;
+  validation_status?: string;
   is_public: boolean;
   description: string | null;
+  all_confirmed?: boolean;
+  confirmation_status?: string;
   player1: PlayerDetail;
   player2: PlayerDetail | null;
   player3: PlayerDetail | null;
@@ -168,6 +174,7 @@ interface MatchState {
   canViewScores: boolean;
   matchPhase: 'upcoming' | 'active' | 'completed' | 'cancelled';
   timeStatus: 'early' | 'soon' | 'now' | 'recent' | 'old';
+  showConfirmationSection: boolean;
 }
 
 // ENHANCED: Score entry state with validation
@@ -328,7 +335,7 @@ function PlayerAvatar({
   );
 }
 
-export default function RefactoredMatchDetails() {
+export default function EnhancedMatchDetails() {
   const { matchId, mode } = useLocalSearchParams();
   const { colorScheme } = useColorScheme();
   const [match, setMatch] = useState<MatchDetail | null>(null);
@@ -369,6 +376,16 @@ export default function RefactoredMatchDetails() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportReason, setReportReason] = useState<ReportReason>(ReportReason.INCORRECT_SCORE);
   const [reportDetails, setReportDetails] = useState('');
+
+  // NEW: Match confirmation hook
+  const {
+    confirmationStatus,
+    userConfirmation,
+    needsConfirmation,
+    isFullyConfirmed,
+    isCancelled,
+    loading: confirmationLoading
+  } = useMatchConfirmation(matchId as string);
   
   // REQUIREMENT 1: Enhanced match state calculation with comprehensive analysis
   const matchState = useMemo((): MatchState => {
@@ -392,6 +409,7 @@ export default function RefactoredMatchDetails() {
         canViewScores: true,
         matchPhase: 'upcoming',
         timeStatus: 'early',
+        showConfirmationSection: false,
       };
     }
 
@@ -492,6 +510,9 @@ export default function RefactoredMatchDetails() {
       ? userTeam === winnerTeam 
       : null;
 
+    // NEW: Show confirmation section if match is completed and has scores
+    const showConfirmationSection = hasScores && statusInt === MatchStatus.COMPLETED && userParticipating;
+
     const finalState: MatchState = {
       isFuture,
       isPast,
@@ -511,6 +532,7 @@ export default function RefactoredMatchDetails() {
       canViewScores,
       matchPhase,
       timeStatus,
+      showConfirmationSection,
     };
 
     console.log('✅ Enhanced Match Details: Comprehensive final state:', finalState);
@@ -1215,14 +1237,15 @@ export default function RefactoredMatchDetails() {
         validation_deadline: validationDeadline.toISOString(),
         validation_status: 'pending',
         rating_applied: false, // CRITICAL: Defer rating application
-        report_count: 0 // Reset report count for fresh validation
+        report_count: 0, // Reset report count for fresh validation
+        
+        // CONFIRMATION DATA: Initialize confirmation tracking
+        confirmation_status: 'pending',
+        all_confirmed: false,
+        creator_confirmed: true // Creator auto-confirms
       };
 
-      console.log('🔧 Enhanced Match Details: Update payload with validation:', {
-        ...updateData,
-        validation_deadline_formatted: validationDeadline.toLocaleString(),
-        hours_until_deadline: 24
-      });
+      console.log('🔧 Enhanced Match Details: Update payload with confirmation:', updateData);
 
       // STEP 3: Execute database update with error handling
       const { data, error } = await supabase
@@ -1236,8 +1259,8 @@ export default function RefactoredMatchDetails() {
         throw error;
       }
 
-      // STEP 4: Deferred rating application notice
-      console.log('📊 Rating application deferred until validation period expires');
+      // STEP 4: Calculate and store ratings (deferred application)
+      await EnhancedRatingService.calculateAndStoreRatings(match.id);
 
       // STEP 5: Refresh match data including validation status
       fetchMatchDetails(match.id);
@@ -1249,31 +1272,12 @@ export default function RefactoredMatchDetails() {
       Alert.alert(
         "Match Completed!",
         `Scores saved successfully.\n\n` +
-        `⏱️ 24-hour validation period has started.\n` +
-        `📊 Ratings will be applied after validation.\n` +
-        `⚠️ Players can report issues during this period.\n\n` +
+        `✅ You have automatically confirmed the scores.\n` +
+        `⏱️ Other players have 24 hours to confirm or reject.\n` +
+        `📊 If all confirm, ratings apply immediately.\n` +
+        `⚠️ If 2+ players reject, the match will be cancelled.\n\n` +
         `${winnerTeam === matchState.userTeam ? 'Congratulations on your victory!' : 'Better luck next time!'}`,
-        [
-          {
-            text: 'View Details',
-            onPress: () => {
-              // Trigger animation to highlight validation banner
-              Animated.sequence([
-                Animated.timing(animatedValue, {
-                  toValue: 0,
-                  duration: 0,
-                  useNativeDriver: false,
-                }),
-                Animated.timing(animatedValue, {
-                  toValue: 1,
-                  duration: 500,
-                  useNativeDriver: false,
-                })
-              ]).start();
-            }
-          },
-          { text: 'OK' }
-        ]
+        [{ text: "OK" }]
       );
 
       if (!error && profile?.full_name) {
@@ -1304,8 +1308,6 @@ export default function RefactoredMatchDetails() {
     } finally {
       setSaving(false);
     }
-
-
   };
 
   // ENHANCED: Advanced match cancellation with confirmation
@@ -2113,22 +2115,6 @@ export default function RefactoredMatchDetails() {
               <View className="ml-4 mb-6">
                 <View className="flex-row mb-4">
                   <View className="mr-4 items-center">
-                    <View className="w-4 h-4 rounded-full bg-green-500 shadow-sm" />
-                    <View className="w-0.5 h-full bg-border absolute mt-4" />
-                  </View>
-                  <View className="flex-1">
-                    <View className="flex-row items-center mb-1">
-                      <Ionicons name="create-outline" size={16} color={isDark ? '#aaa' : '#666'} style={{marginRight: 8}} />
-                      <Text className="font-medium">Created</Text>
-                    </View>
-                    <Text className="text-muted-foreground">
-                      {formatRelativeTime(match!.created_at)} at {formatTime(match!.created_at)}
-                    </Text>
-                  </View>
-                </View>
-
-                <View className="flex-row mb-4">
-                  <View className="mr-4 items-center">
                     <View className="w-4 h-4 rounded-full bg-blue-500 shadow-sm" />
                     <View className="w-0.5 h-full bg-border absolute mt-4" />
                   </View>
@@ -2465,20 +2451,23 @@ export default function RefactoredMatchDetails() {
                   setShowReportModal(false);
                   setReportReason(ReportReason.INCORRECT_SCORE);
                   setReportDetails('');
-                  const playerIds = [
-                    match.player1_id,
-                    match.player2_id,
-                    match.player3_id,
-                    match.player4_id
-                  ].filter(Boolean);
                   
-                  // Send score disputed notification
-                  await NotificationHelpers.sendMatchScoreDisputedNotification(
-                    playerIds,
-                    session.user.id,
-                    profile.full_name,
-                    match.id
-                  );
+                  if (profile?.full_name) {
+                    const playerIds = [
+                      match!.player1_id,
+                      match!.player2_id,
+                      match!.player3_id,
+                      match!.player4_id
+                    ].filter(Boolean);
+                    
+                    // Send score disputed notification
+                    await NotificationHelpers.sendMatchScoreDisputedNotification(
+                      playerIds,
+                      session!.user.id,
+                      profile.full_name,
+                      match!.id
+                    );
+                  }
                 } else {
                   Vibration.vibrate(200);
                   
@@ -2491,8 +2480,6 @@ export default function RefactoredMatchDetails() {
                     ]
                   );
                 }
-
-    
               } catch (error) {
                 console.error('Critical error submitting report:', error);
                 Vibration.vibrate(300);
@@ -2904,6 +2891,21 @@ export default function RefactoredMatchDetails() {
         {/* MODIFIED: COLLAPSIBLE PERFORMANCE & INFO COMPONENT */}
         {renderCollapsiblePerformanceInfo()}
 
+        {/* Confirmation Section */}
+        {matchState.showConfirmationSection && !editingScores && (
+          <MatchConfirmationSection
+            matchId={match.id}
+            players={[
+              match.player1,
+              match.player2,
+              match.player3,
+              match.player4
+            ].filter(Boolean) as PlayerDetail[]}
+            isCreator={matchState.isCreator}
+            onConfirmationUpdate={() => fetchMatchDetails(match.id)}
+          />
+        )}
+
         {/* CRITICAL COMPONENT: Match Reports Section */}
         {reportingInfo.hasReports && (
           <View className="bg-card rounded-xl p-5 mb-6 border border-border/30">
@@ -3007,8 +3009,6 @@ export default function RefactoredMatchDetails() {
           </View>
         )}
 
-
-
         {/* Bottom Spacing */}
         <View className="h-8" />
       </ScrollView>
@@ -3020,4 +3020,4 @@ export default function RefactoredMatchDetails() {
       {renderReportingModal()}
     </SafeAreaView>
   );
-}
+} 
