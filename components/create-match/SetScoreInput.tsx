@@ -51,7 +51,12 @@ interface SetScoreInputProps {
   team2Ref?: React.RefObject<TextInput>;
   onTeam1Change?: (text: string) => void;
   onTeam2Change?: (text: string) => void;
-  onBackspace?: (currentRef: React.RefObject<TextInput>, previousRef?: React.RefObject<TextInput>) => void;
+  onBackspace?: (currentField: string) => void;
+  // References to next set's inputs for auto-jumping
+  nextSetTeam1Ref?: React.RefObject<TextInput>;
+  nextSetTeam2Ref?: React.RefObject<TextInput>;
+  // Auto-jump behavior control
+  enableAutoJump?: boolean;
 }
 
 export function SetScoreInput({ 
@@ -63,31 +68,55 @@ export function SetScoreInput({
   team2Ref,
   onTeam1Change,
   onTeam2Change,
-  onBackspace
+  onBackspace,
+  nextSetTeam1Ref,
+  nextSetTeam2Ref,
+  enableAutoJump = true
 }: SetScoreInputProps) {
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === 'dark';
   
-  // Initialize with empty strings if value is 0, otherwise use the value
-  const [team1Input, setTeam1Input] = useState(value.team1 === 0 ? '' : value.team1.toString());
-  const [team2Input, setTeam2Input] = useState(value.team2 === 0 ? '' : value.team2.toString());
+  // FIXED: Helper function to convert score to display string
+  const scoreToString = (score: number, hasBeenSet: boolean = false) => {
+    // If the score was never set (initial state), show empty
+    // If the score was explicitly set to 0, show "0"
+    if (score === 0 && !hasBeenSet) return '';
+    return score.toString();
+  };
+
+  // FIXED: Track whether values have been explicitly set
+  const [team1HasBeenSet, setTeam1HasBeenSet] = useState(value.team1 !== 0);
+  const [team2HasBeenSet, setTeam2HasBeenSet] = useState(value.team2 !== 0);
+  
+  // FIXED: Initialize properly handling 0 values
+  const [team1Input, setTeam1Input] = useState(scoreToString(value.team1, value.team1 !== 0));
+  const [team2Input, setTeam2Input] = useState(scoreToString(value.team2, value.team2 !== 0));
   const [isValid, setIsValid] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // Update input fields when value prop changes
+  // FIXED: Update input fields when value prop changes, respecting explicit 0s
   useEffect(() => {
-    setTeam1Input(value.team1 === 0 ? '' : value.team1.toString());
-    setTeam2Input(value.team2 === 0 ? '' : value.team2.toString());
-  }, [value]);
+    // Only update if the value actually changed, and respect explicitly set 0s
+    const newTeam1String = scoreToString(value.team1, team1HasBeenSet || value.team1 !== 0);
+    const newTeam2String = scoreToString(value.team2, team2HasBeenSet || value.team2 !== 0);
+    
+    if (newTeam1String !== team1Input) {
+      setTeam1Input(newTeam1String);
+    }
+    if (newTeam2String !== team2Input) {
+      setTeam2Input(newTeam2String);
+    }
+  }, [value.team1, value.team2, team1HasBeenSet, team2HasBeenSet]);
 
   // Validate score whenever inputs change
   useEffect(() => {
-    const team1Value = team1Input === '' ? 0 : parseInt(team1Input);
-    const team2Value = team2Input === '' ? 0 : parseInt(team2Input);
+    // FIXED: Parse values correctly, treating empty as unset (not 0)
+    const team1Value = team1Input === '' ? null : parseInt(team1Input);
+    const team2Value = team2Input === '' ? null : parseInt(team2Input);
     
-    // Only validate if both inputs have values
-    if (team1Input === '' || team2Input === '') {
+    // Only validate if both inputs have values (including 0)
+    if (team1Value === null || team2Value === null) {
       setIsValid(false);
       onValidate(false);
       setErrorMessage('');
@@ -110,25 +139,29 @@ export function SetScoreInput({
     }
 
     // Auto-dismiss keyboard when both scores are entered and valid
-    if (valid && team1Input !== '' && team2Input !== '') {
+    // But only if this is the last set or no next set available
+    if (valid && team1Input !== '' && team2Input !== '' && !nextSetTeam1Ref) {
       setTimeout(() => {
         Keyboard.dismiss();
       }, 500);
     }
-  }, [team1Input, team2Input, onValidate]);
+  }, [team1Input, team2Input, onValidate, nextSetTeam1Ref]);
 
   const handleTeam1Change = (text: string) => {
     // Only allow numbers or empty
     if (text === '' || /^\d*$/.test(text)) {
       setTeam1Input(text);
+      setTeam1HasBeenSet(text !== ''); // Mark as explicitly set if not empty
       
-      // Only update parent if it's a number or empty
+      // FIXED: Update parent with proper value
       const numValue = text === '' ? 0 : parseInt(text);
       onChange({ ...value, team1: numValue });
       
       // Auto-jump to team2 input if a valid digit is entered
-      if (text.length === 1 && team2Ref?.current) {
-        team2Ref.current.focus();
+      if (enableAutoJump && text.length === 1 && /^\d$/.test(text) && team2Ref?.current) {
+        setTimeout(() => {
+          team2Ref.current?.focus();
+        }, 50); // Small delay for smoother UX
       }
       
       // Call the onTeam1Change callback if provided
@@ -142,10 +175,33 @@ export function SetScoreInput({
     // Only allow numbers or empty
     if (text === '' || /^\d*$/.test(text)) {
       setTeam2Input(text);
+      setTeam2HasBeenSet(text !== ''); // Mark as explicitly set if not empty
       
-      // Only update parent if it's a number or empty
+      // FIXED: Update parent with proper value
       const numValue = text === '' ? 0 : parseInt(text);
       onChange({ ...value, team2: numValue });
+      
+      // AUTO-JUMP: Auto-jump to next set if current set is complete and valid
+      if (enableAutoJump && text.length === 1 && /^\d$/.test(text)) {
+        // FIXED: Get actual numeric values for validation
+        const team1Value = team1Input === '' ? null : parseInt(team1Input);
+        const team2Value = numValue;
+        
+        // Check if this creates a valid score (both values must be set)
+        if (team1Value !== null && isValidScore(team1Value, team2Value)) {
+          // If there's a next set, jump to it
+          if (nextSetTeam1Ref?.current) {
+            setTimeout(() => {
+              nextSetTeam1Ref.current?.focus();
+            }, 300); // Slightly longer delay to show the valid state
+          } else {
+            // If no next set, dismiss keyboard
+            setTimeout(() => {
+              Keyboard.dismiss();
+            }, 500);
+          }
+        }
+      }
       
       // Call the onTeam2Change callback if provided
       if (onTeam2Change) {
@@ -154,27 +210,33 @@ export function SetScoreInput({
     }
   };
 
-  // Enhanced backspace handling
+  // Enhanced backspace handling with field identification
   const handleTeam1KeyPress = (e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
-    if (e.nativeEvent.key === 'Backspace' && team1Input === '' && onBackspace && team1Ref) {
-      onBackspace(team1Ref);
+    if (e.nativeEvent.key === 'Backspace' && team1Input === '' && onBackspace) {
+      onBackspace(`team1Set${setNumber}`);
     }
   };
 
   const handleTeam2KeyPress = (e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
-    if (e.nativeEvent.key === 'Backspace' && team2Input === '' && onBackspace && team2Ref && team1Ref) {
-      onBackspace(team2Ref, team1Ref);
+    if (e.nativeEvent.key === 'Backspace' && team2Input === '') {
+      if (team1Input !== '') {
+        // If team1 has content, go back to team1
+        team1Ref?.current?.focus();
+      } else if (onBackspace) {
+        // If team1 is empty, go to previous set
+        onBackspace(`team2Set${setNumber}`);
+      }
     }
   };
 
   // Helper to provide score suggestions
   const getSuggestions = () => {
-    const team1Value = team1Input === '' ? 0 : parseInt(team1Input);
-    const team2Value = team2Input === '' ? 0 : parseInt(team2Input);
+    const team1Value = team1Input === '' ? null : parseInt(team1Input);
+    const team2Value = team2Input === '' ? null : parseInt(team2Input);
     
     // Determine which team's score we're trying to match
-    const team1Matches = VALID_SCORES.filter(score => score.team1 === team1Value);
-    const team2Matches = VALID_SCORES.filter(score => score.team2 === team2Value);
+    const team1Matches = team1Value !== null ? VALID_SCORES.filter(score => score.team1 === team1Value) : [];
+    const team2Matches = team2Value !== null ? VALID_SCORES.filter(score => score.team2 === team2Value) : [];
     
     // If team1 score is valid with some team2 score, suggest those
     if (team1Input !== '' && team1Matches.length > 0) {
@@ -184,7 +246,7 @@ export function SetScoreInput({
       };
     }
     
-    // If team2 score is valid with some team1 score, suggest those
+    // If team2 score is valid with some team2 score, suggest those
     if (team2Input !== '' && team2Matches.length > 0) {
       return {
         title: `Valid scores with ${team2Value} for Team 2:`,
@@ -202,14 +264,24 @@ export function SetScoreInput({
   // Get current suggestions based on input
   const { title: suggestionsTitle, suggestions } = getSuggestions();
   
-  // Apply suggested score
+  // Apply suggested score with auto-jump capability
   const applySuggestion = (score: string) => {
     const [team1, team2] = score.split('-').map(s => parseInt(s));
     setTeam1Input(team1.toString());
     setTeam2Input(team2.toString());
+    setTeam1HasBeenSet(true); // Mark both as explicitly set
+    setTeam2HasBeenSet(true);
     onChange({ team1, team2 });
     setShowSuggestions(false);
-    Keyboard.dismiss();
+    
+    // If auto-jump is enabled and there's a next set, jump to it
+    if (enableAutoJump && nextSetTeam1Ref?.current) {
+      setTimeout(() => {
+        nextSetTeam1Ref.current?.focus();
+      }, 300);
+    } else {
+      Keyboard.dismiss();
+    }
   };
 
   // Determine styling based on validation state
@@ -325,6 +397,16 @@ export function SetScoreInput({
               </TouchableOpacity>
             ))}
           </View>
+        </View>
+      )}
+
+      {/* Auto-jump indicator for better UX */}
+      {enableAutoJump && isValid && nextSetTeam1Ref && (
+        <View className="mt-2 flex-row items-center justify-center">
+          <Ionicons name="arrow-forward" size={14} color="#10b981" />
+          <Text className="ml-1 text-xs text-green-600 dark:text-green-400">
+            Auto-jumping to Set {setNumber + 1}
+          </Text>
         </View>
       )}
     </View>

@@ -81,7 +81,7 @@ interface TeamSelectionModalProps {
   loading: boolean;
 }
 
-// **TECHNICAL SPECIFICATION 4: Filter State Architecture**
+// **TECHNICAL SPECIFICATION 4: Enhanced Filter State Architecture**
 interface FilterState {
   searchQuery: string;
   availableSlotsOnly: boolean;
@@ -90,6 +90,177 @@ interface FilterState {
   sortBy: "time" | "skill" | "slots" | "location";
   sortOrder: "asc" | "desc";
 }
+
+// **NEW: Sort Modal Component**
+interface SortModalProps {
+  visible: boolean;
+  onClose: () => void;
+  currentSort: {
+    sortBy: FilterState['sortBy'];
+    sortOrder: FilterState['sortOrder'];
+  };
+  onSortChange: (sortBy: FilterState['sortBy'], sortOrder: FilterState['sortOrder']) => void;
+}
+
+const SortModal: React.FC<SortModalProps> = ({ 
+  visible, 
+  onClose, 
+  currentSort, 
+  onSortChange 
+}) => {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
+  const sortOptions = [
+    {
+      key: 'time' as const,
+      label: 'Match Time',
+      icon: 'time-outline',
+      description: 'Sort by when matches start'
+    },
+    {
+      key: 'skill' as const,
+      label: 'Skill Level',
+      icon: 'stats-chart-outline',
+      description: 'Sort by average player rating'
+    },
+    {
+      key: 'slots' as const,
+      label: 'Available Spots',
+      icon: 'people-outline',
+      description: 'Sort by open positions'
+    },
+    {
+      key: 'location' as const,
+      label: 'Location',
+      icon: 'location-outline',
+      description: 'Sort alphabetically by location'
+    }
+  ];
+
+  const handleSortSelect = (sortBy: FilterState['sortBy']) => {
+    const newOrder = currentSort.sortBy === sortBy && currentSort.sortOrder === 'asc' ? 'desc' : 'asc';
+    onSortChange(sortBy, newOrder);
+    onClose();
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View className="flex-1 bg-black/50 justify-end">
+        <View 
+          className={`rounded-t-3xl ${isDark ? 'bg-card' : 'bg-white'} shadow-lg`}
+          style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.25,
+            shadowRadius: 8,
+            elevation: 8,
+          }}
+        >
+          {/* Header */}
+          <View className="flex-row justify-between items-center p-6 border-b border-border">
+            <View>
+              <Text className="text-xl font-bold">Sort Matches</Text>
+              <Text className="text-sm text-muted-foreground">
+                Choose how to organize the match list
+              </Text>
+            </View>
+            
+            <TouchableOpacity 
+              className="w-10 h-10 rounded-full items-center justify-center bg-gray-100 dark:bg-gray-800"
+              onPress={onClose}
+            >
+              <Ionicons name="close" size={20} color={isDark ? '#ddd' : '#555'} />
+            </TouchableOpacity>
+          </View>
+          
+          {/* Sort Options */}
+          <View className="p-6">
+            {sortOptions.map((option) => {
+              const isActive = currentSort.sortBy === option.key;
+              const isAscending = currentSort.sortOrder === 'asc';
+              
+              return (
+                <TouchableOpacity
+                  key={option.key}
+                  className={`flex-row items-center p-4 mb-3 rounded-xl border ${
+                    isActive 
+                      ? 'bg-primary/10 border-primary' 
+                      : 'bg-background border-border/30'
+                  }`}
+                  onPress={() => handleSortSelect(option.key)}
+                  style={{
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: isActive ? 2 : 1 },
+                    shadowOpacity: isActive ? 0.1 : 0.05,
+                    shadowRadius: isActive ? 3 : 2,
+                    elevation: isActive ? 3 : 1,
+                  }}
+                >
+                  <View className={`w-12 h-12 rounded-full items-center justify-center mr-4 ${
+                    isActive ? 'bg-primary' : 'bg-muted/50'
+                  }`}>
+                    <Ionicons 
+                      name={option.icon as any} 
+                      size={24} 
+                      color={isActive ? '#fff' : '#888'} 
+                    />
+                  </View>
+                  
+                  <View className="flex-1">
+                    <Text className={`font-semibold ${isActive ? 'text-primary' : 'text-foreground'}`}>
+                      {option.label}
+                    </Text>
+                    <Text className="text-sm text-muted-foreground">
+                      {option.description}
+                    </Text>
+                  </View>
+                  
+                  <View className="flex-row items-center">
+                    {isActive && (
+                      <View className="flex-row items-center mr-2">
+                        <Ionicons 
+                          name={isAscending ? "arrow-up" : "arrow-down"} 
+                          size={16} 
+                          color="#2148ce" 
+                        />
+                        <Text className="text-xs text-primary ml-1">
+                          {isAscending ? 'Asc' : 'Desc'}
+                        </Text>
+                      </View>
+                    )}
+                    
+                    <Ionicons 
+                      name={isActive ? "checkmark-circle" : "chevron-forward"} 
+                      size={20} 
+                      color={isActive ? "#2148ce" : "#888"} 
+                    />
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          
+          {/* Footer */}
+          <View className="p-6 border-t border-border">
+            <Button
+              variant="outline"
+              className="w-full"
+              onPress={onClose}
+            >
+              <Text>Close</Text>
+            </Button>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
 
 // **TECHNICAL SPECIFICATION 5: Avatar Component Interface and Implementation**
 interface UserAvatarProps {
@@ -470,6 +641,7 @@ export default function ProductionBrowsePublicMatches() {
   const [teamSelectionMatch, setTeamSelectionMatch] =
     useState<PublicMatch | null>(null);
   const [showTeamModal, setShowTeamModal] = useState(false);
+  const [showSortModal, setShowSortModal] = useState(false);
 
   // **FILTER STATE MANAGEMENT**
   const [filters, setFilters] = useState<FilterState>({
@@ -807,6 +979,11 @@ export default function ProductionBrowsePublicMatches() {
     setTeamSelectionMatch(null);
   }, []);
 
+  // **ENHANCED SORT HANDLERS**
+  const handleSortChange = useCallback((sortBy: FilterState['sortBy'], sortOrder: FilterState['sortOrder']) => {
+    setFilters(prev => ({ ...prev, sortBy, sortOrder }));
+  }, []);
+
   // **COMPONENT LIFECYCLE**
   useEffect(() => {
     if (session?.user?.id) {
@@ -819,137 +996,136 @@ export default function ProductionBrowsePublicMatches() {
     fetchPublicMatches();
   }, [fetchPublicMatches]);
 
-  // **TECHNICAL SPECIFICATION 13: Production UI Components**
-
-  const renderFilterControls = () => (
-    <View className="bg-background border-b border-border p-4">
-      {/* **SEARCH BAR** */}
-      <View className="flex-row items-center bg-muted/30 rounded-lg px-3 py-2 mb-4">
-        <Ionicons name="search" size={20} color="#888" />
-        <TextInput
-          className="flex-1 ml-2 text-foreground"
-          placeholder="Search location, players, description..."
-          value={filters.searchQuery}
-          onChangeText={(text) =>
-            setFilters((prev) => ({ ...prev, searchQuery: text }))
-          }
-          placeholderTextColor="#888"
-        />
-        {filters.searchQuery.length > 0 && (
-          <TouchableOpacity
-            onPress={() => setFilters((prev) => ({ ...prev, searchQuery: "" }))}
-          >
-            <Ionicons name="close-circle" size={20} color="#888" />
-          </TouchableOpacity>
-        )}
+  // **ENHANCED HEADER DESIGN**
+  const renderEnhancedHeader = () => (
+    <View className="bg-background border-b border-border/30">
+      {/* Title Section */}
+      <View className="px-6 pt-4 pb-2">
+        <H1 className="text-2xl font-bold">Public Matches</H1>
+        <Text className="text-muted-foreground mt-1">
+          Discover and join matches in your area
+        </Text>
       </View>
 
-      {/* **QUICK FILTERS** */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        className="mb-4"
-      >
-        <View className="flex-row gap-2">
-          <TouchableOpacity
-            className={`px-3 py-2 rounded-full ${
-              filters.availableSlotsOnly ? "bg-primary" : "bg-muted/30"
-            }`}
-            onPress={() =>
-              setFilters((prev) => ({
-                ...prev,
-                availableSlotsOnly: !prev.availableSlotsOnly,
-              }))
+      {/* Search Section */}
+      <View className="px-6 py-4">
+        <View className="flex-row items-center bg-muted/20 rounded-xl px-4 py-3 border border-border/20">
+          <Ionicons name="search" size={20} color="#888" />
+          <TextInput
+            className="flex-1 ml-3 text-foreground"
+            placeholder="Search location, players, or description..."
+            value={filters.searchQuery}
+            onChangeText={(text) =>
+              setFilters((prev) => ({ ...prev, searchQuery: text }))
             }
-          >
-            <Text
-              className={`text-xs ${
-                filters.availableSlotsOnly
-                  ? "text-primary-foreground"
-                  : "text-foreground"
-              }`}
-            >
-              Available Spots
-            </Text>
-          </TouchableOpacity>
-
-          {["today", "tomorrow", "week"].map((range) => (
+            placeholderTextColor="#888"
+          />
+          {filters.searchQuery.length > 0 && (
             <TouchableOpacity
-              key={range}
-              className={`px-3 py-2 rounded-full ${
-                filters.timeRange === range ? "bg-primary" : "bg-muted/30"
+              onPress={() => setFilters((prev) => ({ ...prev, searchQuery: "" }))}
+              className="p-1"
+            >
+              <Ionicons name="close-circle" size={20} color="#888" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* Filter Controls */}
+      <View className="px-6 pb-4">
+        {/* Quick Filters Row 1 */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          className="mb-3"
+        >
+          <View className="flex-row gap-3">
+            <TouchableOpacity
+              className={`px-4 py-2 rounded-full border ${
+                filters.availableSlotsOnly 
+                  ? "bg-primary border-primary" 
+                  : "bg-background border-border"
               }`}
               onPress={() =>
                 setFilters((prev) => ({
                   ...prev,
-                  timeRange: prev.timeRange === range ? "all" : (range as any),
+                  availableSlotsOnly: !prev.availableSlotsOnly,
                 }))
               }
             >
-              <Text
-                className={`text-xs capitalize ${
-                  filters.timeRange === range
-                    ? "text-primary-foreground"
-                    : "text-foreground"
-                }`}
-              >
-                {range}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </ScrollView>
-
-      {/* **SORT CONTROLS** */}
-      <View className="flex-row justify-between items-center">
-        <Text className="text-sm text-muted-foreground">Sort by:</Text>
-        <View className="flex-row gap-2">
-          {[
-            { key: "time", label: "Time" },
-            { key: "skill", label: "Skill" },
-            { key: "slots", label: "Spots" },
-          ].map(({ key, label }) => (
-            <TouchableOpacity
-              key={key}
-              onPress={() => {
-                if (filters.sortBy === key) {
-                  setFilters((prev) => ({
-                    ...prev,
-                    sortOrder: prev.sortOrder === "asc" ? "desc" : "asc",
-                  }));
-                } else {
-                  setFilters((prev) => ({
-                    ...prev,
-                    sortBy: key as any,
-                    sortOrder: "asc",
-                  }));
-                }
-              }}
-              className={`px-3 py-1 rounded-full flex-row items-center ${
-                filters.sortBy === key ? "bg-primary" : "bg-muted/30"
-              }`}
-            >
-              <Text
-                className={`text-xs ${
-                  filters.sortBy === key
-                    ? "text-primary-foreground"
-                    : "text-foreground"
-                }`}
-              >
-                {label}
-              </Text>
-              {filters.sortBy === key && (
-                <Ionicons
-                  name={
-                    filters.sortOrder === "asc" ? "chevron-up" : "chevron-down"
-                  }
-                  size={12}
-                  color={filters.sortBy === key ? "#fff" : "#333"}
-                  style={{ marginLeft: 2 }}
+              <View className="flex-row items-center">
+                <Ionicons 
+                  name="people-outline" 
+                  size={16} 
+                  color={filters.availableSlotsOnly ? "#fff" : "#888"} 
                 />
-              )}
+                <Text
+                  className={`text-sm ml-2 ${
+                    filters.availableSlotsOnly
+                      ? "text-primary-foreground font-medium"
+                      : "text-foreground"
+                  }`}
+                >
+                  Available Spots
+                </Text>
+              </View>
             </TouchableOpacity>
-          ))}
+
+            {["today", "tomorrow", "week"].map((range) => (
+              <TouchableOpacity
+                key={range}
+                className={`px-4 py-2 rounded-full border ${
+                  filters.timeRange === range 
+                    ? "bg-primary border-primary" 
+                    : "bg-background border-border"
+                }`}
+                onPress={() =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    timeRange: prev.timeRange === range ? "all" : (range as any),
+                  }))
+                }
+              >
+                <View className="flex-row items-center">
+                  <Ionicons 
+                    name="time-outline" 
+                    size={16} 
+                    color={filters.timeRange === range ? "#fff" : "#888"} 
+                  />
+                  <Text
+                    className={`text-sm ml-2 capitalize ${
+                      filters.timeRange === range
+                        ? "text-primary-foreground font-medium"
+                        : "text-foreground"
+                    }`}
+                  >
+                    {range}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+
+        {/* Sort and Results Info */}
+        <View className="flex-row justify-between items-center">
+          <Text className="text-sm text-muted-foreground">
+            {filteredMatches.length} match{filteredMatches.length !== 1 ? 'es' : ''} found
+          </Text>
+          
+          <TouchableOpacity
+            className="flex-row items-center px-4 py-2 rounded-full border border-border bg-background"
+            onPress={() => setShowSortModal(true)}
+          >
+            <Ionicons name="swap-vertical-outline" size={16} color="#888" />
+            <Text className="text-sm ml-2 text-foreground">Sort</Text>
+            <Ionicons 
+              name={filters.sortOrder === 'asc' ? "arrow-up" : "arrow-down"} 
+              size={14} 
+              color="#888" 
+              style={{ marginLeft: 4 }}
+            />
+          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -1225,10 +1401,8 @@ export default function ProductionBrowsePublicMatches() {
   // **MAIN RENDER**
   return (
     <SafeAreaView className="flex-1 bg-background">
-      {/* **HEADER** */}
-
-      {/* **FILTERS** */}
-      {renderFilterControls()}
+      {/* **ENHANCED HEADER** */}
+      {renderEnhancedHeader()}
 
       {/* **CONTENT** */}
       <ScrollView
@@ -1276,6 +1450,14 @@ export default function ProductionBrowsePublicMatches() {
           </View>
         )}
       </ScrollView>
+
+      {/* **SORT MODAL** */}
+      <SortModal
+        visible={showSortModal}
+        onClose={() => setShowSortModal(false)}
+        currentSort={{ sortBy: filters.sortBy, sortOrder: filters.sortOrder }}
+        onSortChange={handleSortChange}
+      />
 
       {/* **TEAM SELECTION MODAL** */}
       <TeamSelectionModal

@@ -14,6 +14,7 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Friend } from '@/types';
 import { useColorScheme } from '@/lib/useColorScheme';
+import { useAuth } from '@/context/supabase-provider';
 
 interface PlayerSelectionModalProps {
   visible: boolean;
@@ -23,6 +24,7 @@ interface PlayerSelectionModalProps {
   onSelectFriends: (selectedIds: string[]) => void;
   loading: boolean;
   maxSelections?: number;
+  isPastMatch?: boolean; // Add this to differentiate between past and future matches
 }
 
 interface UserAvatarProps {
@@ -118,9 +120,11 @@ export function PlayerSelectionModal({
   selectedFriends,
   onSelectFriends,
   loading,
-  maxSelections = 3
+  maxSelections = 3,
+  isPastMatch = false
 }: PlayerSelectionModalProps) {
   const { colorScheme } = useColorScheme();
+  const { session } = useAuth(); // Get current user session
   const isDark = colorScheme === 'dark';
   const [searchQuery, setSearchQuery] = useState('');
   const [localSelectedFriends, setLocalSelectedFriends] = useState<string[]>([]);
@@ -133,8 +137,13 @@ export function PlayerSelectionModal({
     }
   }, [visible, selectedFriends]);
 
-  // Filter friends based on search query
+  // Filter friends based on search query AND exclude current user
   const filteredFriends = friends.filter(friend => {
+    // CRITICAL FIX: Exclude current user from selection
+    if (session?.user?.id && friend.id === session.user.id) {
+      return false;
+    }
+
     const name = friend.full_name || '';
     const email = friend.email || '';
     const query = searchQuery.toLowerCase();
@@ -176,6 +185,33 @@ export function PlayerSelectionModal({
       )
     }
   };
+
+  // Get validation logic based on match type
+  const getSelectionValidation = () => {
+    if (isPastMatch) {
+      // Past matches require exactly 3 friends (4 total with user)
+      return {
+        isValid: localSelectedFriends.length === 3,
+        buttonText: localSelectedFriends.length === 0 
+          ? 'Select 3 Players' 
+          : localSelectedFriends.length === 3
+            ? 'Confirm Selection'
+            : `Select ${3 - localSelectedFriends.length} More`,
+        hintText: 'Select exactly 3 players: 1 for Team 1, 2 for Team 2'
+      };
+    } else {
+      // Future matches allow 0-3 friends (1-4 total with user)
+      return {
+        isValid: true, // Always valid for future matches (can be 0-3)
+        buttonText: localSelectedFriends.length === 0 
+          ? 'Continue Without Players' 
+          : 'Confirm Selection',
+        hintText: 'Select 0-3 players. You can add more later or make it public for others to join.'
+      };
+    }
+  };
+
+  const validation = getSelectionValidation();
 
   const renderFriendItem = (friend: Friend) => {
     const isSelected = localSelectedFriends.includes(friend.id);
@@ -386,6 +422,9 @@ export function PlayerSelectionModal({
               <Text className="text-xl font-bold">Select Players</Text>
               <Text className="text-sm text-muted-foreground">
                 {localSelectedFriends.length}/{maxSelections} selected • {filteredFriends.length} available
+                {isPastMatch && (
+                  <Text className="text-amber-600 dark:text-amber-400"> • Past Match</Text>
+                )}
               </Text>
             </View>
             
@@ -440,9 +479,27 @@ export function PlayerSelectionModal({
                 <>
                   {/* Selection hint */}
                   {localSelectedFriends.length < maxSelections && (
-                    <View className="mb-3 p-2 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
-                      <Text className="text-xs text-blue-700 dark:text-blue-300 text-center">
-                        Select {maxSelections === 3 ? '3 players: 1 for Team 1, 2 for Team 2' : `${maxSelections} players`}
+                    <View className={`mb-3 p-3 rounded-lg border-l-4 ${
+                      isPastMatch 
+                        ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-500' 
+                        : 'bg-blue-50 dark:bg-blue-950/30 border-primary'
+                    }`}>
+                      <View className="flex-row items-center mb-1">
+                        <Ionicons 
+                          name={isPastMatch ? "warning-outline" : "information-circle-outline"} 
+                          size={16} 
+                          color={isPastMatch ? "#d97706" : "#2148ce"} 
+                        />
+                        <Text className={`ml-2 text-sm font-medium ${
+                          isPastMatch ? 'text-amber-700 dark:text-amber-300' : 'text-blue-700 dark:text-blue-300'
+                        }`}>
+                          {isPastMatch ? 'Past Match Requirements' : 'Future Match'}
+                        </Text>
+                      </View>
+                      <Text className={`text-xs ${
+                        isPastMatch ? 'text-amber-600 dark:text-amber-400' : 'text-blue-600 dark:text-blue-400'
+                      }`}>
+                        {validation.hintText}
                       </Text>
                     </View>
                   )}
@@ -480,16 +537,11 @@ export function PlayerSelectionModal({
                 variant="default"
                 className="flex-1"
                 onPress={handleConfirm}
-                disabled={localSelectedFriends.length === 0 || (maxSelections === 3 && localSelectedFriends.length !== 3)}
+                disabled={!validation.isValid}
               >
                 <Ionicons name="checkmark-circle" size={16} style={{ marginRight: 4 }} />
                 <Text className="text-primary-foreground">
-                  {localSelectedFriends.length === 0 
-                    ? 'Select Players' 
-                    : maxSelections === 3 && localSelectedFriends.length !== 3
-                      ? `Select ${3 - localSelectedFriends.length} More`
-                      : 'Confirm Selection'
-                  }
+                  {validation.buttonText}
                 </Text>
               </Button>
             </View>
