@@ -185,7 +185,7 @@ interface ScoreEntryState {
   suggestedWinner: number | null;
 }
 
-// ENHANCEMENT: Player Avatar Component with Advanced Features
+// ENHANCEMENT: Player Avatar Component with Advanced Features AND PROFILE NAVIGATION
 interface PlayerAvatarProps {
   player: PlayerDetail | null;
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
@@ -195,6 +195,8 @@ interface PlayerAvatarProps {
   showBorder?: boolean;
   showStatus?: boolean;
   statusType?: 'creator' | 'you' | 'winner' | 'empty';
+  onPress?: () => void;
+  disabled?: boolean;
 }
 
 function PlayerAvatar({ 
@@ -205,7 +207,9 @@ function PlayerAvatar({
   teamColor = 'primary',
   showBorder = true,
   showStatus = false,
-  statusType = 'empty'
+  statusType = 'empty',
+  onPress,
+  disabled = false
 }: PlayerAvatarProps) {
   const [imageLoadError, setImageLoadError] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
@@ -229,7 +233,7 @@ function PlayerAvatar({
   const config = sizeConfig[size];
   const bgColor = player ? colorConfig[teamColor] : 'bg-gray-300 dark:bg-gray-700';
   
-  // Enhanced border for current user
+  // Enhanced border for current user with clickable styling
   const borderClass = showBorder 
     ? isCurrentUser 
       ? 'border-2 border-yellow-400 shadow-lg' 
@@ -250,61 +254,108 @@ function PlayerAvatar({
 
   const shouldShowImage = player?.avatar_url && !imageLoadError;
 
+  // Avatar content component
+  const AvatarContent = () => (
+    <View className={`${config.container} rounded-full ${bgColor} items-center justify-center ${borderClass} overflow-hidden relative`}>
+      {shouldShowImage ? (
+        <>
+          <Image
+            source={{ uri: player.avatar_url }}
+            style={config.style}
+            resizeMode="cover"
+            onLoad={() => setImageLoading(false)}
+            onError={() => {
+              setImageLoadError(true);
+              setImageLoading(false);
+            }}
+            onLoadStart={() => setImageLoading(true)}
+          />
+          {/* Loading state overlay */}
+          {imageLoading && (
+            <View 
+              className={`absolute inset-0 ${bgColor} items-center justify-center`}
+              style={{
+                backgroundColor: teamColor === 'primary' ? 'rgba(26, 126, 189, 0.8)' :
+                                 teamColor === 'secondary' ? 'rgba(99, 102, 241, 0.8)' :
+                                 teamColor === 'success' ? 'rgba(34, 197, 94, 0.8)' :
+                                 teamColor === 'warning' ? 'rgba(245, 158, 11, 0.8)' :
+                                 teamColor === 'yellow' ? 'rgba(234, 179, 8, 0.8)' :
+                                 'rgba(156, 163, 175, 0.8)'
+              }}
+            >
+              <Text className={`${config.text} font-bold text-white`}>
+                {getInitial()}
+              </Text>
+            </View>
+          )}
+        </>
+      ) : (
+        <Text className={`${config.text} font-bold text-white`}>
+          {getInitial()}
+        </Text>
+      )}
+
+      {/* Status indicators */}
+      {isCurrentUser && (
+        <View className="absolute -bottom-1 -right-1 bg-yellow-500 rounded-full w-4 h-4 items-center justify-center border border-white">
+          <Ionicons name="person" size={8} color="white" />
+        </View>
+      )}
+      
+      {isCreator && !isCurrentUser && (
+        <View className="absolute -bottom-1 -right-1 bg-purple-500 rounded-full w-4 h-4 items-center justify-center border border-white">
+          <Ionicons name="star" size={8} color="white" />
+        </View>
+      )}
+
+      {/* Clickable indicator for non-current users */}
+      {player && !isCurrentUser && onPress && !disabled && (
+        <View className="absolute -top-1 -right-1 bg-blue-500 rounded-full w-5 h-5 items-center justify-center border-2 border-white shadow-sm">
+          <Ionicons name="eye" size={10} color="white" />
+        </View>
+      )}
+
+      {/* Pulsing animation for clickable avatars */}
+      {player && !isCurrentUser && onPress && !disabled && (
+        <View className="absolute inset-0 rounded-full border-2 border-blue-400 opacity-30 animate-pulse" />
+      )}
+    </View>
+  );
+
   return (
     <View className="items-center">
-      {/* Avatar Container */}
-      <View className={`${config.container} rounded-full ${bgColor} items-center justify-center ${borderClass} overflow-hidden relative`}>
-        {shouldShowImage ? (
-          <>
-            <Image
-              source={{ uri: player.avatar_url }}
-              style={config.style}
-              resizeMode="cover"
-              onLoad={() => setImageLoading(false)}
-              onError={() => {
-                setImageLoadError(true);
-                setImageLoading(false);
-              }}
-              onLoadStart={() => setImageLoading(true)}
-            />
-            {/* Loading state overlay */}
-            {imageLoading && (
-              <View 
-                className={`absolute inset-0 ${bgColor} items-center justify-center`}
-                style={{
-                  backgroundColor: teamColor === 'primary' ? 'rgba(26, 126, 189, 0.8)' :
-                                   teamColor === 'secondary' ? 'rgba(99, 102, 241, 0.8)' :
-                                   teamColor === 'success' ? 'rgba(34, 197, 94, 0.8)' :
-                                   teamColor === 'warning' ? 'rgba(245, 158, 11, 0.8)' :
-                                   teamColor === 'yellow' ? 'rgba(234, 179, 8, 0.8)' :
-                                   'rgba(156, 163, 175, 0.8)'
-                }}
-              >
-                <Text className={`${config.text} font-bold text-white`}>
-                  {getInitial()}
-                </Text>
-              </View>
-            )}
-          </>
-        ) : (
-          <Text className={`${config.text} font-bold text-white`}>
-            {getInitial()}
-          </Text>
-        )}
-
-        {/* Status indicators */}
-        {isCurrentUser && (
-          <View className="absolute -bottom-1 -right-1 bg-yellow-500 rounded-full w-4 h-4 items-center justify-center border border-white">
-            <Ionicons name="person" size={8} color="white" />
-          </View>
-        )}
-        
-        {isCreator && !isCurrentUser && (
-          <View className="absolute -bottom-1 -right-1 bg-purple-500 rounded-full w-4 h-4 items-center justify-center border border-white">
-            <Ionicons name="star" size={8} color="white" />
-          </View>
-        )}
-      </View>
+      {/* Avatar Container - Clickable if player exists and not disabled */}
+      {player && onPress && !disabled && !isCurrentUser ? (
+        <TouchableOpacity
+          onPress={onPress}
+          activeOpacity={0.7}
+          className="transform"
+          style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={`View ${player.full_name || player.email || 'player'}'s profile`}
+          accessibilityHint="Tap to view this player's profile and statistics"
+        >
+          <AvatarContent />
+        </TouchableOpacity>
+      ) : (
+        <View
+          accessibilityLabel={
+            !player 
+              ? 'Empty player slot' 
+              : isCurrentUser 
+                ? 'Your avatar' 
+                : `${player.full_name || player.email || 'Player'}'s avatar`
+          }
+        >
+          <AvatarContent />
+        </View>
+      )}
 
       {/* Status badges */}
       {showStatus && statusType && (
@@ -329,6 +380,17 @@ function PlayerAvatar({
               <Text className="text-xs font-medium text-gray-600 dark:text-gray-400">Open</Text>
             </View>
           )}
+        </View>
+      )}
+
+      {/* Click hint for non-current users */}
+      {player && !isCurrentUser && onPress && !disabled && (
+        <View className="mt-1">
+          <View className="bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800/50">
+            <Text className="text-xs font-medium text-blue-700 dark:text-blue-300">
+              👆 View Profile
+            </Text>
+          </View>
         </View>
       )}
     </View>

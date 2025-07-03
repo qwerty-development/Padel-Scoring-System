@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity, Image } from "react-native";
+import { View, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity, Image, Alert, Vibration } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, router } from 'expo-router';
 
@@ -9,6 +9,7 @@ import { H1, H2, H3 } from "@/components/ui/typography";
 import { SafeAreaView } from '@/components/safe-area-view';
 import { useAuth } from "@/context/supabase-provider";
 import { supabase } from '@/config/supabase';
+import { NotificationHelpers } from '@/services/notificationHelpers';
 
 interface FriendProfile {
   id: string;
@@ -71,6 +72,15 @@ interface MatchHistory {
     setsLost: number;
   };
   recentForm: ('W' | 'L')[];
+}
+
+// NEW: Friendship status enum
+enum FriendshipStatus {
+  NOT_FRIENDS = 'not_friends',
+  FRIENDS = 'friends',
+  REQUEST_SENT = 'request_sent',
+  REQUEST_RECEIVED = 'request_received',
+  LOADING = 'loading'
 }
 
 /**
@@ -262,7 +272,7 @@ function ProfileAvatar({ profile, size = 'xl' }: ProfileAvatarProps) {
 }
 
 export default function FriendProfileScreen() {
-  const { friendId } = useLocalSearchParams();
+  const { userId, playerName } = useLocalSearchParams(); // Updated to handle both userId and friendId
   const [profile, setProfile] = useState<FriendProfile | null>(null);
   const [matchHistory, setMatchHistory] = useState<MatchHistory>({
     partnerMatches: [],
@@ -289,19 +299,249 @@ export default function FriendProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [matchesLoading, setMatchesLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  
+  // NEW: Friendship status state
+  const [friendshipStatus, setFriendshipStatus] = useState<FriendshipStatus>(FriendshipStatus.LOADING);
+  const [sendingRequest, setSendingRequest] = useState(false);
+  
   const { session, profile: currentUserProfile } = useAuth();
 
-  useEffect(() => {
-    if (friendId) {
-      fetchFriendProfile(friendId as string);
-    }
-  }, [friendId]);
+  // Use userId or friendId (for backward compatibility)
+  const profileId = userId || useLocalSearchParams().friendId;
 
   useEffect(() => {
-    if (friendId && session?.user?.id) {
-      fetchMatchHistory(friendId as string, session.user.id);
+    if (profileId) {
+      fetchFriendProfile(profileId as string);
+      checkFriendshipStatus(profileId as string);
     }
-  }, [friendId, session]);
+  }, [profileId]);
+
+  useEffect(() => {
+    if (profileId && session?.user?.id) {
+      fetchMatchHistory(profileId as string, session.user.id);
+    }
+  }, [profileId, session]);
+
+  // NEW: Check friendship status
+  const checkFriendshipStatus = async (targetUserId: string) => {
+    try {
+      if (!session?.user?.id || !currentUserProfile) {
+        setFriendshipStatus(FriendshipStatus.NOT_FRIENDS);
+        return;
+      }
+
+      const currentUserId = session.user.id;
+      
+      // Check if already friends
+      const friendsList = currentUserProfile.friends_list || [];
+      if (friendsList.includes(targetUserId)) {
+        setFriendshipStatus(FriendshipStatus.FRIENDS);
+        return;
+      }
+
+      // Check for pending friend requests
+      const { data: sentRequest, error: sentError } = await supabase
+        .from('friend_requests')
+        .select('*')
+        .eq('from_user_id', currentUserId)
+        .eq('to_user_id', targetUserId)
+        .eq('status', 'pending')
+        .single();
+
+      if (sentError && sentError.code !== 'PGRST116') {
+        throw sentError;
+      }
+
+      if (sentRequest) {
+        setFriendshipStatus(FriendshipStatus.REQUEST_SENT);
+        return;
+      }
+
+      // Check for received friend requests
+      const { data: receivedRequest, error: receivedError } = await supabase
+        .from('friend_requests')
+        .select('*')
+        .eq('from_user_id', targetUserId)
+        .eq('to_user_id', currentUserId)
+        .eq('status', 'pending')
+        .single();
+
+      if (receivedError && receivedError.code !== 'PGRST116') {
+        throw receivedError;
+      }
+
+      if (receivedRequest) {
+        setFriendshipStatus(FriendshipStatus.REQUEST_RECEIVED);
+        return;
+      }
+
+      // Not friends and no pending requests
+      setFriendshipStatus(FriendshipStatus.NOT_FRIENDS);
+    } catch (error) {
+      console.error('Error checking friendship status:', error);
+      setFriendshipStatus(FriendshipStatus.NOT_FRIENDS);
+    }
+  };
+
+  // NEW: Send friend request
+  const sendFriendRequest = async () => {
+    if (!session?.user?.id || !profile || !currentUserProfile) {
+      Alert.alert('Error', 'Unable to send friend request. Please try again.');
+      return;
+    }
+
+    try {
+      setSendingRequest(true);
+      Vibration.vibrate(50);
+
+      // Insert friend request
+      const { error } = await supabase
+        .from('friend_requests')
+        .insert({
+          from_user_id: session.user.id,
+          to_user_id: profile.id,
+          status: 'pending'
+        });
+
+      if (error) {
+        if (error.code === '23505') {
+          Alert.alert('Friend Request Already Sent', 'You have already sent a friend request to this user.');
+          return;
+        }
+        throw error;
+      }
+
+      // Update local state
+      setFriendshipStatus(FriendshipStatus.REQUEST_SENT);
+      
+      // Send notification
+      if (currentUserProfile.full_name) {
+        await NotificationHelpers.sendFriendRequestNotification(
+          profile.id,
+          currentUserProfile.full_name
+        );
+      }
+
+      // Success feedback
+      Vibration.vibrate([100, 50, 100]);
+      Alert.alert(
+        'Friend Request Sent!',
+        `Your friend request has been sent to ${profile.full_name || profile.email}.`,
+        [{ text: 'OK' }]
+      );
+
+    } catch (error) {
+      console.error('Error sending friend request:', error);
+      Vibration.vibrate(300);
+      Alert.alert('Error', 'Failed to send friend request. Please try again.');
+    } finally {
+      setSendingRequest(false);
+    }
+  };
+
+  // NEW: Cancel friend request
+  const cancelFriendRequest = async () => {
+    if (!session?.user?.id || !profile) return;
+
+    try {
+      setSendingRequest(true);
+      Vibration.vibrate(50);
+
+      const { error } = await supabase
+        .from('friend_requests')
+        .delete()
+        .eq('from_user_id', session.user.id)
+        .eq('to_user_id', profile.id)
+        .eq('status', 'pending');
+
+      if (error) throw error;
+
+      setFriendshipStatus(FriendshipStatus.NOT_FRIENDS);
+      
+      Vibration.vibrate(100);
+      Alert.alert('Friend Request Cancelled', 'Your friend request has been cancelled.');
+
+    } catch (error) {
+      console.error('Error cancelling friend request:', error);
+      Alert.alert('Error', 'Failed to cancel friend request. Please try again.');
+    } finally {
+      setSendingRequest(false);
+    }
+  };
+
+  // NEW: Accept friend request
+  const acceptFriendRequest = async () => {
+    if (!session?.user?.id || !profile || !currentUserProfile) return;
+
+    try {
+      setSendingRequest(true);
+      Vibration.vibrate(50);
+
+      // Update friend request status
+      const { error: updateError } = await supabase
+        .from('friend_requests')
+        .update({ status: 'accepted' })
+        .eq('from_user_id', profile.id)
+        .eq('to_user_id', session.user.id)
+        .eq('status', 'pending');
+
+      if (updateError) throw updateError;
+
+      // Add to both users' friends lists
+      const currentUserFriends = currentUserProfile.friends_list || [];
+      const { error: updateCurrentUserError } = await supabase
+        .from('profiles')
+        .update({
+          friends_list: [...currentUserFriends, profile.id]
+        })
+        .eq('id', session.user.id);
+
+      if (updateCurrentUserError) throw updateCurrentUserError;
+
+      // Get target user's friends list and update it
+      const { data: targetUserProfile, error: targetUserError } = await supabase
+        .from('profiles')
+        .select('friends_list')
+        .eq('id', profile.id)
+        .single();
+
+      if (targetUserError) throw targetUserError;
+
+      const targetUserFriends = targetUserProfile.friends_list || [];
+      const { error: updateTargetUserError } = await supabase
+        .from('profiles')
+        .update({
+          friends_list: [...targetUserFriends, session.user.id]
+        })
+        .eq('id', profile.id);
+
+      if (updateTargetUserError) throw updateTargetUserError;
+
+      // Update local state
+      setFriendshipStatus(FriendshipStatus.FRIENDS);
+      
+      // Send notification
+      if (currentUserProfile.full_name) {
+        await NotificationHelpers.sendFriendAcceptedNotification(
+          profile.id,
+          currentUserProfile.full_name
+        );
+      }
+
+      Vibration.vibrate([100, 50, 100]);
+      Alert.alert(
+        'Friend Request Accepted!',
+        `You and ${profile.full_name || profile.email} are now friends!`,
+        [{ text: 'OK' }]
+      );
+
+    } catch (error) {
+      console.error('Error accepting friend request:', error);
+      Alert.alert('Error', 'Failed to accept friend request. Please try again.');
+    } finally {
+      setSendingRequest(false);
+    }
+  };
 
   const fetchFriendProfile = async (id: string) => {
     try {
@@ -463,10 +703,11 @@ export default function FriendProfileScreen() {
 
   const onRefresh = () => {
     setRefreshing(true);
-    if (friendId) {
-      fetchFriendProfile(friendId as string);
+    if (profileId) {
+      fetchFriendProfile(profileId as string);
+      checkFriendshipStatus(profileId as string);
       if (session?.user?.id) {
-        fetchMatchHistory(friendId as string, session.user.id);
+        fetchMatchHistory(profileId as string, session.user.id);
       }
     }
   };
@@ -495,6 +736,151 @@ export default function FriendProfileScreen() {
       </View>
     </View>
   );
+
+  // NEW: Render friendship action button
+  const renderFriendshipButton = () => {
+    if (friendshipStatus === FriendshipStatus.LOADING) {
+      return (
+        <Button variant="outline" disabled className="w-full mb-4">
+          <ActivityIndicator size="small" color="#2148ce" />
+          <Text className="ml-2">Loading...</Text>
+        </Button>
+      );
+    }
+
+    switch (friendshipStatus) {
+      case FriendshipStatus.NOT_FRIENDS:
+        return (
+          <Button
+            className="w-full mb-4"
+            size="default"
+            variant="default"
+            onPress={sendFriendRequest}
+            disabled={sendingRequest}
+            style={{
+              shadowColor: "#2148ce",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.2,
+              shadowRadius: 4,
+              elevation: 4,
+            }}
+          >
+            {sendingRequest ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <Ionicons name="person-add" size={20} color="#ffffff" style={{ marginRight: 8 }} />
+            )}
+            <Text className="text-white font-medium">
+              {sendingRequest ? 'Sending...' : 'Add Friend'}
+            </Text>
+          </Button>
+        );
+
+      case FriendshipStatus.REQUEST_SENT:
+        return (
+          <View className="mb-4">
+            <Button
+              variant="outline"
+              className="w-full mb-2"
+              disabled
+              style={{
+                borderColor: '#059669',
+                backgroundColor: '#dcfce7',
+              }}
+            >
+              <Ionicons name="checkmark-circle" size={20} color="#059669" style={{ marginRight: 8 }} />
+              <Text style={{ color: '#059669' }} className="font-medium">Friend Request Sent</Text>
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onPress={() => {
+                Alert.alert(
+                  'Cancel Friend Request',
+                  'Are you sure you want to cancel your friend request?',
+                  [
+                    { text: 'No', style: 'cancel' },
+                    { text: 'Yes', onPress: cancelFriendRequest }
+                  ]
+                );
+              }}
+              disabled={sendingRequest}
+              className="w-full"
+            >
+              <Text className="text-white text-sm">Cancel Request</Text>
+            </Button>
+          </View>
+        );
+
+      case FriendshipStatus.REQUEST_RECEIVED:
+        return (
+          <View className="mb-4">
+            <View className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg mb-3 border border-blue-200 dark:border-blue-800">
+              <View className="flex-row items-center">
+                <Ionicons name="mail" size={20} color="#2563eb" style={{ marginRight: 8 }} />
+                <Text className="font-medium text-blue-800 dark:text-blue-300">
+                  Friend Request Received
+                </Text>
+              </View>
+              <Text className="text-sm text-blue-700 dark:text-blue-400 mt-1">
+                {profile?.full_name || profile?.email} sent you a friend request
+              </Text>
+            </View>
+            <View className="flex-row gap-3">
+              <Button
+                variant="default"
+                className="flex-1"
+                onPress={acceptFriendRequest}
+                disabled={sendingRequest}
+              >
+                {sendingRequest ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Ionicons name="checkmark" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+                )}
+                <Text className="text-white font-medium">Accept</Text>
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onPress={() => {
+                  Alert.alert(
+                    'Decline Friend Request',
+                    'Are you sure you want to decline this friend request?',
+                    [
+                      { text: 'No', style: 'cancel' },
+                      { text: 'Yes', onPress: () => {
+                        // Handle decline logic here
+                        setFriendshipStatus(FriendshipStatus.NOT_FRIENDS);
+                      }}
+                    ]
+                  );
+                }}
+              >
+                <Text>Decline</Text>
+              </Button>
+            </View>
+          </View>
+        );
+
+      case FriendshipStatus.FRIENDS:
+        return (
+          <View className="mb-4">
+            <View className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg mb-3 border border-green-200 dark:border-green-800">
+              <View className="flex-row items-center justify-center">
+                <Ionicons name="people" size={20} color="#059669" style={{ marginRight: 8 }} />
+                <Text className="font-medium text-green-800 dark:text-green-300">
+                  You are friends
+                </Text>
+              </View>
+            </View>
+          </View>
+        );
+
+      default:
+        return null;
+    }
+  };
 
   /**
    * Enhanced Head-to-Head Statistics Card with Visual Comparison
@@ -724,8 +1110,6 @@ export default function FriendProfileScreen() {
           elevation: 1,
         }}
       >
-
-        
         <View className="flex-row justify-center">
           {matchHistory.recentForm.map((result, index) => (
             <View
@@ -826,7 +1210,7 @@ export default function FriendProfileScreen() {
                 onPress={() => {
                   router.push({
                     pathname: '/(protected)/(screens)/match-history',
-                    params: { friendId: friendId as string }
+                    params: { friendId: profileId as string }
                   });
                 }}
               >
@@ -847,7 +1231,7 @@ export default function FriendProfileScreen() {
   const renderMatchItem = (match: MatchData) => {
     const currentUserId = session?.user?.id;
     const isUserInTeam1 = match.player1_id === currentUserId || match.player2_id === currentUserId;
-    const isFriendInTeam1 = match.player1_id === friendId || match.player2_id === friendId;
+    const isFriendInTeam1 = match.player1_id === profileId || match.player2_id === profileId;
     const arePartners = (isUserInTeam1 && isFriendInTeam1) || (!isUserInTeam1 && !isFriendInTeam1);
     
     // Format match date
@@ -1060,8 +1444,11 @@ export default function FriendProfileScreen() {
           {/* Rating comparison */}
           {renderComparisonCard()}
           
-          {/* Match History */}
-          {renderMatchHistoryCard()}
+          {/* NEW: Friendship Status and Action Button */}
+          {renderFriendshipButton()}
+          
+          {/* Match History - Only show if friends */}
+          {friendshipStatus === FriendshipStatus.FRIENDS && renderMatchHistoryCard()}
           
           {/* Personal Info Section */}
           <H3 className="mb-4">Personal Information</H3>
@@ -1075,30 +1462,32 @@ export default function FriendProfileScreen() {
           {renderInfoCard("Court Position", profile.court_playing_side, "tennisball-outline")}
           {renderInfoCard("Preferred Area", profile.preferred_area, "location-outline")}
 
-          {/* Enhanced Actions Section */}
-          <View className="mt-8 mb-4">
-            <Button
-              className="w-full mb-4"
-              size="default"
-              variant="default"
-              onPress={() => {
-                router.push({
-                  pathname: '/(protected)/(screens)/create-match',
-                  params: { friendId: profile.id }
-                });
-              }}
-              style={{
-                shadowColor: "#2148ce",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.2,
-                shadowRadius: 4,
-                elevation: 4,
-              }}
-            >
-              <Ionicons name="tennisball-outline" size={20} style={{ marginRight: 8 }} />
-              <Text>Play Together</Text>
-            </Button>
-          </View>
+          {/* Enhanced Actions Section - Only show if friends */}
+          {friendshipStatus === FriendshipStatus.FRIENDS && (
+            <View className="mt-8 mb-4">
+              <Button
+                className="w-full mb-4"
+                size="default"
+                variant="default"
+                onPress={() => {
+                  router.push({
+                    pathname: '/(protected)/(screens)/create-match',
+                    params: { friendId: profile.id }
+                  });
+                }}
+                style={{
+                  shadowColor: "#2148ce",
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.2,
+                  shadowRadius: 4,
+                  elevation: 4,
+                }}
+              >
+                <Ionicons name="tennisball-outline" size={20} style={{ marginRight: 8 }} />
+                <Text>Play Together</Text>
+              </Button>
+            </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
