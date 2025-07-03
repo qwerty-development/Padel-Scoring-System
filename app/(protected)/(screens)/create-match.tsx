@@ -1751,10 +1751,11 @@ export default function CreateMatchWizard() {
 
         if (matchError) throw matchError;
 
-        await NotificationHelpers.sendMatchConfirmationNotifications(
-          playerIds,
-          matchResult.id
-        );
+await NotificationHelpers.sendMatchConfirmationNotifications(
+  playerIds,
+  matchResult.id,
+  session!.user.id  
+);
 
         console.log(
           "✅ Match created successfully. PostgreSQL cron job will process ratings after validation period."

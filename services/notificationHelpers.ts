@@ -95,13 +95,23 @@ export const NotificationHelpers = {
   /**
    * Trigger match confirmation required notifications
    * Called when a match ends and needs score confirmation
+   * FIXED: Now excludes the match creator (player_1) who auto-confirms
    */
   async sendMatchConfirmationNotifications(
     playerIds: string[],
-    matchId: string
+    matchId: string,
+    createdById: string
   ) {
     try {
-      for (const playerId of playerIds) {
+      // Filter out the creator (who auto-confirms) and null values
+      const playersNeedingConfirmation = playerIds.filter(id => id && id !== createdById);
+      
+      if (playersNeedingConfirmation.length === 0) {
+        console.log('No players need confirmation notifications (creator auto-confirms)');
+        return;
+      }
+
+      for (const playerId of playersNeedingConfirmation) {
         await supabase.rpc('trigger_notification', {
           p_user_id: playerId,
           p_type: 'match_confirmation_required',
