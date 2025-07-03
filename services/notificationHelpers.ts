@@ -272,5 +272,49 @@ export const NotificationHelpers = {
     } catch (error) {
       console.error('Failed to schedule match reminder:', error);
     }
+  },
+
+  /**
+   * Trigger match edited notification
+   * Called when an admin/creator edits a match
+   */
+  async sendMatchEditedNotification(
+    playerIds: string[],
+    editedById: string,
+    editedByName: string,
+    matchId: string,
+    editedFields: string[]
+  ) {
+    try {
+      // Filter out the editor (they don't need to know they edited it)
+      const otherPlayerIds = playerIds.filter(id => id && id !== editedById);
+      
+      if (otherPlayerIds.length === 0) {
+        console.log('No other players to notify about match edit');
+        return;
+      }
+
+      // Create a readable summary of what was edited
+      const fieldsText = editedFields.length > 0 
+        ? `Updated: ${editedFields.join(', ')}`
+        : 'Match details updated';
+
+      for (const playerId of otherPlayerIds) {
+        await supabase.rpc('trigger_notification', {
+          p_user_id: playerId,
+          p_type: 'match_edited',
+          p_title: 'Match Updated',
+          p_body: `${editedByName} edited your match. ${fieldsText}`,
+          p_data: { 
+            type: 'match_edited',
+            match_id: matchId,
+            edited_by: editedById,
+            edited_fields: editedFields
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Failed to send match edited notification:', error);
+    }
   }
 };

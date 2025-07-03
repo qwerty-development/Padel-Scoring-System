@@ -16,10 +16,15 @@ Notifications.setNotificationHandler({
 });
 
 export interface NotificationData {
-  type: NotificationType;
+  type: 'friend_request_received' | 'friend_request_accepted' | 
+        'match_invitation' | 'match_confirmation_required' | 
+        'match_score_confirmed' | 'match_score_disputed' | 
+        'match_cancelled' | 'match_starting_soon' | 
+        'public_match_joined' | 'match_edited';  // NEW: Add match_edited type
   matchId?: string;
   userId?: string;
-  requestId?: string;
+  editedFields?: string[];  // NEW: For match edited notifications
+  editedBy?: string;        // NEW: For match edited notifications
   [key: string]: any;
 }
 
@@ -187,48 +192,49 @@ export class NotificationService {
   /**
    * Handle navigation based on notification type
    */
-  private handleNotificationNavigation(data: NotificationData): void {
-    // Import router dynamically to avoid circular dependencies
-    const { router } = require('expo-router');
+private handleNotificationNavigation(data: NotificationData): void {
+  // Import router dynamically to avoid circular dependencies
+  const { router } = require('expo-router');
 
-    switch (data.type) {
-      case 'friend_request_received':
-      case 'friend_request_accepted':
-        router.push('/(protected)/(tabs)/friends');
-        break;
-        
-      case 'match_invitation':
-      case 'match_confirmation_required':
-      case 'match_score_confirmed':
-      case 'match_score_disputed':
-      case 'match_cancelled':
-        if (data.matchId) {
-          router.push({
-            pathname: '/(protected)/(screens)/match-details',
-            params: { id: data.matchId }
-          });
-        }
-        break;
-        
-      case 'match_starting_soon':
-        if (data.matchId) {
-          router.push({
-            pathname: '/(protected)/(screens)/match-details',
-            params: { id: data.matchId }
-          });
-        }
-        break;
-        
-      case 'public_match_joined':
-        if (data.matchId) {
-          router.push({
-            pathname: '/(protected)/(screens)/match-details',
-            params: { id: data.matchId }
-          });
-        }
-        break;
-    }
+  switch (data.type) {
+    case 'friend_request_received':
+    case 'friend_request_accepted':
+      router.push('/(protected)/(tabs)/friends');
+      break;
+      
+    case 'match_invitation':
+    case 'match_confirmation_required':
+    case 'match_score_confirmed':
+    case 'match_score_disputed':
+    case 'match_cancelled':
+    case 'match_edited':  // NEW: Handle match edited notifications
+      if (data.matchId) {
+        router.push({
+          pathname: '/(protected)/(screens)/match-details',
+          params: { id: data.matchId }
+        });
+      }
+      break;
+      
+    case 'match_starting_soon':
+      if (data.matchId) {
+        router.push({
+          pathname: '/(protected)/(screens)/match-details',
+          params: { id: data.matchId }
+        });
+      }
+      break;
+      
+    case 'public_match_joined':
+      if (data.matchId) {
+        router.push({
+          pathname: '/(protected)/(screens)/match-details',
+          params: { id: data.matchId }
+        });
+      }
+      break;
   }
+}
 
   /**
    * Send local notification (for testing or immediate notifications)

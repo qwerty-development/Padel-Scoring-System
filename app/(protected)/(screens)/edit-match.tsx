@@ -392,126 +392,206 @@ export default function EditMatchScreen() {
     return team1Sets > team2Sets ? 1 : team2Sets > team1Sets ? 2 : 0;
   };
   
-  const saveChanges = async () => {
-    const validation = validateChanges();
+const saveChanges = async () => {
+  try {
+    setSaving(true);
     
+    if (!match || !session?.user?.id) {
+      Alert.alert('Error', 'Unable to save changes');
+      return;
+    }
+    
+    const validation = validateForm();
     if (!validation.isValid) {
       Alert.alert('Validation Error', validation.errors.join('\n'));
       return;
     }
     
-    if (!hasChanges()) {
-      Alert.alert('No Changes', 'No changes were made to the match');
+    // Track what fields were edited for the notification
+    const editedFields: string[] = [];
+    
+    // Prepare update data
+    const updateData: any = {};
+    
+    // Check for date/time changes
+    if (editPermissions?.canEditDateTime) {
+      const newStartTime = new Date(
+        matchDate.getFullYear(),
+        matchDate.getMonth(),
+        matchDate.getDate(),
+        matchStartTime.getHours(),
+        matchStartTime.getMinutes()
+      ).toISOString();
+      
+      const newEndTime = new Date(
+        matchDate.getFullYear(),
+        matchDate.getMonth(),
+        matchDate.getDate(),
+        matchEndTime.getHours(),
+        matchEndTime.getMinutes()
+      ).toISOString();
+      
+      if (newStartTime !== match.start_time) {
+        updateData.start_time = newStartTime;
+        editedFields.push('Start time');
+      }
+      
+      if (newEndTime !== match.end_time) {
+        updateData.end_time = newEndTime;
+        editedFields.push('End time');
+      }
+    }
+    
+    // Check for location changes
+    if (editPermissions?.canEditLocation) {
+      if (region !== (match.region || '')) {
+        updateData.region = region.trim() || null;
+        editedFields.push('Location');
+      }
+      
+      if (court !== (match.court || '')) {
+        updateData.court = court.trim() || null;
+        editedFields.push('Court');
+      }
+    }
+    
+    // Check for visibility changes
+    if (editPermissions?.canEditVisibility) {
+      if (isPublicMatch !== match.is_public) {
+        updateData.is_public = isPublicMatch;
+        editedFields.push(isPublicMatch ? 'Made public' : 'Made private');
+      }
+    }
+    
+    // Check for description changes
+    if (editPermissions?.canEditDescription) {
+      if (matchDescription !== (match.description || '')) {
+        updateData.description = matchDescription.trim() || null;
+        editedFields.push('Description');
+      }
+    }
+    
+    // Check for player changes
+    if (editPermissions?.canEditPlayers) {
+      const currentPlayerIds = [
+        match.player2_id,
+        match.player3_id,
+        match.player4_id
+      ].filter(Boolean);
+      
+      const newPlayerIds = selectedFriends.slice(0, 3).filter(Boolean);
+      
+      if (JSON.stringify(currentPlayerIds) !== JSON.stringify(newPlayerIds)) {
+        updateData.player2_id = newPlayerIds[0] || null;
+        updateData.player3_id = newPlayerIds[1] || null;
+        updateData.player4_id = newPlayerIds[2] || null;
+        editedFields.push('Players');
+      }
+    }
+    
+    // Check for score changes
+    if (editPermissions?.canEditScores) {
+      const scoreUpdates: any = {};
+      
+      if (set1Score.team1 !== (match.team1_score_set1 || 0)) {
+        scoreUpdates.team1_score_set1 = set1Score.team1;
+        editedFields.push('Scores');
+      }
+      
+      if (set1Score.team2 !== (match.team2_score_set1 || 0)) {
+        scoreUpdates.team2_score_set1 = set1Score.team2;
+        editedFields.push('Scores');
+      }
+      
+      if (set2Score.team1 !== (match.team1_score_set2 || 0)) {
+        scoreUpdates.team1_score_set2 = set2Score.team1;
+        editedFields.push('Scores');
+      }
+      
+      if (set2Score.team2 !== (match.team2_score_set2 || 0)) {
+        scoreUpdates.team2_score_set2 = set2Score.team2;
+        editedFields.push('Scores');
+      }
+      
+      if (showSet3) {
+        if (set3Score.team1 !== (match.team1_score_set3 || 0)) {
+          scoreUpdates.team1_score_set3 = set3Score.team1;
+          editedFields.push('Scores');
+        }
+        
+        if (set3Score.team2 !== (match.team2_score_set3 || 0)) {
+          scoreUpdates.team2_score_set3 = set3Score.team2;
+          editedFields.push('Scores');
+        }
+      }
+      
+      Object.assign(updateData, scoreUpdates);
+    }
+    
+    // Only proceed if there are actual changes
+    if (Object.keys(updateData).length === 0) {
+      Alert.alert('No Changes', 'No changes detected to save');
       return;
     }
     
-    try {
-      setSaving(true);
-      
-      const updateData: any = {};
-      
-      // Add date/time updates if allowed
-      if (editPermissions!.canEditDateTime) {
-        const combinedStartTime = new Date(
-          matchDate.getFullYear(),
-          matchDate.getMonth(),
-          matchDate.getDate(),
-          matchStartTime.getHours(),
-          matchStartTime.getMinutes()
-        );
-        
-        const combinedEndTime = new Date(
-          matchDate.getFullYear(),
-          matchDate.getMonth(),
-          matchDate.getDate(),
-          matchEndTime.getHours(),
-          matchEndTime.getMinutes()
-        );
-        
-        updateData.start_time = combinedStartTime.toISOString();
-        updateData.end_time = combinedEndTime.toISOString();
-      }
-      
-      // Add player updates if allowed
-      if (editPermissions!.canEditPlayers) {
-        const playerIds = [session?.user?.id, ...selectedFriends];
-        updateData.player2_id = playerIds[1] || null;
-        updateData.player3_id = playerIds[2] || null;
-        updateData.player4_id = playerIds[3] || null;
-        
-        // Update status based on player count
-        if (playerIds.filter(Boolean).length === 4) {
-          updateData.status = MatchStatus.PENDING;
-        } else if (match?.is_public) {
-          updateData.status = MatchStatus.RECRUITING;
-        }
-      }
-      
-      // Add location updates if allowed
-      if (editPermissions!.canEditLocation) {
-        updateData.region = region.trim() || null;
-        updateData.court = court.trim() || null;
-      }
-      
-      // Add visibility updates if allowed
-      if (editPermissions!.canEditVisibility) {
-        updateData.is_public = isPublicMatch;
-      }
-      
-      // Add description updates if allowed
-      if (editPermissions!.canEditDescription) {
-        updateData.description = matchDescription.trim() || null;
-      }
-      
-      // Add score updates if allowed
-      if (editPermissions!.canEditScores && isSet1Valid && isSet2Valid) {
-        updateData.team1_score_set1 = set1Score.team1;
-        updateData.team2_score_set1 = set1Score.team2;
-        updateData.team1_score_set2 = set2Score.team1;
-        updateData.team2_score_set2 = set2Score.team2;
-        
-        if (showSet3 && isSet3Valid) {
-          updateData.team1_score_set3 = set3Score.team1;
-          updateData.team2_score_set3 = set3Score.team2;
-        } else {
-          updateData.team1_score_set3 = null;
-          updateData.team2_score_set3 = null;
-        }
-        
-        updateData.winner_team = determineWinnerTeam();
-        updateData.status = MatchStatus.COMPLETED;
-        updateData.completed_at = new Date().toISOString();
-      }
-      
-      // Perform update
-      const { error } = await supabase
-        .from('matches')
-        .update(updateData)
-        .eq('id', matchId);
-      
-      if (error) throw error;
-      
-      Vibration.vibrate([100, 50, 100]);
-      
-      Alert.alert(
-        'Success',
-        'Match updated successfully!',
-        [
-          {
-            text: 'OK',
-            onPress: () => router.back()
-          }
-        ]
-      );
-      
-    } catch (error) {
-      console.error('Error updating match:', error);
-      Vibration.vibrate(300);
-      Alert.alert('Error', 'Failed to update match. Please try again.');
-    } finally {
-      setSaving(false);
+    // Remove duplicates from edited fields
+    const uniqueEditedFields = [...new Set(editedFields)];
+    
+    // Add updated_by field to track who made the edit
+    updateData.updated_by = session.user.id;
+    
+    // Update the match in the database
+    const { error } = await supabase
+      .from('matches')
+      .update(updateData)
+      .eq('id', match.id);
+    
+    if (error) {
+      throw error;
     }
-  };
+    
+    // Send notification to other players about the match edit
+    if (profile?.full_name && uniqueEditedFields.length > 0) {
+      const allPlayerIds = [
+        match.player1_id,
+        match.player2_id,
+        match.player3_id,
+        match.player4_id
+      ].filter(Boolean);
+      
+      // Import the notification helper
+      const { NotificationHelpers } = await import('@/services/notificationHelpers');
+      
+      await NotificationHelpers.sendMatchEditedNotification(
+        allPlayerIds,
+        session.user.id,
+        profile.full_name,
+        match.id,
+        uniqueEditedFields
+      );
+    }
+    
+    Vibration.vibrate([100, 50, 100]);
+    
+    Alert.alert(
+      'Match Updated',
+      `Match has been updated successfully.${uniqueEditedFields.length > 0 ? `\n\nUpdated: ${uniqueEditedFields.join(', ')}` : ''}`,
+      [
+        {
+          text: 'OK',
+          onPress: () => router.back()
+        }
+      ]
+    );
+    
+  } catch (error) {
+    console.error('Error updating match:', error);
+    Vibration.vibrate(300);
+    Alert.alert('Error', 'Failed to update match. Please try again.');
+  } finally {
+    setSaving(false);
+  }
+};
   
   // Loading state
   if (loading) {
