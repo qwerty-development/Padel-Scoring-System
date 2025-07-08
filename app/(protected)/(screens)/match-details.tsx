@@ -185,6 +185,30 @@ interface ScoreEntryState {
   suggestedWinner: number | null;
 }
 
+
+const handleViewProfile = (playerId: string, playerName?: string) => {
+  try {
+
+    
+    // Navigate to friend profile page with player ID
+    router.push({
+      pathname: '/(protected)/(screens)/friend-profile',
+      params: { 
+        friendId: playerId,
+        // Optional: pass name for better UX during loading
+        friendName: playerName || ''
+      }
+    });
+  } catch (error) {
+    console.error('❌ Navigation error:', error);
+    Alert.alert(
+      'Navigation Error',
+      'Unable to view this profile at the moment. Please try again.',
+      [{ text: 'OK' }]
+    );
+  }
+};
+
 // ENHANCEMENT: Player Avatar Component with Advanced Features AND PROFILE NAVIGATION
 interface PlayerAvatarProps {
   player: PlayerDetail | null;
@@ -197,6 +221,7 @@ interface PlayerAvatarProps {
   statusType?: 'creator' | 'you' | 'winner' | 'empty';
   onPress?: () => void;
   disabled?: boolean;
+  enableProfileNavigation?: boolean; // NEW: Control profile navigation
 }
 
 function PlayerAvatar({ 
@@ -209,10 +234,10 @@ function PlayerAvatar({
   showStatus = false,
   statusType = 'empty',
   onPress,
-  disabled = false
+  disabled = false,
+  enableProfileNavigation = true, // NEW: Default true for profile navigation
 }: PlayerAvatarProps) {
   const [imageLoadError, setImageLoadError] = useState(false);
-  const [imageLoading, setImageLoading] = useState(true);
 
   const sizeConfig = {
     xs: { container: 'w-6 h-6', text: 'text-xs', style: { width: 24, height: 24, borderRadius: 12 } },
@@ -252,48 +277,54 @@ function PlayerAvatar({
     return '?';
   };
 
+  // Get display name
+  const getDisplayName = () => {
+    if (!player) return 'Open';
+    if (player.full_name?.trim()) {
+      return player.full_name.split(' ')[0]; // First name only
+    }
+    if (player.email) {
+      return player.email.split('@')[0];
+    }
+    return 'Player';
+  };
+
+  // Only show image if avatar_url exists and hasn't failed to load
   const shouldShowImage = player?.avatar_url && !imageLoadError;
+  // Only show initials if no avatar_url exists (not during loading)
+  const shouldShowInitials = !player?.avatar_url;
+
+  // NEW: Enhanced profile navigation handler
+  const handleAvatarPress = () => {
+    if (onPress) {
+      onPress();
+    } else if (enableProfileNavigation && player && !isCurrentUser && !disabled) {
+      // Navigate to profile with haptic feedback
+      Vibration.vibrate(50);
+      handleViewProfile(player.id, player.full_name || player.email);
+    }
+  };
+
+  // Determine if avatar should be clickable
+  const isClickable = (onPress || (enableProfileNavigation && player && !isCurrentUser)) && !disabled;
 
   // Avatar content component
   const AvatarContent = () => (
     <View className={`${config.container} rounded-full ${bgColor} items-center justify-center ${borderClass} overflow-hidden relative`}>
       {shouldShowImage ? (
-        <>
-          <Image
-            source={{ uri: player.avatar_url }}
-            style={config.style}
-            resizeMode="cover"
-            onLoad={() => setImageLoading(false)}
-            onError={() => {
-              setImageLoadError(true);
-              setImageLoading(false);
-            }}
-            onLoadStart={() => setImageLoading(true)}
-          />
-          {/* Loading state overlay */}
-          {imageLoading && (
-            <View 
-              className={`absolute inset-0 ${bgColor} items-center justify-center`}
-              style={{
-                backgroundColor: teamColor === 'primary' ? 'rgba(26, 126, 189, 0.8)' :
-                                 teamColor === 'secondary' ? 'rgba(99, 102, 241, 0.8)' :
-                                 teamColor === 'success' ? 'rgba(34, 197, 94, 0.8)' :
-                                 teamColor === 'warning' ? 'rgba(245, 158, 11, 0.8)' :
-                                 teamColor === 'yellow' ? 'rgba(234, 179, 8, 0.8)' :
-                                 'rgba(156, 163, 175, 0.8)'
-              }}
-            >
-              <Text className={`${config.text} font-bold text-white`}>
-                {getInitial()}
-              </Text>
-            </View>
-          )}
-        </>
-      ) : (
+        <Image
+          source={{ uri: player.avatar_url }}
+          style={config.style}
+          resizeMode="cover"
+          onError={() => {
+            setImageLoadError(true);
+          }}
+        />
+      ) : shouldShowInitials ? (
         <Text className={`${config.text} font-bold text-white`}>
           {getInitial()}
         </Text>
-      )}
+      ) : null}
 
       {/* Status indicators */}
       {isCurrentUser && (
@@ -307,27 +338,14 @@ function PlayerAvatar({
           <Ionicons name="star" size={8} color="white" />
         </View>
       )}
-
-      {/* Clickable indicator for non-current users */}
-      {player && !isCurrentUser && onPress && !disabled && (
-        <View className="absolute -top-1 -right-1 bg-blue-500 rounded-full w-5 h-5 items-center justify-center border-2 border-white shadow-sm">
-          <Ionicons name="eye" size={10} color="white" />
-        </View>
-      )}
-
-      {/* Pulsing animation for clickable avatars */}
-      {player && !isCurrentUser && onPress && !disabled && (
-        <View className="absolute inset-0 rounded-full border-2 border-blue-400 opacity-30 animate-pulse" />
-      )}
     </View>
   );
 
   return (
     <View className="items-center">
-      {/* Avatar Container - Clickable if player exists and not disabled */}
-      {player && onPress && !disabled && !isCurrentUser ? (
+      {isClickable ? (
         <TouchableOpacity
-          onPress={onPress}
+          onPress={handleAvatarPress}
           activeOpacity={0.7}
           className="transform"
           style={{
@@ -338,7 +356,7 @@ function PlayerAvatar({
             elevation: 3,
           }}
           accessibilityRole="button"
-          accessibilityLabel={`View ${player.full_name || player.email || 'player'}'s profile`}
+          accessibilityLabel={`View ${player?.full_name || player?.email || 'player'}'s profile`}
           accessibilityHint="Tap to view this player's profile and statistics"
         >
           <AvatarContent />
@@ -356,6 +374,44 @@ function PlayerAvatar({
           <AvatarContent />
         </View>
       )}
+
+      {/* Player Name */}
+      <View className="mt-2 items-center">
+        {isClickable ? (
+          <TouchableOpacity onPress={handleAvatarPress} activeOpacity={0.7}>
+            <Text 
+              className={`text-xs font-medium text-center ${
+                isClickable ? 'text-blue-600 dark:text-blue-400' : 'text-foreground'
+              }`} 
+              numberOfLines={1}
+            >
+              {getDisplayName()}
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <Text 
+            className="text-xs font-medium text-center text-foreground" 
+            numberOfLines={1}
+          >
+            {getDisplayName()}
+          </Text>
+        )}
+        
+        {/* Rating display */}
+        {player?.glicko_rating && (
+          <Text className={`text-xs font-bold ${
+            teamColor === 'primary' ? 'text-primary' : 
+            teamColor === 'secondary' ? 'text-indigo-600' : 'text-gray-600'
+          }`}>
+            {Math.round(parseFloat(player.glicko_rating))}
+          </Text>
+        )}
+        
+        {/* Current user indicator */}
+        {isCurrentUser && (
+          <Text className="text-xs text-yellow-600 font-bold">You</Text>
+        )}
+      </View>
 
       {/* Status badges */}
       {showStatus && statusType && (
@@ -382,21 +438,9 @@ function PlayerAvatar({
           )}
         </View>
       )}
-
-      {/* Click hint for non-current users */}
-      {player && !isCurrentUser && onPress && !disabled && (
-        <View className="mt-1">
-          <View className="bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800/50">
-            <Text className="text-xs font-medium text-blue-700 dark:text-blue-300">
-              👆 View Profile
-            </Text>
-          </View>
-        </View>
-      )}
     </View>
   );
 }
-
 export default function EnhancedMatchDetails() {
   const { matchId, mode } = useLocalSearchParams();
   const { colorScheme } = useColorScheme();
@@ -1795,7 +1839,7 @@ export default function EnhancedMatchDetails() {
     );
   };
 
-  // NEW: UNIFIED AND CONDENSED MATCH OVERVIEW COMPONENT
+  // NEW: UNIFIED AND CONDENSED MATCH OVERVIEW COMPONENT WITH ENHANCED NAVIGATION
   const renderCondensedMatchOverview = () => {
     const userId = session?.user?.id;
     const isUserPlayer = (playerId: string | undefined) => playerId === userId;
@@ -1852,9 +1896,9 @@ export default function EnhancedMatchDetails() {
           </View>
         )}
 
-        {/* CONDENSED Court Visualization WITH INLINE DETAILS */}
+        {/* ENHANCED: CONDENSED Court Visualization WITH CLICKABLE PLAYER NAVIGATION */}
         <View className="aspect-[4/3] w-full bg-gradient-to-b from-green-100 to-green-200 dark:from-green-900/40 dark:to-green-800/40 rounded-lg border-2 border-green-400 dark:border-green-700 overflow-hidden">
-          {/* Team 1 Side - CONDENSED */}
+          {/* Team 1 Side - ENHANCED WITH CLICKABLE ELEMENTS */}
           <View className="h-[45%] border-b border-dashed border-white dark:border-gray-400 relative">
             <View className="absolute top-1 left-1 right-1 flex-row justify-between items-center">
               <View className="bg-primary/90 px-2 py-0.5 rounded-full">
@@ -1869,7 +1913,7 @@ export default function EnhancedMatchDetails() {
             </View>
 
             <View className="flex-1 flex-row px-2 pb-1">
-              {/* Player 1 - CONDENSED WITH INLINE RATING */}
+              {/* Player 1 - ENHANCED WITH CLICKABLE AVATAR AND NAME */}
               <View className="flex-1 items-center justify-center">
                 <PlayerAvatar
                   player={match!.player1}
@@ -1878,26 +1922,11 @@ export default function EnhancedMatchDetails() {
                   isCreator={matchState.isCreator}
                   teamColor="primary"
                   showBorder={true}
+                  enableProfileNavigation={true}
                 />
-                <View className="bg-white dark:bg-gray-800 rounded p-1 mt-1 min-w-[80px] items-center">
-                  <Text className="text-xs font-medium text-center" numberOfLines={1}>
-                    {match!.player1?.full_name?.split(' ')[0] ||
-                      match!.player1?.email?.split("@")[0] ||
-                      "Player 1"}
-                  </Text>
-                  {/* INLINE RATING */}
-                  {match!.player1?.glicko_rating && (
-                    <Text className="text-xs text-primary font-bold">
-                      {Math.round(parseFloat(match!.player1.glicko_rating))}
-                    </Text>
-                  )}
-                  {isUserPlayer(match!.player1?.id) && (
-                    <Text className="text-xs text-yellow-600 font-bold">You</Text>
-                  )}
-                </View>
+             
               </View>
 
-              {/* Player 2 - CONDENSED WITH INLINE RATING */}
               <View className="flex-1 items-center justify-center">
                 <PlayerAvatar
                   player={match!.player2}
@@ -1905,23 +1934,9 @@ export default function EnhancedMatchDetails() {
                   isCurrentUser={isUserPlayer(match!.player2?.id)}
                   teamColor="primary"
                   showBorder={true}
+                  enableProfileNavigation={true}
                 />
-                <View className="bg-white dark:bg-gray-800 rounded p-1 mt-1 min-w-[80px] items-center">
-                  <Text className="text-xs font-medium text-center" numberOfLines={1}>
-                    {match!.player2?.full_name?.split(' ')[0] ||
-                      match!.player2?.email?.split("@")[0] ||
-                      "Open"}
-                  </Text>
-                  {/* INLINE RATING */}
-                  {match!.player2?.glicko_rating && (
-                    <Text className="text-xs text-primary font-bold">
-                      {Math.round(parseFloat(match!.player2.glicko_rating))}
-                    </Text>
-                  )}
-                  {isUserPlayer(match!.player2?.id) && (
-                    <Text className="text-xs text-yellow-600 font-bold">You</Text>
-                  )}
-                </View>
+              
               </View>
             </View>
           </View>
@@ -1932,60 +1947,30 @@ export default function EnhancedMatchDetails() {
             <View className="absolute w-3 h-3 bg-gray-400 dark:bg-gray-500 rounded-full"></View>
           </View>
 
-          {/* Team 2 Side - CONDENSED */}
+
           <View className="h-[45%] relative">
             <View className="flex-1 flex-row px-2 pt-1">
-              {/* Player 3 - CONDENSED WITH INLINE RATING */}
               <View className="flex-1 items-center justify-center">
-                <View className="bg-white dark:bg-gray-800 rounded p-1 mb-1 min-w-[80px] items-center">
-                  <Text className="text-xs font-medium text-center" numberOfLines={1}>
-                    {match!.player3?.full_name?.split(' ')[0] ||
-                      match!.player3?.email?.split("@")[0] ||
-                      "Open"}
-                  </Text>
-                  {/* INLINE RATING */}
-                  {match!.player3?.glicko_rating && (
-                    <Text className="text-xs text-indigo-600 font-bold">
-                      {Math.round(parseFloat(match!.player3.glicko_rating))}
-                    </Text>
-                  )}
-                  {isUserPlayer(match!.player3?.id) && (
-                    <Text className="text-xs text-yellow-600 font-bold">You</Text>
-                  )}
-                </View>
+             
                 <PlayerAvatar
                   player={match!.player3}
                   size="md"
                   isCurrentUser={isUserPlayer(match!.player3?.id)}
                   teamColor="secondary"
                   showBorder={true}
+                  enableProfileNavigation={true}
                 />
               </View>
 
-              {/* Player 4 - CONDENSED WITH INLINE RATING */}
               <View className="flex-1 items-center justify-center">
-                <View className="bg-white dark:bg-gray-800 rounded p-1 mb-1 min-w-[80px] items-center">
-                  <Text className="text-xs font-medium text-center" numberOfLines={1}>
-                    {match!.player4?.full_name?.split(' ')[0] ||
-                      match!.player4?.email?.split("@")[0] ||
-                      "Open"}
-                  </Text>
-                  {/* INLINE RATING */}
-                  {match!.player4?.glicko_rating && (
-                    <Text className="text-xs text-indigo-600 font-bold">
-                      {Math.round(parseFloat(match!.player4.glicko_rating))}
-                    </Text>
-                  )}
-                  {isUserPlayer(match!.player4?.id) && (
-                    <Text className="text-xs text-yellow-600 font-bold">You</Text>
-                  )}
-                </View>
+           
                 <PlayerAvatar
                   player={match!.player4}
                   size="md"
                   isCurrentUser={isUserPlayer(match!.player4?.id)}
                   teamColor="secondary"
                   showBorder={true}
+                  enableProfileNavigation={true}
                 />
               </View>
             </View>
@@ -3082,4 +3067,4 @@ export default function EnhancedMatchDetails() {
       {renderReportingModal()}
     </SafeAreaView>
   );
-} 
+}

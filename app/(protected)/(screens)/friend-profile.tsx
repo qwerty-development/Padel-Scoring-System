@@ -863,19 +863,7 @@ export default function FriendProfileScreen() {
           </View>
         );
 
-      case FriendshipStatus.FRIENDS:
-        return (
-          <View className="mb-4">
-            <View className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg mb-3 border border-green-200 dark:border-green-800">
-              <View className="flex-row items-center justify-center">
-                <Ionicons name="people" size={20} color="#059669" style={{ marginRight: 8 }} />
-                <Text className="font-medium text-green-800 dark:text-green-300">
-                  You are friends
-                </Text>
-              </View>
-            </View>
-          </View>
-        );
+      
 
       default:
         return null;
