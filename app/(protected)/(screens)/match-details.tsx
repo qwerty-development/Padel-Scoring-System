@@ -2589,27 +2589,29 @@ export default function EnhancedMatchDetails() {
               </View>
             ) : (
               <>
-                <View className="bg-amber-50 dark:bg-amber-900/30 p-4 rounded-lg mb-6">
-                  <View className="flex-row items-start">
-                    <Ionicons 
-                      name="information-circle" 
-                      size={20} 
-                      color="#d97706" 
-                      style={{ marginTop: 2, marginRight: 8 }} 
-                    />
-                    <View className="flex-1">
-                      <Text className="text-amber-800 dark:text-amber-300 font-medium mb-1">
-                        Important Information
-                      </Text>
-                      <Text className="text-amber-700 dark:text-amber-400 text-sm leading-5">
-                        • Reports are permanent and cannot be withdrawn{'\n'}
-                        • {reportingInfo.disputeThreshold} reports will mark this match as disputed{'\n'}
-                        • False reports may result in account penalties{'\n'}
-                        • Only report genuine scoring errors or issues
-                      </Text>
-                    </View>
-                  </View>
-                </View>
+         <View className="bg-amber-50 dark:bg-amber-900/30 p-4 rounded-lg mb-6">
+  <View className="flex-row items-start">
+    <Ionicons 
+      name="information-circle" 
+      size={20} 
+      color="#d97706" 
+      style={{ marginTop: 2, marginRight: 8 }} 
+    />
+    <View className="flex-1">
+      <Text className="text-amber-800 dark:text-amber-300 font-medium mb-1">
+        Important Information
+      </Text>
+      <Text className="text-amber-700 dark:text-amber-400 text-sm leading-5">
+        • Reports are permanent and cannot be withdrawn{'\n'}
+        • {reportingInfo.disputeThreshold} reports will mark this match as disputed{'\n'}
+        • <Text className="font-semibold">If {reportingInfo.disputeThreshold} players report, the match will be cancelled and won't count toward ratings</Text>{'\n'}
+        • Players should try to resolve scoring disagreements among themselves first{'\n'}
+        • False reports may result in account penalties{'\n'}
+        • Only report genuine scoring errors or issues
+      </Text>
+    </View>
+  </View>
+</View>
   
                 <Text className="font-medium mb-3">Select Reason</Text>
                 <View className="mb-6">
