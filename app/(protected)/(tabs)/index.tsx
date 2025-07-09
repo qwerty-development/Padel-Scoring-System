@@ -5,21 +5,17 @@ import {
   ActivityIndicator,
   RefreshControl,
   TouchableOpacity,
-  Dimensions,
-  Alert,
   Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { H1, H2, H3 } from "@/components/ui/typography";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/supabase-provider";
 import { supabase } from "@/config/supabase";
 import { SafeAreaView } from "@/components/safe-area-view";
-import { useNotifications } from '@/context/notification-provider';
 
-// Enhanced match status enumeration with comprehensive coverage
+// Enhanced match status enumeration
 export enum MatchStatus {
   PENDING = 1,
   NEEDS_CONFIRMATION = 2,
@@ -29,8 +25,8 @@ export enum MatchStatus {
   RECRUITING = 6,
 }
 
-// Comprehensive data interfaces for type safety
-interface EnhancedMatchData {
+// Complete match data interface
+interface MatchData {
   id: string;
   player1_id: string;
   player2_id: string | null;
@@ -52,30 +48,32 @@ interface EnhancedMatchData {
   winner_team: number | null;
   is_public: boolean;
   description: string | null;
+  validation_status?: string;
+  all_confirmed?: boolean;
+  confirmation_status?: string;
+  rating_applied?: boolean;
   player1?: any;
   player2?: any;
   player3?: any;
   player4?: any;
+  
   // Computed properties
-  needsScores?: boolean;
   isTeam1?: boolean;
   userWon?: boolean;
   setScores?: string;
   isCompleted?: boolean;
   isFuture?: boolean;
   isPast?: boolean;
+  needsScores?: boolean;
+  needsConfirmation?: boolean;
+  isDisputed?: boolean;
+  teammate?: any;
+  opponents?: any[];
+  team1Sets?: number;
+  team2Sets?: number;
 }
 
-interface FriendActivity {
-  id: string;
-  full_name: string | null;
-  email: string;
-  glicko_rating: string | null;
-  avatar_url: string | null;
-  recentMatch?: any;
-  ratingChange?: number;
-}
-
+// Enhanced user stats
 interface UserStats {
   totalMatches: number;
   wins: number;
@@ -87,249 +85,146 @@ interface UserStats {
   recentPerformance: "improving" | "declining" | "stable";
   ratingChange7Days: number;
   ratingChange30Days: number;
+  publicMatches: number;
+  privateMatches: number;
+  needsConfirmation: number;
+  disputed: number;
 }
 
-/**
- * Advanced Universal Avatar Component for Dashboard Integration
- * Implements sophisticated image loading with comprehensive fallback mechanisms
- * Optimized for multiple avatar sizes and context-aware styling
- */
-interface DashboardAvatarProps {
+// Friend activity interface
+interface FriendActivity {
+  id: string;
+  full_name: string | null;
+  email: string;
+  glicko_rating: string | null;
+  avatar_url: string | null;
+  recentMatch?: any;
+  ratingChange?: number;
+  lastActive?: string;
+}
+
+// Enhanced Avatar Component with error handling and loading states
+interface AvatarProps {
   user: {
     id?: string;
     full_name: string | null;
     email: string;
     avatar_url: string | null;
   } | null;
-  size?: "xs" | "sm" | "md" | "lg" | "xl";
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   showBorder?: boolean;
   borderColor?: string;
   showShadow?: boolean;
+  isCurrentUser?: boolean;
 }
 
-function DashboardAvatar({
-  user,
-  size = "md",
+const Avatar: React.FC<AvatarProps> = ({ 
+  user, 
+  size = 'md', 
   showBorder = false,
-  borderColor = "#2148ce",
+  borderColor = "#3B82F6",
   showShadow = false,
-}: DashboardAvatarProps) {
-  // State management for complex image loading lifecycle
-  const [imageLoadError, setImageLoadError] = useState<boolean>(false);
-  const [imageLoading, setImageLoading] = useState<boolean>(true);
+  isCurrentUser = false
+}) => {
+  const [imageError, setImageError] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
 
-  // Comprehensive size configuration matrix for dashboard contexts
-  const avatarSizeConfiguration = {
-    xs: {
-      containerClass: "w-6 h-6",
-      imageStyle: { width: 24, height: 24, borderRadius: 12 },
-      textClass: "text-xs",
-      borderWidth: 1,
-    },
-    sm: {
-      containerClass: "w-8 h-8",
-      imageStyle: { width: 32, height: 32, borderRadius: 16 },
-      textClass: "text-sm",
-      borderWidth: 2,
-    },
-    md: {
-      containerClass: "w-12 h-12",
-      imageStyle: { width: 48, height: 48, borderRadius: 24 },
-      textClass: "text-lg",
-      borderWidth: 2,
-    },
-    lg: {
-      containerClass: "w-16 h-16",
-      imageStyle: { width: 64, height: 64, borderRadius: 32 },
-      textClass: "text-xl",
-      borderWidth: 3,
-    },
-    xl: {
-      containerClass: "w-20 h-20",
-      imageStyle: { width: 80, height: 80, borderRadius: 40 },
-      textClass: "text-2xl",
-      borderWidth: 4,
-    },
-  };
+  const sizeConfig = {
+    xs: { width: 24, height: 24, borderRadius: 12, textClass: 'text-xs', borderWidth: 1 },
+    sm: { width: 32, height: 32, borderRadius: 16, textClass: 'text-sm', borderWidth: 2 },
+    md: { width: 40, height: 40, borderRadius: 20, textClass: 'text-base', borderWidth: 2 },
+    lg: { width: 48, height: 48, borderRadius: 24, textClass: 'text-lg', borderWidth: 3 },
+    xl: { width: 64, height: 64, borderRadius: 32, textClass: 'text-xl', borderWidth: 4 }
+  }[size];
 
-  const sizeConfig = avatarSizeConfiguration[size];
-
-  /**
-   * Advanced Fallback Character Extraction Algorithm
-   * Implements comprehensive null-safety validation and character extraction
-   * Priority: full_name -> email -> default fallback
-   */
-  const extractUserInitial = (): string => {
-    if (!user) return "?";
-
-    // Primary extraction path: full_name with comprehensive validation
-    if (user.full_name?.trim()) {
-      const sanitizedFullName = user.full_name.trim();
-      if (sanitizedFullName.length > 0) {
-        return sanitizedFullName.charAt(0).toUpperCase();
-      }
-    }
-
-    // Secondary extraction path: email with validation
-    if (user.email?.trim()) {
-      const sanitizedEmail = user.email.trim();
-      if (sanitizedEmail.length > 0) {
-        return sanitizedEmail.charAt(0).toUpperCase();
-      }
-    }
-
-    // Tertiary fallback: default character
-    return "?";
-  };
-
-  /**
-   * Avatar Image Availability Validation Logic
-   * Implements comprehensive URL validation and error state verification
-   */
-  const shouldDisplayAvatarImage = (): boolean => {
-    if (!user?.avatar_url) return false;
-
-    const trimmedUrl = user.avatar_url.trim();
-    return Boolean(
-      trimmedUrl && // URL exists and not empty
-        trimmedUrl.length > 0 && // URL has content
-        !imageLoadError // No previous loading failures
-    );
-  };
-
-  /**
-   * Dynamic Container Styling with Context-Aware Enhancements
-   */
-  const getContainerStyle = () => {
-    let baseStyle = {
-      shadowColor: showShadow ? "#000" : "transparent",
-      shadowOffset: showShadow
-        ? { width: 0, height: 2 }
-        : { width: 0, height: 0 },
-      shadowOpacity: showShadow ? 0.1 : 0,
-      shadowRadius: showShadow ? 4 : 0,
-      elevation: showShadow ? 3 : 0,
-    };
-
-    if (showBorder) {
-      baseStyle = {
-        ...baseStyle,
-        borderWidth: sizeConfig.borderWidth,
-        borderColor: borderColor,
-      };
-    }
-
-    return baseStyle;
-  };
-
-  /**
-   * Image Loading Success Event Handler
-   * Manages state transition from loading to successfully loaded
-   */
-  const handleImageLoadSuccess = (): void => {
-    setImageLoading(false);
-  };
-
-  /**
-   * Image Loading Failure Event Handler
-   * Implements comprehensive error logging with contextual information
-   */
-  const handleImageLoadFailure = (): void => {
-    console.warn(`Dashboard avatar load failure:`, {
-      userId: user?.id,
-      userName: user?.full_name || user?.email,
-      avatarUrl: user?.avatar_url,
-      timestamp: new Date().toISOString(),
-      component: "DashboardAvatar",
-      context: "EnhancedHomeDashboard",
-    });
-
-    setImageLoadError(true);
-    setImageLoading(false);
-  };
-
-  /**
-   * Image Loading Initiation Event Handler
-   * Manages state transition from initial to loading state
-   */
-  const handleImageLoadStart = (): void => {
-    setImageLoading(true);
-  };
-
-  // Avatar Image Rendering Branch with Enhanced Visual Effects
-  if (shouldDisplayAvatarImage()) {
+  if (!user) {
     return (
-      <View
-        className={`${sizeConfig.containerClass} rounded-full bg-primary items-center justify-center overflow-hidden`}
-        style={getContainerStyle()}
+      <View 
+        className="bg-gray-300 dark:bg-gray-600 items-center justify-center" 
+        style={{
+          width: sizeConfig.width,
+          height: sizeConfig.height,
+          borderRadius: sizeConfig.borderRadius,
+          borderWidth: showBorder ? sizeConfig.borderWidth : 0,
+          borderColor: showBorder ? borderColor : 'transparent'
+        }}
       >
-        <Image
-          source={{ uri: user!.avatar_url! }}
-          style={sizeConfig.imageStyle}
-          resizeMode="cover"
-          onLoad={handleImageLoadSuccess}
-          onError={handleImageLoadFailure}
-          onLoadStart={handleImageLoadStart}
-        />
+        <Text className={`${sizeConfig.textClass} text-gray-600 dark:text-gray-300 font-bold`}>?</Text>
+      </View>
+    );
+  }
 
-        {/* Advanced Loading State Overlay with Synchronized Styling */}
+  const getInitial = () => {
+    if (user.full_name?.trim()) {
+      return user.full_name.charAt(0).toUpperCase();
+    }
+    return user.email.charAt(0).toUpperCase();
+  };
+
+  const containerStyle = {
+    width: sizeConfig.width,
+    height: sizeConfig.height,
+    borderRadius: sizeConfig.borderRadius,
+    borderWidth: showBorder ? sizeConfig.borderWidth : 0,
+    borderColor: showBorder ? borderColor : 'transparent',
+    shadowColor: showShadow ? "#000" : "transparent",
+    shadowOffset: showShadow ? { width: 0, height: 2 } : { width: 0, height: 0 },
+    shadowOpacity: showShadow ? 0.1 : 0,
+    shadowRadius: showShadow ? 4 : 0,
+    elevation: showShadow ? 3 : 0,
+  };
+
+  if (user.avatar_url && !imageError) {
+    return (
+      <View className="relative">
+        <Image
+          source={{ uri: user.avatar_url }}
+          style={containerStyle}
+          resizeMode="cover"
+          onLoad={() => setImageLoading(false)}
+          onError={() => {
+            setImageError(true);
+            setImageLoading(false);
+          }}
+          onLoadStart={() => setImageLoading(true)}
+        />
         {imageLoading && (
-          <View
-            className="absolute inset-0 bg-primary items-center justify-center"
-            style={{
-              backgroundColor: "rgba(26, 126, 189, 0.85)",
-            }}
+          <View 
+            className="absolute inset-0 bg-blue-500 items-center justify-center"
+            style={{ borderRadius: sizeConfig.borderRadius }}
           >
-            <Text
-              className={`${sizeConfig.textClass} font-bold text-primary-foreground`}
-            >
-              {extractUserInitial()}
+            <Text className={`${sizeConfig.textClass} font-bold text-white`}>
+              {getInitial()}
             </Text>
+          </View>
+        )}
+        {isCurrentUser && (
+          <View className="absolute -top-1 -right-1 bg-green-500 rounded-full w-4 h-4 items-center justify-center border-2 border-white">
+            <Ionicons name="checkmark" size={8} color="white" />
           </View>
         )}
       </View>
     );
   }
 
-  // Enhanced Text Initial Fallback with Premium Visual Effects
   return (
-    <View
-      className={`${sizeConfig.containerClass} rounded-full bg-primary items-center justify-center`}
-      style={getContainerStyle()}
+    <View 
+      className="bg-blue-500 items-center justify-center relative" 
+      style={containerStyle}
     >
-      <Text
-        className={`${sizeConfig.textClass} font-bold text-primary-foreground`}
-      >
-        {extractUserInitial()}
+      <Text className={`${sizeConfig.textClass} font-bold text-white`}>
+        {getInitial()}
       </Text>
+      {isCurrentUser && (
+        <View className="absolute -top-1 -right-1 bg-green-500 rounded-full w-4 h-4 items-center justify-center border-2 border-white">
+          <Ionicons name="checkmark" size={8} color="white" />
+        </View>
+      )}
     </View>
   );
-}
+};
 
-/**
- * Enhanced User Header Avatar Component
- * Specialized for main dashboard header display with premium styling
- */
-interface UserHeaderAvatarProps {
-  profile: any;
-}
-
-function UserHeaderAvatar({ profile }: UserHeaderAvatarProps) {
-  return (
-    <DashboardAvatar
-      user={profile}
-      size="xl"
-      showBorder={true}
-      borderColor="#ffffff"
-      showShadow={true}
-    />
-  );
-}
-
-/**
- * Multi-Player Avatar Stack Component for Match Cards
- * Displays overlapping avatars for team representation
- */
+// Multi-Player Avatar Stack Component
 interface PlayerAvatarStackProps {
   players: Array<{
     id?: string;
@@ -338,14 +233,16 @@ interface PlayerAvatarStackProps {
     avatar_url: string | null;
   } | null>;
   maxDisplay?: number;
-  size?: "xs" | "sm" | "md";
+  size?: 'xs' | 'sm' | 'md';
+  currentUserId?: string;
 }
 
-function PlayerAvatarStack({
+const PlayerAvatarStack: React.FC<PlayerAvatarStackProps> = ({
   players,
   maxDisplay = 3,
-  size = "sm",
-}: PlayerAvatarStackProps) {
+  size = 'sm',
+  currentUserId
+}) => {
   const validPlayers = players.filter(Boolean);
   const displayPlayers = validPlayers.slice(0, maxDisplay);
   const overflowCount = validPlayers.length - maxDisplay;
@@ -359,25 +256,29 @@ function PlayerAvatarStack({
     <View className="flex-row items-center">
       {displayPlayers.map((player, index) => (
         <View key={`${player?.id || index}`} style={getOffsetStyle(index)}>
-          <DashboardAvatar
+          <Avatar
             user={player}
             size={size}
             showBorder={true}
             borderColor="#ffffff"
-            showShadow={false}
+            isCurrentUser={player?.id === currentUserId}
           />
         </View>
       ))}
       {overflowCount > 0 && (
         <View
-          className={`${size === "xs" ? "w-6 h-6" : size === "sm" ? "w-8 h-8" : "w-12 h-12"} rounded-full bg-gray-300 items-center justify-center ml-1`}
+          className={`${
+            size === 'xs' ? 'w-6 h-6' : size === 'sm' ? 'w-8 h-8' : 'w-12 h-12'
+          } rounded-full bg-gray-300 dark:bg-gray-600 items-center justify-center ml-1`}
           style={{
             borderWidth: 2,
             borderColor: "#ffffff",
           }}
         >
           <Text
-            className={`${size === "xs" ? "text-xs" : size === "sm" ? "text-xs" : "text-sm"} font-bold text-gray-600`}
+            className={`${
+              size === 'xs' ? 'text-xs' : size === 'sm' ? 'text-xs' : 'text-sm'
+            } font-bold text-gray-600 dark:text-gray-300`}
           >
             +{overflowCount}
           </Text>
@@ -385,154 +286,19 @@ function PlayerAvatarStack({
       )}
     </View>
   );
-}
+};
 
-export default function EnhancedHome() {
+export default function EnhancedCleanDashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [allMatches, setAllMatches] = useState<EnhancedMatchData[]>([]);
+  const [matches, setMatches] = useState<MatchData[]>([]);
   const [friendsActivity, setFriendsActivity] = useState<FriendActivity[]>([]);
-  const [userStats, setUserStats] = useState<UserStats | null>(null);
   const { profile, session } = useAuth();
-  const { hasPermission, requestPermission,sendTestNotification } = useNotifications();
 
-useEffect(() => {
-  // Request notification permission on first load
-  if (!hasPermission) {
-    setTimeout(() => {
-      requestPermission();
-    }, 2000); // Delay to not overwhelm user
-  }
-}, []);
-
-  // Time-based match categorization - FIXED LOGIC
-  const categorizedMatches = useMemo(() => {
-    if (!allMatches.length)
-      return {
-        upcoming: [],
-        needsAttention: [],
-        recent: [],
-        thisWeek: [],
-        publicMatches: [],
-      };
-
-    const now = new Date();
-    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-    console.log("🔍 Categorizing matches:", {
-      totalMatches: allMatches.length,
-      currentTime: now.toISOString(),
-      weekAgo: weekAgo.toISOString(),
-    });
-
-    return {
-      // FIXED: Future matches based on start_time, regardless of status
-      upcoming: allMatches
-        .filter((match) => {
-          const startTime = new Date(match.start_time);
-          const isFuture = startTime > now;
-          console.log(`Match ${match.id} upcoming check:`, {
-            startTime: startTime.toISOString(),
-            isFuture,
-            status: match.status,
-          });
-          return isFuture;
-        })
-        .sort(
-          (a, b) =>
-            new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
-        )
-        .slice(0, 5),
-
-      // FIXED: Past matches needing attention based on time, not status
-      needsAttention: allMatches
-        .filter((match) => {
-          const startTime = new Date(match.start_time);
-          const endTime = match.end_time ? new Date(match.end_time) : null;
-          const isPastMatch = endTime ? endTime < now : startTime < now;
-          const hasNoScores =
-            !match.team1_score_set1 && !match.team2_score_set1;
-          const needsAttention =
-            isPastMatch &&
-            hasNoScores &&
-            match.status !== MatchStatus.CANCELLED;
-
-          console.log(`⚠️ Match ${match.id} attention check:`, {
-            startTime: startTime.toISOString(),
-            endTime: endTime?.toISOString(),
-            isPastMatch,
-            hasNoScores,
-            needsAttention,
-            status: match.status,
-          });
-
-          return needsAttention;
-        })
-        .sort(
-          (a, b) =>
-            new Date(b.start_time).getTime() - new Date(a.start_time).getTime()
-        ),
-
-      // FIXED: Recent completed matches based on scores existence
-      recent: allMatches
-        .filter((match) => {
-          const hasScores =
-            match.team1_score_set1 !== null && match.team2_score_set1 !== null;
-          const endTime = match.end_time ? new Date(match.end_time) : null;
-          const completedTime = match.completed_at
-            ? new Date(match.completed_at)
-            : null;
-          const isCompleted = hasScores && (endTime || completedTime);
-
-          console.log(`🏆 Match ${match.id} recent check:`, {
-            hasScores,
-            endTime: endTime?.toISOString(),
-            completedTime: completedTime?.toISOString(),
-            isCompleted,
-          });
-
-          return isCompleted;
-        })
-        .sort((a, b) => {
-          const dateA = new Date(a.completed_at || a.end_time || a.start_time);
-          const dateB = new Date(b.completed_at || b.end_time || b.start_time);
-          return dateB.getTime() - dateA.getTime();
-        })
-        .slice(0, 5),
-
-      // FIXED: This week's completed matches
-      thisWeek: allMatches.filter((match) => {
-        const hasScores =
-          match.team1_score_set1 !== null && match.team2_score_set1 !== null;
-        const matchDate = new Date(
-          match.completed_at || match.end_time || match.start_time
-        );
-        const isThisWeek = matchDate >= weekAgo && hasScores;
-
-        console.log(`📊 Match ${match.id} this week check:`, {
-          matchDate: matchDate.toISOString(),
-          isThisWeek,
-          hasScores,
-          weekAgo: weekAgo.toISOString(),
-        });
-
-        return isThisWeek;
-      }),
-
-      // Public recruiting matches
-      publicMatches: allMatches
-        .filter((match) => {
-          const startTime = new Date(match.start_time);
-          return match.is_public && startTime > now;
-        })
-        .slice(0, 3),
-    };
-  }, [allMatches]);
-
-  // FIXED: Enhanced statistics calculation with proper win/loss logic
-  const calculateUserStats = useMemo((): UserStats => {
-    if (!allMatches.length || !session?.user?.id) {
+  // Enhanced user stats calculation
+  const userStats = useMemo((): UserStats => {
+    if (!matches.length || !session?.user?.id) {
       return {
         totalMatches: 0,
         wins: 0,
@@ -544,30 +310,21 @@ useEffect(() => {
         recentPerformance: "stable",
         ratingChange7Days: 0,
         ratingChange30Days: 0,
+        publicMatches: 0,
+        privateMatches: 0,
+        needsConfirmation: 0,
+        disputed: 0,
       };
     }
 
-    // FIXED: Filter completed matches with scores
-    const completedMatches = allMatches
-      .filter((match) => {
-        const hasScores =
-          match.team1_score_set1 !== null && match.team2_score_set1 !== null;
-        console.log(`📈 Stats calculation for match ${match.id}:`, {
-          hasScores,
-          team1_set1: match.team1_score_set1,
-          team2_set1: match.team2_score_set1,
-          winner_team: match.winner_team,
-        });
-        return hasScores;
-      })
-      .sort((a, b) => {
-        // Sort by completion time for proper streak calculation
-        const dateA = new Date(a.completed_at || a.end_time || a.start_time);
-        const dateB = new Date(b.completed_at || b.end_time || b.start_time);
-        return dateA.getTime() - dateB.getTime(); // Ascending order for streak calculation
-      });
-
-    console.log("📊 Completed matches for stats:", completedMatches.length);
+    const completedMatches = matches
+      .filter(match => 
+        match.team1_score_set1 !== null && match.team2_score_set1 !== null
+      )
+      .sort((a, b) => 
+        new Date(a.completed_at || a.end_time || a.start_time).getTime() - 
+        new Date(b.completed_at || b.end_time || b.start_time).getTime()
+      );
 
     let wins = 0;
     let losses = 0;
@@ -575,6 +332,10 @@ useEffect(() => {
     let longestStreak = 0;
     let totalDuration = 0;
     let matchesWithDuration = 0;
+    let publicMatches = 0;
+    let privateMatches = 0;
+    let needsConfirmation = 0;
+    let disputed = 0;
 
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -585,66 +346,49 @@ useEffect(() => {
     let olderWins = 0;
     let olderMatches = 0;
 
-    // Process each completed match
-    completedMatches.forEach((match, index) => {
-      // FIXED: Determine user team correctly
-      const isTeam1 =
-        match.player1_id === session.user.id ||
-        match.player2_id === session.user.id;
+    matches.forEach(match => {
+      // Count match types
+      if (match.is_public) publicMatches++;
+      else privateMatches++;
 
-      // FIXED: Determine winner using set-based logic when winner_team is not reliable
+      // Count confirmation status
+      if (match.needsConfirmation) needsConfirmation++;
+      if (match.isDisputed) disputed++;
+    });
+
+    completedMatches.forEach((match, index) => {
+      const isTeam1 = match.player1_id === session.user.id || 
+                     match.player2_id === session.user.id;
+
       let userWon = false;
 
       if (match.winner_team) {
-        // Use winner_team if available
-        userWon =
-          (isTeam1 && match.winner_team === 1) ||
-          (!isTeam1 && match.winner_team === 2);
+        userWon = (isTeam1 && match.winner_team === 1) || 
+                 (!isTeam1 && match.winner_team === 2);
       } else {
-        // FIXED: Calculate winner based on sets won
         let team1Sets = 0;
         let team2Sets = 0;
 
-        // Count sets won by each team
         if (match.team1_score_set1 > match.team2_score_set1) team1Sets++;
         else if (match.team2_score_set1 > match.team1_score_set1) team2Sets++;
 
-        if (
-          match.team1_score_set2 !== null &&
-          match.team2_score_set2 !== null
-        ) {
+        if (match.team1_score_set2 !== null && match.team2_score_set2 !== null) {
           if (match.team1_score_set2 > match.team2_score_set2) team1Sets++;
           else if (match.team2_score_set2 > match.team1_score_set2) team2Sets++;
         }
 
-        if (
-          match.team1_score_set3 !== null &&
-          match.team2_score_set3 !== null
-        ) {
+        if (match.team1_score_set3 !== null && match.team2_score_set3 !== null) {
           if (match.team1_score_set3 > match.team2_score_set3) team1Sets++;
           else if (match.team2_score_set3 > match.team1_score_set3) team2Sets++;
         }
 
-        // Determine winner based on sets
-        if (team1Sets > team2Sets) {
-          userWon = isTeam1;
-        } else if (team2Sets > team1Sets) {
-          userWon = !isTeam1;
-        }
+        userWon = (isTeam1 && team1Sets > team2Sets) || 
+                 (!isTeam1 && team2Sets > team1Sets);
       }
 
-      console.log(`🎯 Match ${match.id} result:`, {
-        isTeam1,
-        winner_team: match.winner_team,
-        userWon,
-        sets: `${match.team1_score_set1}-${match.team2_score_set1}, ${match.team1_score_set2}-${match.team2_score_set2}`,
-      });
+      const matchDate = new Date(match.completed_at || match.end_time || match.start_time);
 
-      const matchDate = new Date(
-        match.completed_at || match.end_time || match.start_time
-      );
-
-      // Calculate recent vs older performance for trend analysis
+      // Calculate recent vs older performance
       if (matchDate >= sevenDaysAgo) {
         recentMatches++;
         if (userWon) recentWins++;
@@ -653,7 +397,6 @@ useEffect(() => {
         if (userWon) olderWins++;
       }
 
-      // Update win/loss counts
       if (userWon) {
         wins++;
         currentStreak = currentStreak >= 0 ? currentStreak + 1 : 1;
@@ -662,16 +405,14 @@ useEffect(() => {
         currentStreak = currentStreak <= 0 ? currentStreak - 1 : -1;
       }
 
-      // Track longest streak
       if (Math.abs(currentStreak) > Math.abs(longestStreak)) {
         longestStreak = currentStreak;
       }
 
-      // Calculate duration if both start and end times exist
+      // Calculate duration
       if (match.start_time && match.end_time) {
-        const duration =
-          new Date(match.end_time).getTime() -
-          new Date(match.start_time).getTime();
+        const duration = new Date(match.end_time).getTime() - 
+                        new Date(match.start_time).getTime();
         totalDuration += duration;
         matchesWithDuration++;
       }
@@ -689,665 +430,730 @@ useEffect(() => {
       }
     }
 
-    const finalStats = {
+    return {
       totalMatches: wins + losses,
       wins,
       losses,
-      winRate:
-        wins + losses > 0 ? Math.round((wins / (wins + losses)) * 100) : 0,
+      winRate: wins + losses > 0 ? Math.round((wins / (wins + losses)) * 100) : 0,
       currentStreak,
       longestStreak,
-      averageMatchDuration:
-        matchesWithDuration > 0 ? totalDuration / matchesWithDuration : 0,
+      averageMatchDuration: matchesWithDuration > 0 ? totalDuration / matchesWithDuration : 0,
       recentPerformance,
       ratingChange7Days: 0, // TODO: Calculate from rating history
       ratingChange30Days: 0, // TODO: Calculate from rating history
+      publicMatches,
+      privateMatches,
+      needsConfirmation,
+      disputed,
     };
+  }, [matches, session?.user?.id]);
 
-    console.log("📊 Final calculated stats:", finalStats);
-    return finalStats;
-  }, [allMatches, session?.user?.id]);
+  // Enhanced match categorization
+  const categorizedMatches = useMemo(() => {
+    if (!matches.length) {
+      return {
+        upcoming: [],
+        needsAttention: [],
+        recent: [],
+        thisWeek: [],
+        publicMatches: [],
+        needsConfirmation: [],
+        disputed: [],
+      };
+    }
 
-  // Data fetching with comprehensive friend activity
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    return {
+      upcoming: matches
+        .filter(match => {
+          const startTime = new Date(match.start_time);
+          return startTime > now && match.status !== MatchStatus.CANCELLED;
+        })
+        .sort((a, b) => 
+          new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+        )
+        .slice(0, 5),
+
+      needsAttention: matches
+        .filter(match => {
+          const startTime = new Date(match.start_time);
+          const endTime = match.end_time ? new Date(match.end_time) : null;
+          const isPast = endTime ? endTime < now : startTime < now;
+          const hasNoScores = !match.team1_score_set1 && !match.team2_score_set1;
+          return (isPast && hasNoScores && match.status !== MatchStatus.CANCELLED) ||
+                 match.needsConfirmation || match.isDisputed;
+        })
+        .sort((a, b) => 
+          new Date(b.start_time).getTime() - new Date(a.start_time).getTime()
+        )
+        .slice(0, 5),
+
+      recent: matches
+        .filter(match => 
+          match.team1_score_set1 !== null && match.team2_score_set1 !== null
+        )
+        .sort((a, b) => {
+          const dateA = new Date(a.completed_at || a.end_time || a.start_time);
+          const dateB = new Date(b.completed_at || b.end_time || b.start_time);
+          return dateB.getTime() - dateA.getTime();
+        })
+        .slice(0, 5),
+
+      thisWeek: matches.filter(match => {
+        const hasScores = match.team1_score_set1 !== null && 
+                         match.team2_score_set1 !== null;
+        const matchDate = new Date(match.completed_at || match.end_time || match.start_time);
+        return matchDate >= weekAgo && hasScores;
+      }),
+
+      publicMatches: matches
+        .filter(match => {
+          const startTime = new Date(match.start_time);
+          return match.is_public && startTime > now;
+        })
+        .slice(0, 3),
+
+      needsConfirmation: matches
+        .filter(match => match.needsConfirmation)
+        .slice(0, 3),
+
+      disputed: matches
+        .filter(match => match.isDisputed)
+        .slice(0, 3),
+    };
+  }, [matches]);
+
   useEffect(() => {
     if (session?.user?.id) {
-      fetchDashboardData();
+      fetchData();
     }
   }, [session]);
 
-  const fetchDashboardData = async () => {
+  const fetchData = async (shouldRefresh = false) => {
     try {
-      setLoading(true);
+      if (shouldRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
 
-      console.log("🚀 Fetching dashboard data for user:", session?.user?.id);
-
-      // Fetch user matches with enhanced player information
+      // Fetch matches with enhanced player information
       const { data: matchData, error: matchError } = await supabase
-        .from("matches")
-        .select(
-          `
+        .from('matches')
+        .select(`
           *,
           player1:profiles!player1_id(id, full_name, email, glicko_rating, avatar_url),
           player2:profiles!player2_id(id, full_name, email, glicko_rating, avatar_url),
           player3:profiles!player3_id(id, full_name, email, glicko_rating, avatar_url),
           player4:profiles!player4_id(id, full_name, email, glicko_rating, avatar_url)
-        `
-        )
+        `)
         .or(
           `player1_id.eq.${session?.user?.id},player2_id.eq.${session?.user?.id},player3_id.eq.${session?.user?.id},player4_id.eq.${session?.user?.id}`
         )
-        .order("start_time", { ascending: false });
+        .order('start_time', { ascending: false });
 
-      if (matchError) {
-        console.error("❌ Match fetch error:", matchError);
-        throw matchError;
-      }
+      if (matchError) throw matchError;
 
-      console.log("📊 Raw match data received:", {
-        count: matchData?.length || 0,
-        sampleMatch: matchData?.[0],
-      });
-
-      // FIXED: Process match data with enhanced computed properties
-      const processedMatches = (matchData || []).map((match) => {
+      // Process match data with enhanced computed properties
+      const processedMatches = (matchData || []).map(match => {
+        const userId = session?.user?.id;
         const now = new Date();
         const startTime = new Date(match.start_time);
         const endTime = match.end_time ? new Date(match.end_time) : null;
 
-        // FIXED: Time-based classifications
+        const isTeam1 = match.player1_id === userId || match.player2_id === userId;
         const isFuture = startTime > now;
         const isPast = endTime ? endTime < now : startTime < now;
-        const isCompleted =
-          match.team1_score_set1 !== null && match.team2_score_set1 !== null;
-        const needsScores =
-          isPast && !isCompleted && match.status !== MatchStatus.CANCELLED;
+        const hasScores = match.team1_score_set1 !== null && 
+                         match.team2_score_set1 !== null;
+        const isCompleted = hasScores && isPast;
+        const needsScores = isPast && !hasScores && 
+                           match.status !== MatchStatus.CANCELLED;
 
-        const isTeam1 =
-          match.player1_id === session?.user?.id ||
-          match.player2_id === session?.user?.id;
+        // Enhanced confirmation logic
+        const statusNum = typeof match.status === 'string' ? 
+                         parseInt(match.status, 10) : match.status;
+        const needsConfirmation = statusNum === 4 && hasScores && 
+                                 match.confirmation_status === 'pending' && 
+                                 !match.all_confirmed;
+        const isDisputed = match.validation_status === 'disputed' || 
+                          match.confirmation_status === 'rejected';
 
-        // FIXED: Determine user victory using sets logic
-        let userWon = false;
-        if (isCompleted) {
-          if (match.winner_team) {
-            userWon =
-              (isTeam1 && match.winner_team === 1) ||
-              (!isTeam1 && match.winner_team === 2);
-          } else {
-            // Calculate winner based on sets
-            let team1Sets = 0;
-            let team2Sets = 0;
+        // Enhanced teammate and opponent identification
+        let teammate = null;
+        let opponents: any[] = [];
 
-            if (match.team1_score_set1 > match.team2_score_set1) team1Sets++;
-            else if (match.team2_score_set1 > match.team1_score_set1)
-              team2Sets++;
-
-            if (
-              match.team1_score_set2 !== null &&
-              match.team2_score_set2 !== null
-            ) {
-              if (match.team1_score_set2 > match.team2_score_set2) team1Sets++;
-              else if (match.team2_score_set2 > match.team1_score_set2)
-                team2Sets++;
-            }
-
-            if (
-              match.team1_score_set3 !== null &&
-              match.team2_score_set3 !== null
-            ) {
-              if (match.team1_score_set3 > match.team2_score_set3) team1Sets++;
-              else if (match.team2_score_set3 > match.team1_score_set3)
-                team2Sets++;
-            }
-
-            if (team1Sets > team2Sets) {
-              userWon = isTeam1;
-            } else if (team2Sets > team1Sets) {
-              userWon = !isTeam1;
-            }
-          }
+        if (isTeam1) {
+          teammate = match.player1_id === userId ? match.player2 : match.player1;
+          opponents = [match.player3, match.player4].filter(Boolean);
+        } else {
+          teammate = match.player3_id === userId ? match.player4 : match.player3;
+          opponents = [match.player1, match.player2].filter(Boolean);
         }
 
-        // Create readable set scores
-        let setScores = "";
-        if (
-          match.team1_score_set1 !== null &&
-          match.team2_score_set1 !== null
-        ) {
-          const userSet1 = isTeam1
-            ? match.team1_score_set1
-            : match.team2_score_set1;
-          const oppSet1 = isTeam1
-            ? match.team2_score_set1
-            : match.team1_score_set1;
+        let userWon = false;
+        let setScores = '';
+        let team1Sets = 0;
+        let team2Sets = 0;
+
+        if (hasScores) {
+          // Set-based winner calculation
+          if (match.team1_score_set1 > match.team2_score_set1) team1Sets++;
+          else if (match.team2_score_set1 > match.team1_score_set1) team2Sets++;
+
+          if (match.team1_score_set2 !== null && match.team2_score_set2 !== null) {
+            if (match.team1_score_set2 > match.team2_score_set2) team1Sets++;
+            else if (match.team2_score_set2 > match.team1_score_set2) team2Sets++;
+          }
+
+          if (match.team1_score_set3 !== null && match.team2_score_set3 !== null) {
+            if (match.team1_score_set3 > match.team2_score_set3) team1Sets++;
+            else if (match.team2_score_set3 > match.team1_score_set3) team2Sets++;
+          }
+
+          if (match.winner_team) {
+            userWon = (isTeam1 && match.winner_team === 1) || 
+                     (!isTeam1 && match.winner_team === 2);
+          } else {
+            userWon = (isTeam1 && team1Sets > team2Sets) || 
+                     (!isTeam1 && team2Sets > team1Sets);
+          }
+
+          // Create readable set scores
+          const userSet1 = isTeam1 ? match.team1_score_set1 : match.team2_score_set1;
+          const oppSet1 = isTeam1 ? match.team2_score_set1 : match.team1_score_set1;
           setScores = `${userSet1}-${oppSet1}`;
 
-          if (
-            match.team1_score_set2 !== null &&
-            match.team2_score_set2 !== null
-          ) {
-            const userSet2 = isTeam1
-              ? match.team1_score_set2
-              : match.team2_score_set2;
-            const oppSet2 = isTeam1
-              ? match.team2_score_set2
-              : match.team1_score_set2;
+          if (match.team1_score_set2 !== null && match.team2_score_set2 !== null) {
+            const userSet2 = isTeam1 ? match.team1_score_set2 : match.team2_score_set2;
+            const oppSet2 = isTeam1 ? match.team2_score_set2 : match.team1_score_set2;
             setScores += `, ${userSet2}-${oppSet2}`;
 
-            if (
-              match.team1_score_set3 !== null &&
-              match.team2_score_set3 !== null
-            ) {
-              const userSet3 = isTeam1
-                ? match.team1_score_set3
-                : match.team2_score_set3;
-              const oppSet3 = isTeam1
-                ? match.team2_score_set3
-                : match.team1_score_set3;
+            if (match.team1_score_set3 !== null && match.team2_score_set3 !== null) {
+              const userSet3 = isTeam1 ? match.team1_score_set3 : match.team2_score_set3;
+              const oppSet3 = isTeam1 ? match.team2_score_set3 : match.team1_score_set3;
               setScores += `, ${userSet3}-${oppSet3}`;
             }
           }
         }
 
-        const processedMatch = {
+        return {
           ...match,
-          needsScores,
           isTeam1,
           userWon,
           setScores,
           isCompleted,
           isFuture,
           isPast,
+          needsScores,
+          needsConfirmation,
+          isDisputed,
+          teammate,
+          opponents,
+          team1Sets,
+          team2Sets,
         };
-
-        console.log(`🔄 Processed match ${match.id}:`, {
-          needsScores,
-          isTeam1,
-          userWon,
-          isCompleted,
-          isFuture,
-          isPast,
-          setScores,
-        });
-
-        return processedMatch;
       });
 
-      setAllMatches(processedMatches);
+      setMatches(processedMatches);
 
-      // Fetch friends activity
+      // Fetch friends activity with enhanced information
       if (profile?.friends_list && profile.friends_list.length > 0) {
         const { data: friendsData, error: friendsError } = await supabase
-          .from("profiles")
-          .select("id, full_name, email, glicko_rating, avatar_url")
-          .in("id", profile.friends_list);
+          .from('profiles')
+          .select('id, full_name, email, glicko_rating, avatar_url, updated_at')
+          .in('id', profile.friends_list);
 
         if (!friendsError && friendsData) {
           setFriendsActivity(friendsData.slice(0, 5));
         }
       }
+
     } catch (error) {
-      console.error("💥 Error fetching dashboard data:", error);
+      console.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  // Update user stats when matches change
-  useEffect(() => {
-    setUserStats(calculateUserStats);
-  }, [calculateUserStats]);
-
   const onRefresh = () => {
-    setRefreshing(true);
-    fetchDashboardData();
+    fetchData(true);
   };
 
-  // Navigation handlers with enhanced routing
-  const handleMatchAction = (match: EnhancedMatchData) => {
-    if (match.needsScores) {
-      router.push({
-        pathname: "/(protected)/(screens)/match-details",
-        params: { matchId: match.id, mode: "score-entry" },
-      });
-    } else {
-      router.push({
-        pathname: "/(protected)/(screens)/match-details",
-        params: { matchId: match.id },
-      });
-    }
+  // Enhanced greeting system
+  const getGreeting = () => {
+    const { currentStreak, winRate, totalMatches, recentPerformance } = userStats;
+
+    if (currentStreak >= 5) return { emoji: '🔥', message: 'You\'re absolutely unstoppable!' };
+    if (currentStreak >= 3) return { emoji: '⚡', message: 'What a streak you\'re on!' };
+    if (currentStreak >= 1) return { emoji: '💪', message: 'Keep that momentum going!' };
+    if (currentStreak === 0 && winRate >= 70) return { emoji: '🎯', message: 'Consistent champion!' };
+    if (currentStreak === 0 && recentPerformance === 'improving') return { emoji: '📈', message: 'Getting better every match!' };
+    if (currentStreak >= -2 && recentPerformance === 'improving') return { emoji: '💡', message: 'Your comeback starts now!' };
+    if (currentStreak >= -2) return { emoji: '😤', message: 'Time to turn things around!' };
+    if (currentStreak >= -4) return { emoji: '😰', message: 'Every champion faces challenges!' };
+    if (currentStreak <= -5) return { emoji: '🔄', message: 'Your biggest comeback awaits!' };
+    if (totalMatches === 0) return { emoji: '🚀', message: 'Ready to start your journey!' };
+    if (totalMatches < 5) return { emoji: '🌟', message: 'Welcome to the courts!' };
+    return { emoji: '👋', message: 'Great to see you back!' };
   };
 
-  // Quick action handlers
-  const handleCreateMatch = () => {
-    router.push("/(protected)/(screens)/create-match");
-  };
+  const renderUserHeader = () => {
+    const greeting = getGreeting();
+    const firstName = profile?.full_name?.split(' ')[0] || 'Player';
 
-  const handleViewLeaderboard = () => {
-    router.push("/(protected)/(screens)/leaderboard");
-  };
-
-  const handleViewFriends = () => {
-    router.push("/(protected)/(screens)/friends");
-  };
-
-  const handleViewAllMatches = () => {
-    router.push("/(protected)/(screens)/match-history");
-  };
-
-/**
-   * Dynamic Emoji Selection Based on Player Performance
-   * Analyzes multiple statistics to provide contextual greeting emojis
-   */
-const getPlayerStatusEmoji = (): string => {
-  if (!userStats) return "👋";
-
-  const { currentStreak, winRate, totalMatches, recentPerformance } = userStats;
-
-  // 🔥 LEGENDARY PERFORMANCE (5+ win streak)
-  if (currentStreak >= 5) {
-    return "🔥"; // On fire!
-  }
-
-  // ⚡ HOT STREAK (3-4 wins)
-  if (currentStreak >= 3) {
-    return "⚡"; // Lightning performance
-  }
-
-  // 💪 WINNING MOMENTUM (1-2 wins)
-  if (currentStreak >= 1) {
-    return totalMatches >= 10 && winRate >= 70 ? "🏆" : "💪"; // Trophy for seasoned winners, muscle for momentum
-  }
-
-  // 🤔 ANALYZING PHASE (no streak but decent stats)
-  if (currentStreak === 0) {
-    if (winRate >= 60) return "🎯"; // Good aim, consistent player
-    if (recentPerformance === "improving") return "📈"; // Trending up
-    if (totalMatches < 3) return "🌟"; // New star player
-    return "🤔"; // Thinking, planning next move
-  }
-
-  // 😤 DETERMINATION MODE (1-2 losses)
-  if (currentStreak >= -2) {
-    return recentPerformance === "improving" ? "💡" : "😤"; // Light bulb for improvement, determined face for grinding
-  }
-
-  // 😰 ROUGH PATCH (3-4 losses)
-  if (currentStreak >= -4) {
-    return "😰"; // Worried but still fighting
-  }
-
-  // 🔄 COMEBACK TIME (5+ losses)
-  if (currentStreak <= -5) {
-    return "🔄"; // Time for a comeback/reset
-  }
-
-  // 🚀 ROOKIE ENERGY (very few matches played)
-  if (totalMatches === 0) {
-    return "🚀"; // Ready to launch career
-  }
-
-  if (totalMatches < 5) {
-    return "🌟"; // Rising star
-  }
-
-  // 👋 DEFAULT FRIENDLY GREETING
-  return "👋";
-};
-
-/**
- * Get contextual status message based on player performance
- */
-const getPlayerStatusMessage = (): string => {
-  if (!userStats) return "";
-
-  const { currentStreak, winRate, totalMatches, recentPerformance } = userStats;
-
-  if (currentStreak >= 5) return "You're absolutely unstoppable!";
-  if (currentStreak >= 3) return "What a streak you're on!";
-  if (currentStreak >= 1) return "Keep that momentum going!";
-  if (currentStreak === 0 && winRate >= 70) return "Consistent champion!";
-  if (currentStreak === 0 && recentPerformance === "improving") return "Getting better every match!";
-  if (currentStreak >= -2 && recentPerformance === "improving") return "Your comeback starts now!";
-  if (currentStreak >= -2) return "Time to turn things around!";
-  if (currentStreak >= -4) return "Every champion faces challenges!";
-  if (currentStreak <= -5) return "Your biggest comeback awaits!";
-  if (totalMatches === 0) return "Ready to start your journey!";
-  if (totalMatches < 5) return "Welcome to the courts!";
-  return "Great to see you back!";
-};
-
-// Component: Enhanced User Header with Avatar and Quick Stats
-const renderUserHeader = () => (
-  <View className="mb-6 p-4 pt-0 bg-gradient-to-r from-primary/10 to-primary/5 rounded-xl">
-    <View className="flex-row items-center mb-4">
-      <View className="flex-1">
-        <Text className="text-4xl font-bold">
-          {getPlayerStatusEmoji()} {profile?.full_name?.split(" ")[0] || "Player"}
-        </Text>
-        {userStats && (
-          <Text className="text-sm text-muted-foreground mt-1 italic">
-            {getPlayerStatusMessage()}
+    return (
+      <View className="mb-8">
+        {/* Enhanced Greeting */}
+        <View className="mb-6">
+          <Text className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1">
+            {greeting.emoji} Hi, {firstName}
           </Text>
-        )}
-      </View>
-    </View>
-
-      {/* Quick Stats Row */}
-      <View className="flex-row justify-around">
-        <View className="items-center">
-          <Text className="text-lg font-bold text-primary">
-            {profile?.glicko_rating
-              ? Math.round(parseFloat(profile.glicko_rating))
-              : "-"}
+          <Text className="text-gray-600 dark:text-gray-400">
+            {greeting.message}
           </Text>
-          <Text className="text-xs text-muted-foreground">Current Rating</Text>
         </View>
-        <View className="items-center">
-          <Text className="text-lg font-bold">{userStats?.winRate || 0}%</Text>
-          <Text className="text-xs text-muted-foreground">Win Rate</Text>
-        </View>
-        <View className="items-center">
-          <Text className="text-lg font-bold">
-            {categorizedMatches.thisWeek.length}
-          </Text>
-          <Text className="text-xs text-muted-foreground">This Week</Text>
-        </View>
-        <View className="items-center">
-          <Text
-            className={`text-lg font-bold ${
-              userStats?.currentStreak && userStats.currentStreak > 0
-                ? "text-green-500"
-                : userStats?.currentStreak && userStats.currentStreak < 0
-                  ? "text-red-500"
-                  : ""
-            }`}
-          >
-            {userStats?.currentStreak || 0}
-          </Text>
-          <Text className="text-xs text-muted-foreground">Streak</Text>
+
+        {/* Enhanced Stats Grid */}
+        <View className="bg-card dark:bg-gray-800 rounded-2xl p-6 border border-gray-100 dark:border-gray-700"
+          style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.05,
+            shadowRadius: 8,
+            elevation: 2,
+          }}
+        >
+          <View className="flex-row justify-around mb-4">
+            <View className="items-center">
+              <Text className="text-2xl font-bold text-blue-600">
+                {profile?.glicko_rating 
+                  ? Math.round(parseFloat(profile.glicko_rating))
+                  : '-'}
+              </Text>
+              <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Rating
+              </Text>
+            </View>
+            
+            <View className="items-center">
+              <Text className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                {userStats.winRate}%
+              </Text>
+              <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Win Rate
+              </Text>
+            </View>
+            
+            <View className="items-center">
+              <Text className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                {userStats.totalMatches}
+              </Text>
+              <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Matches
+              </Text>
+            </View>
+            
+            <View className="items-center">
+              <Text className={`text-2xl font-bold ${
+                userStats.currentStreak > 0 ? 'text-green-600' :
+                userStats.currentStreak < 0 ? 'text-red-600' : 'text-gray-900 dark:text-gray-100'
+              }`}>
+                {userStats.currentStreak}
+              </Text>
+              <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Streak
+              </Text>
+            </View>
+          </View>
+
+          {/* Additional Stats Row */}
+          {userStats.totalMatches > 0 && (
+            <View className="border-t border-gray-100 dark:border-gray-700 pt-4">
+              <View className="flex-row justify-around">
+                <View className="items-center">
+                  <Text className="text-lg font-semibold text-blue-600">
+                    {categorizedMatches.thisWeek.length}
+                  </Text>
+                  <Text className="text-xs text-gray-500 dark:text-gray-400">
+                    This Week
+                  </Text>
+                </View>
+                
+                <View className="items-center">
+                  <Text className={`text-lg font-semibold ${
+                    userStats.recentPerformance === 'improving' ? 'text-green-600' :
+                    userStats.recentPerformance === 'declining' ? 'text-red-600' : 'text-gray-600'
+                  }`}>
+                    {userStats.recentPerformance === 'improving' ? '📈' :
+                     userStats.recentPerformance === 'declining' ? '📉' : '➡️'}
+                  </Text>
+                  <Text className="text-xs text-gray-500 dark:text-gray-400">
+                    Trend
+                  </Text>
+                </View>
+                
+                <View className="items-center">
+                  <Text className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                    {userStats.publicMatches}
+                  </Text>
+                  <Text className="text-xs text-gray-500 dark:text-gray-400">
+                    Public
+                  </Text>
+                </View>
+                
+                <View className="items-center">
+                  <Text className={`text-lg font-semibold ${
+                    userStats.needsConfirmation > 0 ? 'text-orange-600' : 'text-gray-600'
+                  }`}>
+                    {userStats.needsConfirmation}
+                  </Text>
+                  <Text className="text-xs text-gray-500 dark:text-gray-400">
+                    Pending
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
         </View>
       </View>
-    </View>
-  );
+    );
+  };
 
-  // ENHANCEMENT: Visibility Badge Component for Match Visibility Indicator
+  // Enhanced visibility badge
   const renderVisibilityBadge = (isPublic: boolean) => {
     return (
-      <View
-        className={`flex-row items-center  rounded-full ${
-          isPublic
-            ? "bg-blue-100 dark:bg-blue-900/30"
-            : "bg-gray-100 dark:bg-gray-800/50"
-        }`}
-      >
-        <Ionicons
-          name={isPublic ? "globe-outline" : "lock-closed-outline"}
-          size={12}
-          color={isPublic ? "#2563eb" : "#6b7280"}
+      <View className={`flex-row items-center px-2 py-1 rounded-full ${
+        isPublic 
+          ? 'bg-blue-100 dark:bg-blue-900/30' 
+          : 'bg-gray-100 dark:bg-gray-800/50'
+      }`}>
+        <Ionicons 
+          name={isPublic ? 'globe-outline' : 'lock-closed-outline'} 
+          size={12} 
+          color={isPublic ? '#2563eb' : '#6b7280'} 
           style={{ marginRight: 4 }}
         />
-        <Text
-          className={`text-xs font-medium ${
-            isPublic
-              ? "text-blue-700 dark:text-blue-300"
-              : "text-gray-600 dark:text-gray-400"
-          }`}
-        >
-          {isPublic ? "Public" : "Private"}
+        <Text className={`text-xs font-medium ${
+          isPublic 
+            ? 'text-blue-700 dark:text-blue-300' 
+            : 'text-gray-600 dark:text-gray-400'
+        }`}>
+          {isPublic ? 'Public' : 'Private'}
         </Text>
       </View>
     );
   };
 
-  // Component: Enhanced Match Card with Rich Information INCLUDING VISIBILITY INDICATOR AND AVATARS
-  const renderMatchCard = (
-    match: EnhancedMatchData,
-    type: "upcoming" | "attention" | "recent"
-  ) => {
+  // Enhanced confirmation badge
+  const renderConfirmationBadge = (match: MatchData) => {
+    if (!match.isCompleted) return null;
+
+    if (match.isDisputed) {
+      return (
+        <View className="flex-row items-center px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/30">
+          <Ionicons name="alert-circle-outline" size={12} color="#dc2626" style={{ marginRight: 4 }} />
+          <Text className="text-xs font-medium text-red-700 dark:text-red-300">Disputed</Text>
+        </View>
+      );
+    }
+    
+    if (match.needsConfirmation) {
+      return (
+        <View className="flex-row items-center px-2 py-1 rounded-full bg-amber-100 dark:bg-amber-900/30">
+          <Ionicons name="time-outline" size={12} color="#d97706" style={{ marginRight: 4 }} />
+          <Text className="text-xs font-medium text-amber-700 dark:text-amber-300">Pending</Text>
+        </View>
+      );
+    }
+    
+    if (match.all_confirmed) {
+      return (
+        <View className="flex-row items-center px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30">
+          <Ionicons name="checkmark-circle-outline" size={12} color="#059669" style={{ marginRight: 4 }} />
+          <Text className="text-xs font-medium text-green-700 dark:text-green-300">Confirmed</Text>
+        </View>
+      );
+    }
+
+    return null;
+  };
+
+  const renderMatchCard = (match: MatchData, type: 'upcoming' | 'attention' | 'recent') => {
     const startTime = new Date(match.start_time);
-    const formattedDate = startTime.toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
+    const now = new Date();
+    const isToday = startTime.toDateString() === now.toDateString();
+    const isTomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000).toDateString() === startTime.toDateString();
+    
+    const formattedDate = isToday ? 'Today' : isTomorrow ? 'Tomorrow' : 
+      startTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const formattedTime = startTime.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit'
     });
-    const formattedTime = startTime.toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
 
-    const teammate = match.isTeam1
-      ? match.player1_id === session?.user?.id
-        ? match.player2
-        : match.player1
-      : match.player3_id === session?.user?.id
-        ? match.player4
-        : match.player3;
-
-    const opponents = match.isTeam1
-      ? [match.player3, match.player4]
-      : [match.player1, match.player2];
-
-    const isCreator = match.player1_id === session?.user?.id;
-
-    const getBgColor = () => {
-      if (type === "upcoming") return "bg-blue-50 dark:bg-blue-900/30";
-      if (type === "attention") return "bg-amber-50 dark:bg-amber-900/30";
-      if (match.userWon) return "bg-green-50 dark:bg-green-900/30";
-      return "bg-red-50 dark:bg-red-900/30";
+    const getStatusColor = () => {
+      if (match.isDisputed) return 'bg-red-500';
+      if (match.needsConfirmation) return 'bg-amber-500';
+      if (type === 'upcoming') return 'bg-blue-500';
+      if (type === 'attention') return 'bg-orange-500';
+      return match.userWon ? 'bg-green-500' : 'bg-red-500';
     };
-
-    const getStatusInfo = () => {
-      if (type === "upcoming")
-        return { icon: "calendar-outline", color: "#2563eb", text: "Upcoming" };
-      if (type === "attention") {
-        if (match.needsScores)
-          return {
-            icon: "create-outline",
-            color: "#d97706",
-            text: "Add Scores",
-          };
-        return {
-          icon: "alert-circle-outline",
-          color: "#d97706",
-          text: "Needs Confirmation",
-        };
-      }
-      if (match.userWon)
-        return { icon: "trophy-outline", color: "#059669", text: "Victory" };
-      return {
-        icon: "trending-down-outline",
-        color: "#dc2626",
-        text: "Defeat",
-      };
-    };
-
-    const statusInfo = getStatusInfo();
 
     return (
       <TouchableOpacity
         key={match.id}
-        className={`mb-3 p-4 rounded-xl ${getBgColor()} border border-border/30`}
+        className="bg-card dark:bg-gray-800 rounded-2xl p-4 mb-4 border border-gray-100 dark:border-gray-700"
         style={{
           shadowColor: "#000",
-          shadowOffset: { width: 0, height: 1 },
+          shadowOffset: { width: 0, height: 2 },
           shadowOpacity: 0.05,
-          shadowRadius: 2,
+          shadowRadius: 8,
           elevation: 2,
         }}
-        onPress={() => handleMatchAction(match)}
-        activeOpacity={0.7}
+        onPress={() => {
+          router.push({
+            pathname: '/(protected)/(screens)/match-details',
+            params: { 
+              matchId: match.id,
+              mode: match.needsScores ? 'score-entry' : 
+                    match.needsConfirmation ? 'confirmation' : undefined
+            }
+          });
+        }}
       >
-        {/* ENHANCED Header with Status, Time, AND VISIBILITY INDICATOR */}
-        <View className="flex-row justify-between items-center mb-3">
+        {/* Enhanced Header */}
+        <View className="flex-row items-center justify-between mb-4">
           <View className="flex-row items-center flex-1">
-            {/* VISIBILITY BADGE - Positioned after status text */}
-            <View className="">
-              {renderVisibilityBadge(match.is_public)}
+            <View className={`w-3 h-3 rounded-full mr-3 ${getStatusColor()}`} />
+            <View className="flex-1">
+              <Text className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                {formattedDate} • {formattedTime}
+              </Text>
+              {(match.region || match.court) && (
+                <Text className="text-xs text-gray-500 dark:text-gray-400">
+                  {match.court || match.region}
+                </Text>
+              )}
             </View>
-
           </View>
-          <View className="items-end">
-            <Text className="text-sm font-medium">{formattedDate}</Text>
+          
+          <View className="flex-row items-center gap-2">
+            {renderVisibilityBadge(match.is_public)}
+            {renderConfirmationBadge(match)}
           </View>
         </View>
 
-        {/* Location Info with Enhanced Layout */}
-
-
-        {/* ENHANCED Team Composition with Avatar Integration */}
-        <View className="mb-3">
-          <View className="flex-row items-center justify-between mb-2">
-            {/* Your Team Section with Avatar */}
-            <View className="flex-row items-center flex-1">
-              <View className="mr-2">
-                <PlayerAvatarStack
-                  players={[
-                    profile, // Current user
-                    teammate, // Teammate
-                  ]}
-                  maxDisplay={2}
-                  size="sm"
-                />
-              </View>
-              {/* MODIFICATION 1: Add flex-1 to this View */}
-              <View className="flex-1">
-                {/* MODIFICATION 2: Add numberOfLines to this Text */}
-                <Text className="font-medium text-sm" numberOfLines={2}>
-                  You{" "}
-                  {teammate
-                    ? `& ${teammate.full_name || teammate.email.split("@")[0]}`
-                    : ""}
-                </Text>
-              </View>
-            </View>
-
-            {/* VS Indicator */}
-            <View className="mx-3">
-              <Text className="text-muted-foreground font-medium">vs</Text>
-            </View>
-
-            {/* Opponent Team Section with Avatar */}
-            <View className="flex-row items-center flex-1 justify-end">
-              {/* MODIFICATION 3: Add flex-1 to this View */}
-              <View className="flex-1 mr-2"> 
-                {/* MODIFICATION 4: Add numberOfLines to this Text */}
-                <Text className="text-right font-medium text-sm" numberOfLines={2}>
-                  {opponents
-                    .filter(Boolean)
-                    .map(
-                      (p) => p?.full_name || p?.email?.split("@")[0] || "TBD"
-                    )
-                    .join(" & ")}
-                </Text>
-              </View>
-              <PlayerAvatarStack players={opponents} maxDisplay={2} size="sm" />
-            </View>
-          </View>
-          </View>
-        {/* Score Display with Enhanced Visibility Context */}
-        {match.setScores ? (
-          <View className="flex-row items-center justify-between mt-2">
+        {/* Enhanced Team Display with Avatars */}
+        <View className="flex-row items-center justify-between mb-4">
+          {/* Your Team */}
+          <View className="flex-1">
+            <Text className="text-xs text-gray-500 dark:text-gray-400 mb-2">Your Team</Text>
             <View className="flex-row items-center">
-              <Text className="text-sm font-medium mr-2">Score:</Text>
-              <Text className="text-sm font-mono">{match.setScores}</Text>
+              <PlayerAvatarStack
+                players={[
+                  profile,
+                  match.teammate
+                ]}
+                maxDisplay={2}
+                size="sm"
+                currentUserId={session?.user?.id}
+              />
+              <View className="ml-3 flex-1">
+                <Text className="text-sm font-medium text-gray-900 dark:text-gray-100" numberOfLines={1}>
+                  You {match.teammate ? `& ${match.teammate.full_name || match.teammate.email.split('@')[0]}` : ''}
+                </Text>
+              </View>
             </View>
-            {type === "recent" && (
-              <View
-                className={`px-2 py-1 rounded-full ${
-                  match.userWon
-                    ? "bg-green-100 dark:bg-green-900/40"
-                    : "bg-red-100 dark:bg-red-900/40"
-                }`}
-              >
-                <Text
-                  className={`text-xs font-medium ${
-                    match.userWon
-                      ? "text-green-800 dark:text-green-300"
-                      : "text-red-800 dark:text-red-300"
-                  }`}
-                >
-                  {match.userWon ? "Victory" : "Defeat"}
+          </View>
+
+          {/* Score or VS */}
+          <View className="items-center px-4">
+            {match.setScores ? (
+              <View className="items-center">
+                <Text className={`text-xl font-bold ${
+                  match.userWon ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {match.userWon ? 'W' : 'L'}
+                </Text>
+                <Text className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                  {match.setScores}
+                </Text>
+              </View>
+            ) : (
+              <Text className="text-lg font-bold text-gray-400">VS</Text>
+            )}
+          </View>
+
+          {/* Opponents */}
+          <View className="flex-1 items-end">
+            <Text className="text-xs text-gray-500 dark:text-gray-400 mb-2">Opponents</Text>
+            <View className="flex-row items-center justify-end">
+              <View className="mr-3 flex-1">
+                <Text className="text-sm font-medium text-gray-900 dark:text-gray-100 text-right" numberOfLines={1}>
+                  {match.opponents
+                    .map(p => p?.full_name || p?.email?.split('@')[0] || 'TBD')
+                    .join(' & ')}
+                </Text>
+              </View>
+              <PlayerAvatarStack
+                players={match.opponents}
+                maxDisplay={2}
+                size="sm"
+                currentUserId={session?.user?.id}
+              />
+            </View>
+          </View>
+        </View>
+
+        {/* Enhanced Status Indicators */}
+        {match.isDisputed && (
+          <View className="mb-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border-l-4 border-red-500">
+            <View className="flex-row items-center">
+              <Ionicons name="alert-circle" size={16} color="#dc2626" style={{ marginRight: 8 }} />
+              <Text className="text-sm text-red-800 dark:text-red-300 font-medium">
+                This match result is disputed and requires review
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {match.needsConfirmation && !match.isDisputed && (
+          <View className="mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border-l-4 border-amber-500">
+            <View className="flex-row items-center">
+              <Ionicons name="time" size={16} color="#d97706" style={{ marginRight: 8 }} />
+              <Text className="text-sm text-amber-800 dark:text-amber-300 font-medium">
+                Waiting for all players to confirm this result
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {type === 'attention' && match.needsScores && (
+          <View className="mt-2">
+            <Button
+              size="sm"
+              variant="default"
+              className="w-full"
+              onPress={() => router.push({
+                pathname: '/(protected)/(screens)/match-details',
+                params: { matchId: match.id, mode: 'score-entry' }
+              })}
+            >
+              <Ionicons name="create-outline" size={14} style={{ marginRight: 6 }} />
+              <Text className="text-primary-foreground font-medium">Enter Scores</Text>
+            </Button>
+          </View>
+        )}
+
+        {/* Match Description */}
+        {match.description && (
+          <View className="mt-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+            <Text className="text-sm text-gray-700 dark:text-gray-300 italic">
+              {match.description}
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
+  const renderSection = (
+    title: string,
+    matches: MatchData[],
+    type: 'upcoming' | 'attention' | 'recent',
+    viewAllAction?: () => void,
+    showBadge?: boolean,
+    badgeCount?: number
+  ) => {
+    if (matches.length === 0) return null;
+
+    return (
+      <View className="mb-8">
+        <View className="flex-row items-center justify-between mb-4">
+          <View className="flex-row items-center">
+            <Text className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+              {title}
+            </Text>
+            {showBadge && badgeCount && badgeCount > 0 && (
+              <View className={`ml-3 px-2 py-1 rounded-full ${
+                type === 'attention' ? 'bg-orange-100 dark:bg-orange-900/30' : 'bg-blue-100 dark:bg-blue-900/30'
+              }`}>
+                <Text className={`text-xs font-medium ${
+                  type === 'attention' ? 'text-orange-800 dark:text-orange-300' : 'text-blue-800 dark:text-blue-300'
+                }`}>
+                  {badgeCount}
                 </Text>
               </View>
             )}
           </View>
-        ) : type === "attention" ? (
-          <Button
-            size="sm"
-            variant="default"
-            className="mt-2 w-full"
-            onPress={() => handleMatchAction(match)}
-          >
-            <Ionicons
-              name="create-outline"
-              size={14}
-              style={{ marginRight: 6 }}
-            />
-            <Text className="text-5xl text-primary-foreground">
-              {match.needsScores ? "Enter Scores" : "View Details"}
-            </Text>
-          </Button>
-        ) : null} 
-               
-      </TouchableOpacity>
-      
+          {viewAllAction && (
+            <TouchableOpacity onPress={viewAllAction} className="flex-row items-center">
+              <Text className="text-blue-600 text-sm mr-1">View All</Text>
+              <Ionicons name="chevron-forward" size={14} color="#2563eb" />
+            </TouchableOpacity>
+          )}
+        </View>
+        
+        {matches.map(match => renderMatchCard(match, type))}
+      </View>
     );
   };
 
-  // Component: Enhanced Friends Activity Section with Avatar Integration
   const renderFriendsActivity = () => {
-    if (!friendsActivity.length) return null;
+    if (friendsActivity.length === 0) return null;
 
     return (
-      <View className="mb-6">
-        <View className="flex-row justify-between items-center mb-3">
-          <H3>Friends Activity</H3>
-          <TouchableOpacity
-            onPress={handleViewFriends}
+      <View className="mb-8">
+        <View className="flex-row items-center justify-between mb-4">
+          <Text className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+            Friends Activity
+          </Text>
+          <TouchableOpacity 
+            onPress={() => router.push('/(protected)/(screens)/friends')}
             className="flex-row items-center"
           >
-            <Text className="text-primary text-sm mr-1">See All</Text>
-            <Ionicons name="chevron-forward" size={14} color="#2148ce" />
+            <Text className="text-blue-600 text-sm mr-1">View All</Text>
+            <Ionicons name="chevron-forward" size={14} color="#2563eb" />
           </TouchableOpacity>
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {friendsActivity.map((friend, index) => (
+          {friendsActivity.map(friend => (
             <TouchableOpacity
               key={friend.id}
-              className="bg-card rounded-xl p-4 mr-3 w-32 border border-border/30"
+              className="bg-card dark:bg-gray-800 rounded-xl p-4 mr-3 w-32 border border-gray-100 dark:border-gray-700"
               style={{
                 shadowColor: "#000",
                 shadowOffset: { width: 0, height: 1 },
                 shadowOpacity: 0.05,
                 shadowRadius: 2,
-                elevation: 2,
+                elevation: 1,
               }}
-              onPress={() =>
-                router.push({
-                  pathname: "/(protected)/(screens)/friend-profile",
-                  params: { friendId: friend.id },
-                })
-              }
-              activeOpacity={0.7}
+              onPress={() => router.push({
+                pathname: '/(protected)/(screens)/friend-profile',
+                params: { friendId: friend.id }
+              })}
             >
-              {/* Enhanced Friend Avatar */}
-              <View className="items-center mb-2">
-                <DashboardAvatar user={friend} size="lg" showShadow={true} />
+              <View className="items-center mb-3">
+                <Avatar 
+                  user={friend} 
+                  size="lg" 
+                  showShadow={true}
+                  showBorder={true}
+                  borderColor="#3B82F6"
+                />
               </View>
-
-              <Text
-                className="text-sm font-medium text-center"
-                numberOfLines={1}
-              >
-                {friend.full_name || friend.email.split("@")[0]}
+              <Text className="text-sm font-medium text-center text-gray-900 dark:text-gray-100" numberOfLines={1}>
+                {friend.full_name || friend.email.split('@')[0]}
               </Text>
-              <Text className="text-xs text-muted-foreground text-center">
-                Rating:{" "}
-                {friend.glicko_rating
+              <Text className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                Rating: {friend.glicko_rating 
                   ? Math.round(parseFloat(friend.glicko_rating))
-                  : "-"}
+                  : '-'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -1356,165 +1162,146 @@ const renderUserHeader = () => (
     );
   };
 
-  // Loading state with enhanced UI
-  if (loading && !refreshing) {
+  const renderEmptyState = () => (
+    <View className="items-center justify-center py-16">
+      <View className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-full items-center justify-center mb-6">
+        <Ionicons name="tennisball-outline" size={40} color="#9CA3AF" />
+      </View>
+      <Text className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+        Welcome to Padel!
+      </Text>
+      <Text className="text-gray-500 dark:text-gray-400 text-center mb-8 px-6 leading-6">
+        Start your padel journey by creating your first match or connecting with friends. 
+        Your match history and stats will appear here as you play.
+      </Text>
+      
+      <View className="w-full px-6 gap-4">
+        <Button
+          onPress={() => router.push('/(protected)/(screens)/create-match')}
+          className="w-full bg-blue-500 hover:bg-blue-600"
+          style={{
+            shadowColor: "#3B82F6",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.2,
+            shadowRadius: 4,
+            elevation: 4,
+          }}
+        >
+          <Ionicons name="add" size={18} style={{ marginRight: 8 }} />
+          <Text className="text-white font-medium">Create Your First Match</Text>
+        </Button>
+        
+        <Button
+          variant="outline"
+          onPress={() => router.push('/(protected)/(screens)/friends')}
+          className="w-full"
+        >
+          <Ionicons name="people" size={18} style={{ marginRight: 8 }} />
+          <Text className="font-medium">Find Friends to Play With</Text>
+        </Button>
+        
+        <Button
+          variant="outline"
+          onPress={() => router.push('/(protected)/(screens)/leaderboard')}
+          className="w-full"
+        >
+          <Ionicons name="trophy" size={18} style={{ marginRight: 8 }} />
+          <Text className="font-medium">View Leaderboard</Text>
+        </Button>
+      </View>
+    </View>
+  );
+
+  if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-background">
-        <View className="flex-1 items-center justify-center p-6">
-          <ActivityIndicator size="large" color="#2148ce" />
-          <Text className="mt-4 text-muted-foreground">
-            Loading your dashboard...
-          </Text>
+      <SafeAreaView className="flex-1  dark:bg-gray-900">
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color="#3B82F6" />
+          <Text className="mt-4 text-gray-500 dark:text-gray-400">Loading your dashboard...</Text>
+          <View className="mt-4 flex-row gap-4">
+            <View className="items-center">
+              <View className="w-6 h-6 bg-blue-100 dark:bg-blue-900/30 rounded-full items-center justify-center">
+                <Ionicons name="globe" size={12} color="#2563eb" />
+              </View>
+              <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1">Public</Text>
+            </View>
+            <View className="items-center">
+              <View className="w-6 h-6 bg-gray-100 dark:bg-gray-800 rounded-full items-center justify-center">
+                <Ionicons name="lock-closed" size={12} color="#6b7280" />
+              </View>
+              <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1">Private</Text>
+            </View>
+            <View className="items-center">
+              <View className="w-6 h-6 bg-amber-100 dark:bg-amber-900/30 rounded-full items-center justify-center">
+                <Ionicons name="time" size={12} color="#d97706" />
+              </View>
+              <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1">Pending</Text>
+            </View>
+          </View>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView className="flex-1 bg-background dark:bg-gray-900">
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ padding: 24, paddingBottom: 100 }}
+        contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#2148ce"
-            colors={["#2148ce"]}
+            tintColor="#3B82F6"
+            colors={['#3B82F6']}
           />
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Enhanced User Header with Avatar Integration */}
+        {/* Enhanced User Header */}
         {renderUserHeader()}
 
-        {/* Priority: Matches Needing Attention */}
-        {categorizedMatches.needsAttention.length > 0 && (
-          <View className="mb-6">
-            <View className="flex-row justify-between items-center mb-3">
-              <H2>Needs Attention</H2>
-              <View className="bg-amber-100 dark:bg-amber-900/30 px-2 py-1 rounded-full">
-                <Text className="text-xs font-medium text-amber-800 dark:text-amber-300">
-                  {categorizedMatches.needsAttention.length}
-                </Text>
-              </View>
-            </View>
-
-            {categorizedMatches.needsAttention.map((match) =>
-              renderMatchCard(match, "attention")
+        {/* Content */}
+        {matches.length === 0 ? renderEmptyState() : (
+          <>
+            {/* Priority: Matches Needing Attention */}
+            {renderSection(
+              'Needs Attention',
+              categorizedMatches.needsAttention,
+              'attention',
+              undefined,
+              true,
+              categorizedMatches.needsAttention.length
             )}
-          </View>
+
+            {/* Upcoming Matches */}
+            {renderSection(
+              'Upcoming Matches',
+              categorizedMatches.upcoming,
+              'upcoming',
+              () => router.push('/(protected)/(screens)/match-history')
+            )}
+
+            {/* Recent Matches */}
+            {renderSection(
+              'Recent Matches',
+              categorizedMatches.recent,
+              'recent',
+              () => router.push('/(protected)/(screens)/match-history')
+            )}
+
+            {/* Enhanced Friends Activity */}
+            {renderFriendsActivity()}
+          </>
         )}
-
-        {/* Upcoming Matches with Enhanced Avatar Display */}
-        {categorizedMatches.upcoming.length > 0 && (
-          <View className="mb-6">
-            <View className="flex-row justify-between items-center mb-3">
-              <H2>Upcoming Matches</H2>
-              {categorizedMatches.upcoming.length >= 3 && (
-                <TouchableOpacity
-                  onPress={handleViewAllMatches}
-                  className="flex-row items-center"
-                >
-                  <Text className="text-primary text-sm mr-1">View All</Text>
-                  <Ionicons name="chevron-forward" size={14} color="#2148ce" />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {categorizedMatches.upcoming
-              .slice(0, 3)
-              .map((match) => renderMatchCard(match, "upcoming"))}
-          </View>
-        )}
-
-        {/* Recent Matches with Enhanced Avatar Display */}
-        {categorizedMatches.recent.length > 0 && (
-          <View className="mb-6">
-            <View className="flex-row justify-between items-center mb-3">
-              <H2>Recent Matches</H2>
-              <TouchableOpacity
-                onPress={handleViewAllMatches}
-                className="flex-row items-center"
-              >
-                <Text className="text-primary text-sm mr-1">View All</Text>
-                <Ionicons name="chevron-forward" size={14} color="#2148ce" />
-              </TouchableOpacity>
-            </View>
-
-            {categorizedMatches.recent
-              .slice(0, 3)
-              .map((match) => renderMatchCard(match, "recent"))}
-          </View>
-        )}
-
-        {/* Enhanced Empty State with Avatar-Aware Onboarding */}
-        {allMatches.length === 0 && (
-          <View
-            className="bg-card rounded-xl p-8 items-center border border-border/30"
-            style={{
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 4,
-              elevation: 3,
-            }}
-          >
-            <View className="w-20 h-20 rounded-full bg-primary/10 items-center justify-center mb-4">
-              <Ionicons name="tennisball-outline" size={40} color="#2148ce" />
-            </View>
-            <Text className="text-xl font-bold mb-2">
-              Welcome to Padel Scoring!
-            </Text>
-            <Text className="text-muted-foreground text-center mb-6 leading-5">
-              Start your padel journey by creating your first match or
-              connecting with friends. Your avatar and match history will appear
-              here as you play.
-            </Text>
-
-            <View className="w-full gap-3">
-              <Button
-                variant="default"
-                onPress={handleCreateMatch}
-                className="w-full"
-                style={{
-                  shadowColor: "#2148ce",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.2,
-                  shadowRadius: 4,
-                  elevation: 4,
-                }}
-              >
-                <Ionicons name="add" size={18} style={{ marginRight: 8 }} />
-                <Text>Create Your First Match</Text>
-              </Button>
-
-              <Button
-                variant="outline"
-                onPress={handleViewFriends}
-                className="w-full"
-              >
-                <Ionicons name="people" size={18} style={{ marginRight: 8 }} />
-                <Text>Find Friends to Play With</Text>
-              </Button>
-            </View>
-          </View>
-        )}
-
-        {/* Enhanced Friends Activity with Avatar Integration */}
-        {renderFriendsActivity()}
-
-        <Button onPress={sendTestNotification}>
-  <Text>Test Notification</Text>
-</Button>
       </ScrollView>
 
-      {/* Enhanced Floating Action Button for Quick Match Creation */}
+      {/* Enhanced Floating Action Button */}
       <TouchableOpacity
-        onPress={handleCreateMatch}
-        className="absolute bottom-6 right-6 w-14 h-14 rounded-full bg-primary items-center justify-center shadow-lg"
+        onPress={() => router.push('/(protected)/(screens)/create-match')}
+        className="absolute bottom-6 right-6 w-14 h-14 rounded-full bg-blue-500 items-center justify-center shadow-lg"
         style={{
-          shadowColor: "#2148ce",
+          shadowColor: "#3B82F6",
           shadowOffset: { width: 0, height: 4 },
           shadowOpacity: 0.3,
           shadowRadius: 8,
@@ -1524,8 +1311,6 @@ const renderUserHeader = () => (
       >
         <Ionicons name="add" size={28} color="white" />
       </TouchableOpacity>
-
-
     </SafeAreaView>
   );
 }

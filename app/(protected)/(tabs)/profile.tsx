@@ -1383,10 +1383,6 @@ export default function Profile() {
         
         {/* **COMPACT PROFILE HEADER WITH NOTIFICATION BELL** */}
         <View className="relative pt-16 pb-6 px-6 bg-gradient-to-b from-primary/10 to-background">
-          {/* Notification Bell - Positioned at top-right */}
-          <View className="absolute top-16 right-6 z-10">
-            <HeaderNotificationButton />
-          </View>
           
           <View className="items-center">
             {/* Avatar with compact styling */}

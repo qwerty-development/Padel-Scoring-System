@@ -935,7 +935,7 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
     stepConfig.findIndex((step) => step.id === currentStep) + 1;
 
   return (
-    <View className=" dark:bg-gray-900/80  dark:border-gray-700">
+    <View className=" dark:bg-gray-900/80 mb-3  dark:border-gray-700">
       {/* Step indicators */}
       <View className="flex-row">
         {stepConfig.map((step, index) => {
@@ -1398,8 +1398,6 @@ export default function CreateMatchWizard() {
     }
   }, [currentStep, stepConfig]);
 
-
-
   // ========================================
   // STEP VALIDATION FUNCTIONS
   // ========================================
@@ -1751,11 +1749,11 @@ export default function CreateMatchWizard() {
 
         if (matchError) throw matchError;
 
-await NotificationHelpers.sendMatchConfirmationNotifications(
-  playerIds,
-  matchResult.id,
-  session!.user.id  
-);
+        await NotificationHelpers.sendMatchConfirmationNotifications(
+          playerIds,
+          matchResult.id,
+          session!.user.id
+        );
 
         console.log(
           "✅ Match created successfully. PostgreSQL cron job will process ratings after validation period."
