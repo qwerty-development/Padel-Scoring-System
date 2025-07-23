@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity, Image, Alert, Vibration } from "react-native";
+import { View, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity, Image, Alert, Vibration, Share } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, router } from 'expo-router';
 
@@ -74,7 +74,24 @@ interface MatchHistory {
   recentForm: ('W' | 'L')[];
 }
 
-// NEW: Friendship status enum
+// NEW: Enhanced Friend Statistics Interface
+interface FriendStats {
+  totalMatches: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  currentStreak: number;
+  longestStreak: number;
+  averageMatchDuration: number;
+  recentPerformance: 'improving' | 'declining' | 'stable';
+  thisWeekMatches: number;
+  thisMonthMatches: number;
+  setsWon: number;
+  setsLost: number;
+  recentForm: ('W' | 'L')[];
+}
+
+// Friendship status enum
 enum FriendshipStatus {
   NOT_FRIENDS = 'not_friends',
   FRIENDS = 'friends',
@@ -296,11 +313,30 @@ export default function FriendProfileScreen() {
     },
     recentForm: []
   });
+  
+  // NEW: Friend's overall statistics state
+  const [friendStats, setFriendStats] = useState<FriendStats>({
+    totalMatches: 0,
+    wins: 0,
+    losses: 0,
+    winRate: 0,
+    currentStreak: 0,
+    longestStreak: 0,
+    averageMatchDuration: 0,
+    recentPerformance: 'stable',
+    thisWeekMatches: 0,
+    thisMonthMatches: 0,
+    setsWon: 0,
+    setsLost: 0,
+    recentForm: []
+  });
+  
   const [loading, setLoading] = useState(true);
   const [matchesLoading, setMatchesLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true); // NEW: Stats loading state
   const [refreshing, setRefreshing] = useState(false);
   
-  // NEW: Friendship status state
+  // Friendship status state
   const [friendshipStatus, setFriendshipStatus] = useState<FriendshipStatus>(FriendshipStatus.LOADING);
   const [sendingRequest, setSendingRequest] = useState(false);
   
@@ -319,10 +355,186 @@ export default function FriendProfileScreen() {
   useEffect(() => {
     if (profileId && session?.user?.id) {
       fetchMatchHistory(profileId as string, session.user.id);
+      fetchFriendStatistics(profileId as string); // NEW: Fetch friend's overall stats
     }
   }, [profileId, session]);
 
-  // NEW: Check friendship status
+  // NEW: Fetch friend's overall statistics
+  const fetchFriendStatistics = async (friendId: string) => {
+    try {
+      setStatsLoading(true);
+      
+      // Query all matches where the friend participated
+      const { data: allMatches, error } = await supabase
+        .from('matches')
+        .select(`
+          *,
+          player1:profiles!player1_id(id, full_name, email),
+          player2:profiles!player2_id(id, full_name, email),
+          player3:profiles!player3_id(id, full_name, email),
+          player4:profiles!player4_id(id, full_name, email)
+        `)
+        .or(`player1_id.eq.${friendId},player2_id.eq.${friendId},player3_id.eq.${friendId},player4_id.eq.${friendId}`)
+        .order('start_time', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+
+      if (allMatches) {
+        const stats = calculateFriendStats(allMatches, friendId);
+        setFriendStats(stats);
+      }
+    } catch (error) {
+      console.error('Error fetching friend statistics:', error);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  // NEW: Calculate friend's overall statistics
+  const calculateFriendStats = (matches: MatchData[], friendId: string): FriendStats => {
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    
+    let wins = 0;
+    let losses = 0;
+    let currentStreak = 0;
+    let longestStreak = 0;
+    let thisWeekMatches = 0;
+    let thisMonthMatches = 0;
+    let totalDuration = 0;
+    let matchesWithDuration = 0;
+    let setsWon = 0;
+    let setsLost = 0;
+    
+    const recentForm: ('W' | 'L')[] = [];
+    const recentResults: boolean[] = [];
+    const olderResults: boolean[] = [];
+
+    // Filter completed matches and sort by date
+    const completedMatches = matches.filter(match => {
+      return match.team1_score_set1 !== null && 
+             match.team1_score_set1 !== undefined && 
+             match.team2_score_set1 !== null && 
+             match.team2_score_set1 !== undefined;
+    }).sort((a, b) => {
+      const dateA = new Date(a.completed_at || a.end_time || a.start_time).getTime();
+      const dateB = new Date(b.completed_at || b.end_time || b.start_time).getTime();
+      return dateA - dateB;
+    });
+
+    // Process each match
+    for (const match of completedMatches) {
+      try {
+        const matchDate = new Date(match.completed_at || match.end_time || match.start_time);
+        const isFriendInTeam1 = match.player1_id === friendId || match.player2_id === friendId;
+        
+        // Calculate sets for this match
+        const team1Sets = (match.team1_score_set1 > match.team2_score_set1 ? 1 : 0) +
+                         (match.team1_score_set2 > match.team2_score_set2 ? 1 : 0) +
+                         ((match.team1_score_set3 !== null && match.team2_score_set3 !== null) 
+                          ? (match.team1_score_set3 > match.team2_score_set3 ? 1 : 0) : 0);
+        
+        const team2Sets = (match.team2_score_set1 > match.team1_score_set1 ? 1 : 0) +
+                         (match.team2_score_set2 > match.team1_score_set2 ? 1 : 0) +
+                         ((match.team1_score_set3 !== null && match.team2_score_set3 !== null) 
+                          ? (match.team2_score_set3 > match.team1_score_set3 ? 1 : 0) : 0);
+
+        // Determine if friend won
+        let friendWon = false;
+        if (match.winner_team) {
+          friendWon = (isFriendInTeam1 && match.winner_team === 1) || (!isFriendInTeam1 && match.winner_team === 2);
+        } else {
+          friendWon = isFriendInTeam1 ? team1Sets > team2Sets : team2Sets > team1Sets;
+        }
+
+        // Update win/loss counters
+        if (friendWon) {
+          wins++;
+          currentStreak = currentStreak >= 0 ? currentStreak + 1 : 1;
+        } else {
+          losses++;
+          currentStreak = currentStreak <= 0 ? currentStreak - 1 : -1;
+        }
+
+        // Update longest streak
+        if (Math.abs(currentStreak) > Math.abs(longestStreak)) {
+          longestStreak = currentStreak;
+        }
+
+        // Update sets
+        if (isFriendInTeam1) {
+          setsWon += team1Sets;
+          setsLost += team2Sets;
+        } else {
+          setsWon += team2Sets;
+          setsLost += team1Sets;
+        }
+
+        // Track recent form (last 10 matches)
+        if (recentForm.length < 10) {
+          recentForm.unshift(friendWon ? 'W' : 'L');
+        }
+
+        // Track performance trends
+        if (matchDate >= weekAgo) {
+          thisWeekMatches++;
+          recentResults.push(friendWon);
+        } else if (matchDate >= monthAgo) {
+          thisMonthMatches++;
+          olderResults.push(friendWon);
+        }
+
+        // Calculate match duration
+        if (match.start_time && match.end_time) {
+          const duration = new Date(match.end_time).getTime() - new Date(match.start_time).getTime();
+          if (duration > 0 && duration < 24 * 60 * 60 * 1000) {
+            totalDuration += duration;
+            matchesWithDuration++;
+          }
+        }
+      } catch (error) {
+        console.warn('Error processing match for friend stats:', error);
+        continue;
+      }
+    }
+
+    // Calculate performance trend
+    let recentPerformance: 'improving' | 'declining' | 'stable' = 'stable';
+    if (recentResults.length >= 2 && olderResults.length >= 2) {
+      const recentWinRate = recentResults.filter(Boolean).length / recentResults.length;
+      const olderWinRate = olderResults.filter(Boolean).length / olderResults.length;
+      
+      if (recentWinRate > olderWinRate + 0.15) {
+        recentPerformance = 'improving';
+      } else if (recentWinRate < olderWinRate - 0.15) {
+        recentPerformance = 'declining';
+      }
+    }
+
+    const totalMatches = wins + losses;
+    const winRate = totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0;
+    const averageMatchDuration = matchesWithDuration > 0 ? totalDuration / matchesWithDuration : 0;
+
+    return {
+      totalMatches,
+      wins,
+      losses,
+      winRate,
+      currentStreak,
+      longestStreak,
+      averageMatchDuration,
+      recentPerformance,
+      thisWeekMatches,
+      thisMonthMatches,
+      setsWon,
+      setsLost,
+      recentForm
+    };
+  };
+
+  // Check friendship status
   const checkFriendshipStatus = async (targetUserId: string) => {
     try {
       if (!session?.user?.id || !currentUserProfile) {
@@ -383,7 +595,7 @@ export default function FriendProfileScreen() {
     }
   };
 
-  // NEW: Send friend request
+  // Send friend request
   const sendFriendRequest = async () => {
     if (!session?.user?.id || !profile || !currentUserProfile) {
       Alert.alert('Error', 'Unable to send friend request. Please try again.');
@@ -439,7 +651,7 @@ export default function FriendProfileScreen() {
     }
   };
 
-  // NEW: Cancel friend request
+  // Cancel friend request
   const cancelFriendRequest = async () => {
     if (!session?.user?.id || !profile) return;
 
@@ -469,7 +681,7 @@ export default function FriendProfileScreen() {
     }
   };
 
-  // NEW: Accept friend request
+  // Accept friend request
   const acceptFriendRequest = async () => {
     if (!session?.user?.id || !profile || !currentUserProfile) return;
 
@@ -708,8 +920,249 @@ export default function FriendProfileScreen() {
       checkFriendshipStatus(profileId as string);
       if (session?.user?.id) {
         fetchMatchHistory(profileId as string, session.user.id);
+        fetchFriendStatistics(profileId as string);
       }
     }
+  };
+
+  // NEW: Share friend profile function
+  const shareFriendProfile = async () => {
+    try {
+      const message = `Check out ${profile?.full_name || 'this player'}'s Padel profile!\n\nName: ${profile?.full_name || 'Anonymous Player'}\nRating: ${profile?.glicko_rating || '-'}\nWin Rate: ${friendStats.winRate}%\nMatches: ${friendStats.totalMatches}\nStreak: ${friendStats.currentStreak}\n\nLet's play a match!`;
+      await Share.share({ 
+        message, 
+        title: `${profile?.full_name || 'Player'}'s Padel Profile` 
+      });
+    } catch (error) {
+      console.error('Share failed:', error);
+    }
+  };
+
+  // NEW: Enhanced Performance Overview Component for Friend
+  const renderFriendPerformanceOverview = () => {
+    if (statsLoading) {
+      return (
+        <View className="bg-card rounded-2xl mx-6 mb-6 p-6 items-center">
+          <ActivityIndicator size="small" color="#2148ce" />
+          <Text className="mt-2 text-muted-foreground">Loading performance data...</Text>
+        </View>
+      );
+    }
+
+    const getRatingFromProfile = () => {
+      try {
+        return profile?.glicko_rating ? parseInt(profile.glicko_rating.toString()) : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const rating = getRatingFromProfile();
+    
+    // Rating level classification system
+    const getRatingLevel = (rating: number | null) => {
+      if (!rating) return { level: 'Unrated', color: '#6b7280', bgColor: '#f3f4f6' };
+      if (rating >= 2100) return { level: 'Elite', color: '#7c2d12', bgColor: '#fbbf24' };
+      if (rating >= 1900) return { level: 'Expert', color: '#7c3aed', bgColor: '#c4b5fd' };
+      if (rating >= 1700) return { level: 'Advanced', color: '#059669', bgColor: '#6ee7b7' };
+      if (rating >= 1500) return { level: 'Intermediate', color: '#2563eb', bgColor: '#93c5fd' };
+      if (rating >= 1300) return { level: 'Beginner', color: '#dc2626', bgColor: '#fca5a5' };
+      return { level: 'Novice', color: '#6b7280', bgColor: '#d1d5db' };
+    };
+
+    const ratingLevel = getRatingLevel(rating);
+    
+    // Trend calculation for visual indicator
+    const getTrendIndicator = () => {
+      if (friendStats.recentPerformance === 'improving') {
+        return { icon: 'trending-up', color: '#10b981' };
+      } else if (friendStats.recentPerformance === 'declining') {
+        return { icon: 'trending-down', color: '#ef4444' };
+      }
+      return { icon: 'remove', color: '#6b7280' };
+    };
+
+    const trend = getTrendIndicator();
+
+    return (
+      <View className="bg-card rounded-2xl mx-6 mb-6 overflow-hidden"
+            style={{
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 8,
+              elevation: 4,
+            }}>
+        
+        {/* Header with gradient background */}
+        <View className="px-6 pt-5 pb-4 bg-primary/5">
+          <View className="flex-row justify-between items-center">
+            <View className="flex-row items-center">
+              <Ionicons name="analytics" size={22} color="#2148ce" style={{ marginRight: 8 }} />
+              <H3 className="text-lg">Performance Overview</H3>
+            </View>
+            <TouchableOpacity onPress={shareFriendProfile}>
+              <Ionicons name="share-outline" size={20} color="#2148ce" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View className="px-6 pb-6">
+          {/* Compact Rating Badge */}
+          <View className="items-center mb-5 -mt-2">
+            <View 
+              className="px-6 py-3 rounded-xl border-2 flex-row items-center"
+              style={{
+                backgroundColor: ratingLevel.bgColor,
+                borderColor: ratingLevel.color,
+                shadowColor: ratingLevel.color,
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.3,
+                shadowRadius: 4,
+                elevation: 4,
+              }}
+            >
+              <Ionicons name="trophy" size={20} color={ratingLevel.color} style={{ marginRight: 8 }} />
+              <View className="items-center">
+                <Text 
+                  className="text-2xl font-bold"
+                  style={{ color: ratingLevel.color }}
+                >
+                  {rating || '-'}
+                </Text>
+                <Text 
+                  className="text-xs font-medium"
+                  style={{ color: ratingLevel.color, opacity: 0.8 }}
+                >
+                  Glicko Rating
+                </Text>
+              </View>
+              <View className="ml-8 px-3 py-1 rounded-full" style={{ backgroundColor: ratingLevel.color }}>
+                <Text className="text-white text-xs font-bold">{ratingLevel.level}</Text>
+              </View>
+              <Ionicons 
+                name={trend.icon as any} 
+                size={18} 
+                color={trend.color}
+                style={{ marginLeft: 8 }}
+              />
+            </View>
+          </View>
+
+          {/* Main Statistics Grid */}
+          <View className="flex-row justify-around mb-5">
+            <View className="items-center">
+              <Text className="text-xl font-bold text-primary">{friendStats.totalMatches}</Text>
+              <Text className="text-xs text-muted-foreground">Matches</Text>
+            </View>
+            <View className="items-center">
+              <Text className="text-xl font-bold text-green-500">{friendStats.wins}</Text>
+              <Text className="text-xs text-muted-foreground">Wins</Text>
+            </View>
+            <View className="items-center">
+              <Text className="text-xl font-bold text-red-500">{friendStats.losses}</Text>
+              <Text className="text-xs text-muted-foreground">Losses</Text>
+            </View>
+            <View className="items-center">
+              <Text className="text-xl font-bold text-primary">{friendStats.winRate}%</Text>
+              <Text className="text-xs text-muted-foreground">Win Rate</Text>
+            </View>
+          </View>
+          
+          {/* Additional Stats - More Compact */}
+          <View className="bg-muted/10 rounded-xl p-3 mb-4">
+            <View className="flex-row justify-around">
+              <View className="items-center">
+                <Text className="text-base font-bold">{friendStats.thisWeekMatches}</Text>
+                <Text className="text-xs text-muted-foreground">This Week</Text>
+              </View>
+              <View className="items-center">
+                <Text className="text-base font-bold">{friendStats.thisMonthMatches}</Text>
+                <Text className="text-xs text-muted-foreground">This Month</Text>
+              </View>
+              <View className="items-center">
+                <Text className={`text-base font-bold ${
+                  friendStats.longestStreak > 0 ? 'text-green-500' : 
+                  friendStats.longestStreak < 0 ? 'text-red-500' : ''
+                }`}>
+                  {Math.abs(friendStats.longestStreak)}
+                </Text>
+                <Text className="text-xs text-muted-foreground">Best Streak</Text>
+              </View>
+              <View className="items-center">
+                <Text className="text-base font-bold">
+                  {friendStats.averageMatchDuration > 0 
+                    ? Math.round(friendStats.averageMatchDuration / (1000 * 60)) + 'm'
+                    : '-'
+                  }
+                </Text>
+                <Text className="text-xs text-muted-foreground">Avg Duration</Text>
+              </View>
+            </View>
+          </View>
+          
+          {/* Separator */}
+          <View className="h-px bg-border mb-4" />
+          
+          {/* Current Form and Recent Form Display */}
+          <View className="flex-row justify-between items-center">
+            <View className="flex-row items-center flex-1">
+              <Ionicons 
+                name={
+                  friendStats.recentPerformance === 'improving' ? 'trending-up' :
+                  friendStats.recentPerformance === 'declining' ? 'trending-down' : 'remove'
+                } 
+                size={18} 
+                color={
+                  friendStats.recentPerformance === 'improving' ? '#10b981' :
+                  friendStats.recentPerformance === 'declining' ? '#ef4444' : '#6b7280'
+                } 
+                style={{ marginRight: 8 }} 
+              />
+              <View className="flex-1">
+                <Text className="text-sm text-muted-foreground">
+                  Streak: 
+                  <Text className={`font-medium ${
+                    friendStats.currentStreak > 0 ? 'text-green-500' : 
+                    friendStats.currentStreak < 0 ? 'text-red-500' : ''
+                  }`}>
+                    {' '}{friendStats.currentStreak > 0 ? `${friendStats.currentStreak}W` : 
+                         friendStats.currentStreak < 0 ? `${Math.abs(friendStats.currentStreak)}L` : '0'}
+                  </Text>
+                  {' • '}
+                  <Text className={`${
+                    friendStats.recentPerformance === 'improving' ? 'text-green-500' :
+                    friendStats.recentPerformance === 'declining' ? 'text-red-500' : 'text-muted-foreground'
+                  }`}>
+                    {friendStats.recentPerformance}
+                  </Text>
+                </Text>
+              </View>
+            </View>
+            
+            {/* Recent Form Visualization */}
+            <View className="flex-row ml-4">
+              {friendStats.recentForm.slice(0, 5).map((result, index) => (
+                <View
+                  key={index}
+                  className={`w-6 h-6 rounded-full mr-1 items-center justify-center ${
+                    result === 'W' ? 'bg-green-100' : 'bg-red-100'
+                  }`}
+                >
+                  <Text 
+                    className={`font-bold text-xs ${
+                      result === 'W' ? 'text-green-700' : 'text-red-700'
+                    }`}
+                  >
+                    {result}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+      </View>
+    );
   };
 
   /**
@@ -737,7 +1190,7 @@ export default function FriendProfileScreen() {
     </View>
   );
 
-  // NEW: Render friendship action button
+  // Render friendship action button
   const renderFriendshipButton = () => {
     if (friendshipStatus === FriendshipStatus.LOADING) {
       return (
@@ -862,8 +1315,6 @@ export default function FriendProfileScreen() {
             </View>
           </View>
         );
-
-      
 
       default:
         return null;
@@ -1424,15 +1875,17 @@ export default function FriendProfileScreen() {
           {profile.nickname && (
             <H2 className="text-muted-foreground text-center">"{profile.nickname}"</H2>
           )}
-        
         </View> 
 
         {/* Enhanced Content Section */}
         <View className="px-6 pb-8">
+          {/* NEW: Friend's Performance Overview */}
+          {renderFriendPerformanceOverview()}
+          
           {/* Rating comparison */}
           {renderComparisonCard()}
           
-          {/* NEW: Friendship Status and Action Button */}
+          {/* Friendship Status and Action Button */}
           {renderFriendshipButton()}
           
           {/* Match History - Only show if friends */}
@@ -1442,7 +1895,6 @@ export default function FriendProfileScreen() {
           <H3 className="mb-4">Personal Information</H3>
           {renderInfoCard("Age", profile.age, "person-outline")}
           {renderInfoCard("Gender", profile.sex, "body-outline")}
-     
 
           {/* Playing Preferences Section */}
           <H3 className="mb-4 mt-6">Playing Preferences</H3>
