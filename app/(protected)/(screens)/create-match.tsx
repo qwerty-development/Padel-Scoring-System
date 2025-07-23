@@ -240,7 +240,6 @@ interface Profile {
   friends_list?: string[];
 }
 
-// ENHANCEMENT: Enhanced MatchData interface with validation fields
 interface MatchData {
   id?: string;
   player1_id: string;
@@ -263,11 +262,15 @@ interface MatchData {
   court: string | null;
   is_public: boolean;
   description?: string;
+  // FIXED: Use updated_by instead of created_by to match database schema
+  updated_by?: string;
   // ENHANCEMENT: Validation fields
   validation_deadline?: string;
   validation_status?: string;
   rating_applied?: boolean;
   report_count?: number;
+  // ENHANCEMENT: Creator confirmation field to match schema
+  creator_confirmed?: boolean;
 }
 
 // WIZARD STEP CONFIGURATION
@@ -1676,153 +1679,242 @@ export default function CreateMatchWizard() {
     };
   };
 
-  const createMatch = async () => {
-    try {
-      const validation = validateMatch();
+const createMatch = async () => {
+  try {
+    const validation = validateMatch();
 
-      if (!validation.isValid) {
-        Alert.alert("Validation Error", validation.errors.join("\n"), [
-          { text: "OK" },
-        ]);
-        return;
+    if (!validation.isValid) {
+      Alert.alert("Validation Error", validation.errors.join("\n"), [
+        { text: "OK" },
+      ]);
+      return;
+    }
+
+    setLoading(true);
+
+    if (isPastMatch) {
+      const winnerTeam = determineWinnerTeam();
+
+      const playerIds = [session?.user?.id, ...selectedFriends].filter(
+        (id) => id != null
+      ) as string[];
+      if (playerIds.length !== 4) {
+        throw new Error("Could not form a team of 4 players");
       }
 
-      setLoading(true);
+      const now = new Date();
+      const validationHours = useQuickValidation
+        ? VALIDATION_CONFIG.QUICK_VALIDATION_HOURS
+        : VALIDATION_CONFIG.DISPUTE_WINDOW_HOURS;
+      const validationDeadline = new Date(
+        now.getTime() + validationHours * 60 * 60 * 1000
+      );
 
-      if (isPastMatch) {
-        const winnerTeam = determineWinnerTeam();
+      // FIXED: Map fields correctly using only existing database columns
+      const matchData: MatchData = {
+        player1_id: session?.user?.id as string,
+        player2_id: selectedFriends[0] || null,
+        player3_id: selectedFriends[1] || null,
+        player4_id: selectedFriends[2] || null,
+        team1_score_set1: set1Score.team1,
+        team2_score_set1: set1Score.team2,
+        team1_score_set2: set2Score.team1,
+        team2_score_set2: set2Score.team2,
+        team1_score_set3: showSet3 ? set3Score.team1 : null,
+        team2_score_set3: showSet3 ? set3Score.team2 : null,
+        winner_team: winnerTeam,
+        status: MatchStatus.COMPLETED,
+        completed_at: new Date().toISOString(),
+        start_time: startDateTime.toISOString(),
+        end_time: endDateTime.toISOString(),
+        region: region.trim() || null,
+        court: court.trim() || null,
+        is_public: false,
+        description: matchDescription.trim() || null,
+        validation_deadline: validationDeadline.toISOString(),
+        validation_status: "pending",
+        rating_applied: false,
+        report_count: 0,
+        // REMOVED: created_by field - doesn't exist in database schema
+        // player1_id serves as the creator identifier for triggers
+        // KEEP: updated_by field exists in schema
+        updated_by: session?.user?.id as string,
+        // KEEP: creator_confirmed field exists in schema
+        creator_confirmed: true,
+      };
 
-        const playerIds = [session?.user?.id, ...selectedFriends].filter(
-          (id) => id != null
-        ) as string[];
-        if (playerIds.length !== 4) {
-          throw new Error("Could not form a team of 4 players");
-        }
+      console.log("🎯 Creating past match with existing database columns only:", {
+        player1_id: matchData.player1_id,
+        updated_by: matchData.updated_by,
+        creator_confirmed: matchData.creator_confirmed,
+        validation_deadline: matchData.validation_deadline,
+        validation_status: matchData.validation_status,
+        rating_applied: matchData.rating_applied,
+        hours_until_deadline: validationHours,
+        processing_method: "postgresql_cron_job",
+        note: "Triggers should use player1_id as creator identifier"
+      });
 
-        const now = new Date();
-        const validationHours = useQuickValidation
-          ? VALIDATION_CONFIG.QUICK_VALIDATION_HOURS
-          : VALIDATION_CONFIG.DISPUTE_WINDOW_HOURS;
-        const validationDeadline = new Date(
-          now.getTime() + validationHours * 60 * 60 * 1000
-        );
-
-        const matchData: MatchData = {
-          player1_id: session?.user?.id as string,
-          player2_id: selectedFriends[0] || null,
-          player3_id: selectedFriends[1] || null,
-          player4_id: selectedFriends[2] || null,
-          team1_score_set1: set1Score.team1,
-          team2_score_set1: set1Score.team2,
-          team1_score_set2: set2Score.team1,
-          team2_score_set2: set2Score.team2,
-          team1_score_set3: showSet3 ? set3Score.team1 : null,
-          team2_score_set3: showSet3 ? set3Score.team2 : null,
-          winner_team: winnerTeam,
-          status: MatchStatus.COMPLETED,
-          completed_at: new Date().toISOString(),
-          start_time: startDateTime.toISOString(),
-          end_time: endDateTime.toISOString(),
-          region: region.trim() || null,
-          court: court.trim() || null,
-          is_public: false,
-          description: matchDescription.trim() || null,
-          validation_deadline: validationDeadline.toISOString(),
-          validation_status: "pending",
-          rating_applied: false,
-          report_count: 0,
-        };
-
-        console.log("🎯 Creating past match with PostgreSQL cron validation:", {
-          validation_deadline: matchData.validation_deadline,
-          validation_status: matchData.validation_status,
-          rating_applied: matchData.rating_applied,
-          hours_until_deadline: validationHours,
-          processing_method: "postgresql_cron_job",
-        });
-
-        const { data: matchResult, error: matchError } = await supabase
+      // ENHANCED: Better error handling for database operations
+      let matchResult;
+      try {
+        const { data: insertResult, error: matchError } = await supabase
           .from("matches")
           .insert(matchData)
           .select()
           .single();
 
-        if (matchError) throw matchError;
+        if (matchError) {
+          console.error("Database insert error:", matchError);
+          throw new Error(`Database error: ${matchError.message}`);
+        }
 
+        matchResult = insertResult;
+      } catch (dbError) {
+        console.error("Failed to insert match:", dbError);
+        
+        // Provide more specific error messages
+        if (dbError instanceof Error) {
+          if (dbError.message.includes("created_by")) {
+            throw new Error(
+              "Database trigger needs update: Triggers should use player1_id instead of created_by field."
+            );
+          } else if (dbError.message.includes("foreign key")) {
+            throw new Error(
+              "Invalid player reference. Please refresh and try again."
+            );
+          } else if (dbError.message.includes("check constraint")) {
+            throw new Error(
+              "Invalid match data. Please check all fields and try again."
+            );
+          }
+        }
+        throw dbError;
+      }
+
+      // ENHANCED: Only send notifications if match was created successfully
+      try {
         await NotificationHelpers.sendMatchConfirmationNotifications(
           playerIds,
           matchResult.id,
           session!.user.id
         );
+      } catch (notificationError) {
+        console.warn("Failed to send notifications:", notificationError);
+        // Don't fail the match creation for notification errors
+      }
 
-        console.log(
-          "✅ Match created successfully. PostgreSQL cron job will process ratings after validation period."
-        );
+      console.log(
+        "✅ Match created successfully. PostgreSQL cron job will process ratings after validation period."
+      );
 
-        const validationHoursDisplay = useQuickValidation
-          ? "1 hour"
-          : "24 hours";
+      const validationHoursDisplay = useQuickValidation
+        ? "1 hour"
+        : "24 hours";
 
-        Alert.alert(
-          "✅ Match Created Successfully!",
-          `Match has been recorded with automatic validation system.\n\n` +
-            `⏰ Validation Period: ${validationHoursDisplay}\n\n` +
-            `🤖 Rating Processing: Automated server processing\n` +
-            `📊 Ratings will be calculated and applied automatically after validation period expires.\n\n` +
-            `📢 All players can report issues during validation period.\n` +
-            `💡 You can delete this match within 24 hours if needed.\n\n` +
-            `🎯 Server automation will handle rating calculations every 30 minutes.`,
-          [
-            {
-              text: "View Match Details",
-              onPress: () =>
-                router.push({
-                  pathname: "/(protected)/(screens)/match-details",
-                  params: { matchId: matchResult.id },
-                }),
-            },
-            {
-              text: "OK",
-              onPress: () => router.push("/(protected)/(tabs)"),
-            },
-          ]
-        );
+      Alert.alert(
+        "✅ Match Created Successfully!",
+        `Match has been recorded with automatic validation system.\n\n` +
+          `⏰ Validation Period: ${validationHoursDisplay}\n\n` +
+          `🤖 Rating Processing: Automated server processing\n` +
+          `📊 Ratings will be calculated and applied automatically after validation period expires.\n\n` +
+          `📢 All players can report issues during validation period.\n` +
+          `💡 You can delete this match within 24 hours if needed.\n\n` +
+          `🎯 Server automation will handle rating calculations every 30 minutes.`,
+        [
+          {
+            text: "View Match Details",
+            onPress: () =>
+              router.push({
+                pathname: "/(protected)/(screens)/match-details",
+                params: { matchId: matchResult.id },
+              }),
+          },
+          {
+            text: "OK",
+            onPress: () => router.push("/(protected)/(tabs)"),
+          },
+        ]
+      );
 
-        Vibration.vibrate([100, 50, 100]);
-      } else {
-        const matchData: MatchData = {
-          player1_id: session?.user?.id as string,
-          player2_id: selectedFriends[0] || null,
-          player3_id: selectedFriends[1] || null,
-          player4_id: selectedFriends[2] || null,
-          team1_score_set1: null,
-          team2_score_set1: null,
-          team1_score_set2: null,
-          team2_score_set2: null,
-          team1_score_set3: null,
-          team2_score_set3: null,
-          winner_team: null,
-          status: teamComposition.isComplete
-            ? MatchStatus.PENDING
-            : MatchStatus.RECRUITING,
-          completed_at: null,
-          start_time: startDateTime.toISOString(),
-          end_time: endDateTime.toISOString(),
-          region: region.trim() || null,
-          court: court.trim() || null,
-          is_public: isPublicMatch,
-          description: matchDescription.trim() || null,
-        };
+      Vibration.vibrate([100, 50, 100]);
+    } else {
+      // FIXED: Future match creation using only existing database columns
+      const matchData: MatchData = {
+        player1_id: session?.user?.id as string,
+        player2_id: selectedFriends[0] || null,
+        player3_id: selectedFriends[1] || null,
+        player4_id: selectedFriends[2] || null,
+        team1_score_set1: null,
+        team2_score_set1: null,
+        team1_score_set2: null,
+        team2_score_set2: null,
+        team1_score_set3: null,
+        team2_score_set3: null,
+        winner_team: null,
+        status: teamComposition.isComplete
+          ? MatchStatus.PENDING
+          : MatchStatus.RECRUITING,
+        completed_at: null,
+        start_time: startDateTime.toISOString(),
+        end_time: endDateTime.toISOString(),
+        region: region.trim() || null,
+        court: court.trim() || null,
+        is_public: isPublicMatch,
+        description: matchDescription.trim() || null,
+        // REMOVED: created_by field - doesn't exist in database schema
+        // player1_id serves as the creator identifier for triggers
+        // KEEP: updated_by field exists in schema
+        updated_by: session?.user?.id as string,
+      };
 
-        const { data: matchResult, error: matchError } = await supabase
+      console.log("🎯 Creating future match with existing database columns only:", {
+        player1_id: matchData.player1_id,
+        updated_by: matchData.updated_by,
+        is_public: matchData.is_public,
+        status: matchData.status,
+        note: "Triggers should use player1_id as creator identifier"
+      });
+
+      // ENHANCED: Better error handling for future matches
+      let matchResult;
+      try {
+        const { data: insertResult, error: matchError } = await supabase
           .from("matches")
           .insert(matchData)
           .select()
           .single();
 
-        if (matchError) throw matchError;
+        if (matchError) {
+          console.error("Database insert error:", matchError);
+          throw new Error(`Database error: ${matchError.message}`);
+        }
 
-        // NOTIFICATION INTEGRATION: Send match invitations and schedule reminders
+        matchResult = insertResult;
+      } catch (dbError) {
+        console.error("Failed to insert future match:", dbError);
+        
+        // Provide more specific error messages
+        if (dbError instanceof Error) {
+          if (dbError.message.includes("created_by")) {
+            throw new Error(
+              "Database trigger needs update: Triggers should use player1_id instead of created_by field."
+            );
+          } else if (dbError.message.includes("foreign key")) {
+            throw new Error(
+              "Invalid player reference. Please refresh and try again."
+            );
+          } else if (dbError.message.includes("check constraint")) {
+            throw new Error(
+              "Invalid match data. Please check all fields and try again."
+            );
+          }
+        }
+        throw dbError;
+      }
+
+      // NOTIFICATION INTEGRATION: Send match invitations and schedule reminders
+      try {
         if (profile?.full_name && session?.user?.id) {
           const playerIds = [session.user.id, ...selectedFriends].filter(
             Boolean
@@ -1842,37 +1934,54 @@ export default function CreateMatchWizard() {
             matchData.start_time
           );
         }
-
-        let statusMessage = "";
-        if (teamComposition.isComplete) {
-          statusMessage = isPublicMatch
-            ? "Your public match has been scheduled successfully!"
-            : "Your private match has been scheduled successfully!";
-        } else {
-          statusMessage = isPublicMatch
-            ? "Your public match has been created! Other players can now join."
-            : `Private match created with ${teamComposition.availableSlots} open slot${teamComposition.availableSlots > 1 ? "s" : ""}. Invite more friends to complete the match.`;
-        }
-
-        Alert.alert("Match Scheduled!", statusMessage, [
-          { text: "OK", onPress: () => router.push("/(protected)/(tabs)") },
-        ]);
-
-        Vibration.vibrate(100);
+      } catch (notificationError) {
+        console.warn("Failed to send notifications:", notificationError);
+        // Don't fail the match creation for notification errors
       }
-    } catch (error) {
-      console.error("Error creating match:", error);
-      Alert.alert(
-        "Error",
-        `Failed to create match: ${(error as Error).message}`,
-        [{ text: "OK" }]
-      );
-      Vibration.vibrate(300);
-    } finally {
-      setLoading(false);
-    }
-  };
 
+      let statusMessage = "";
+      if (teamComposition.isComplete) {
+        statusMessage = isPublicMatch
+          ? "Your public match has been scheduled successfully!"
+          : "Your private match has been scheduled successfully!";
+      } else {
+        statusMessage = isPublicMatch
+          ? "Your public match has been created! Other players can now join."
+          : `Private match created with ${teamComposition.availableSlots} open slot${teamComposition.availableSlots > 1 ? "s" : ""}. Invite more friends to complete the match.`;
+      }
+
+      Alert.alert("Match Scheduled!", statusMessage, [
+        { text: "OK", onPress: () => router.push("/(protected)/(tabs)") },
+      ]);
+
+      Vibration.vibrate(100);
+    }
+  } catch (error) {
+    console.error("Error creating match:", error);
+    
+    // ENHANCED: More user-friendly error messages
+    let errorMessage = "Failed to create match";
+    
+    if (error instanceof Error) {
+      if (error.message.includes("Database trigger needs update")) {
+        errorMessage = error.message;
+      } else if (error.message.includes("foreign key")) {
+        errorMessage = "Invalid player data. Please refresh and try again.";
+      } else if (error.message.includes("check constraint")) {
+        errorMessage = "Invalid match data. Please check all fields.";
+      } else if (error.message.includes("Network")) {
+        errorMessage = "Network error. Please check your connection and try again.";
+      } else {
+        errorMessage = `Failed to create match: ${error.message}`;
+      }
+    }
+    
+    Alert.alert("Error", errorMessage, [{ text: "OK" }]);
+    Vibration.vibrate(300);
+  } finally {
+    setLoading(false);
+  }
+};
   const { width: screenWidth } = Dimensions.get("window");
   const CARD_WIDTH = 80;
   const CARD_HEIGHT = 100; // ← taller cards
