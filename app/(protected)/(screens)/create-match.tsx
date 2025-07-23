@@ -1861,6 +1861,24 @@ export default function CreateMatchWizard() {
     };
   };
 
+  const isFirstMatch = async (userId: string): Promise<boolean> => {
+    try {
+      const { count, error } = await supabase
+        .from('matches')
+        .select('*', { count: 'exact', head: true })
+        .or(`player1_id.eq.${userId},player2_id.eq.${userId},player3_id.eq.${userId},player4_id.eq.${userId}`);
+
+      if (error) {
+        console.error('Error checking first match:', error);
+        return false;
+      }
+      return count === 0;
+    } catch (error) {
+      console.error('Error checking first match:', error);
+      return false;
+    }
+  };
+
   const createMatch = async () => {
     try {
       const validation = validateMatch();
@@ -1995,8 +2013,25 @@ export default function CreateMatchWizard() {
             `🤖 Rating Processing: Automated server processing\n` +
             `📊 Ratings will be calculated and applied automatically after validation period expires.\n\n` +
             `📢 All players can report issues during validation period.\n` +
-            `💡 You can delete this match within 24 hours if needed.\n\n` +
+            `💡 You can delete this match within 24 hours if needed.
+
+` +
+            `🎉 Congratulations on creating your first match!
+` +
             `🎯 Server automation will handle rating calculations every 30 minutes.`,
+          [          {
+            text: "OK",
+            onPress: async () => {
+              const firstMatch = await isFirstMatch(session!.user.id);
+              if (firstMatch) {
+                Alert.alert(
+                  "🎉 Congratulations!",
+                  "You've created your first match! Keep playing to improve your rating.",
+                );
+              }
+            },
+          },
+        ],
           [
             {
               text: "View Match Details",
