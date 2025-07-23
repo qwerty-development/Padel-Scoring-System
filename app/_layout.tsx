@@ -9,6 +9,8 @@ import { AuthProvider } from "@/context/supabase-provider";
 import { NotificationProvider } from "@/context/notification-provider";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { colors } from "@/constants/colors";
+import { runConfirmationProcessor } from "@/services/confirmation-processor.service";
+
 
 LogBox.ignoreAllLogs();
 
@@ -84,6 +86,8 @@ export default function AppLayout() {
       subscription.remove();
     };
   }, []);
+
+runConfirmationProcessor();
 
   return (
     <AuthProvider>

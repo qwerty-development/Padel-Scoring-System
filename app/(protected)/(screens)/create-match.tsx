@@ -1193,7 +1193,7 @@ export default function CreateMatchWizard() {
   const [selectedCourt, setSelectedCourt] = useState<Court | null>(null);
   const [showCourtModal, setShowCourtModal] = useState(false);
 
-  // 10. COMPUTED VALUES WITH USEMEMO
+  // 10. COMPUTED VALUES WITH USEMEMO - FIXED VERSION
   const isPastMatch = useMemo(() => {
     const now = new Date();
     return startDateTime.getTime() <= now.getTime() + 15 * 60 * 1000;
@@ -1205,17 +1205,8 @@ export default function CreateMatchWizard() {
   }, [startDateTime]);
 
   const teamComposition = useMemo(() => {
-    // DEBUG: Add logging to see what's happening
-    console.log("🔍 teamComposition calculation:", {
-      selectedFriendsLength: selectedFriends.length,
-      selectedPlayersLength: selectedPlayers.length,
-      selectedFriends: selectedFriends,
-      selectedPlayersIds: selectedPlayers.map((p) => p.id),
-      friendsAvailable: friends.length,
-      isPastMatch: isPastMatch,
-    });
-
-    const totalPlayers = 1 + selectedFriends.length; // Use selectedFriends for now
+    // Use selectedPlayers for consistent calculation
+    const totalPlayers = 1 + selectedPlayers.length; // Current user + selected players
     const availableSlots = 4 - totalPlayers;
 
     const team1Players = [
@@ -1265,35 +1256,8 @@ export default function CreateMatchWizard() {
       isValidForFuture: totalPlayers >= 1,
     };
 
-    // DEBUG: Log the final result
-    console.log("🎯 teamComposition result:", result);
-
     return result;
-  }, [selectedFriends, selectedPlayers, session?.user?.id, profile]);
-
-  // ALSO SEARCH FOR THIS useEffect (around line 650) AND REPLACE IT:
-  useEffect(() => {
-    if (selectedFriends.length > 0 && friends.length > 0) {
-      const selected = friends.filter((friend) =>
-        selectedFriends.includes(friend.id),
-      );
-      setSelectedPlayers(selected);
-    } else {
-      setSelectedPlayers([]);
-    }
-  }, [selectedFriends, friends]);
-
-  // ALSO FIX: The useEffect that updates selectedPlayers - make it more robust
-  useEffect(() => {
-    if (selectedFriends.length > 0 && friends.length > 0) {
-      const selected = friends.filter((friend) =>
-        selectedFriends.includes(friend.id),
-      );
-      setSelectedPlayers(selected);
-    } else {
-      setSelectedPlayers([]);
-    }
-  }, [selectedFriends, friends]);
+  }, [selectedPlayers, session?.user?.id, profile]); // Changed dependency to selectedPlayers
 
   // 11. WIZARD CONFIGURATION
   const stepConfig: StepConfig[] = useMemo(() => {
@@ -1399,7 +1363,7 @@ export default function CreateMatchWizard() {
   }, [set1Score, set2Score, isSet1Valid, isSet2Valid, isPastMatch]);
 
   useEffect(() => {
-    if (selectedFriends.length > 0) {
+    if (selectedFriends.length > 0 && friends.length > 0) {
       const selected = friends.filter((friend) =>
         selectedFriends.includes(friend.id),
       );
@@ -1647,10 +1611,10 @@ export default function CreateMatchWizard() {
 
       case WizardStep.PLAYER_SELECTION:
         if (isPastMatch) {
-          if (!teamComposition.isValidForPast) {
-            errors.push(
-              "Past matches require exactly 4 players (you + 3 friends)",
-            );
+          if (selectedPlayers.length<3) {
+          
+              errors.push(`Past matches require exactly 4 players (you + 3 friends) ${selectedPlayers.length} `);
+            
           }
         } else {
           if (!teamComposition.isValidForFuture) {
@@ -1805,9 +1769,7 @@ export default function CreateMatchWizard() {
     }
 
     if (isPastMatch) {
-      if (!teamComposition.isValidForPast) {
-        errors.push("Past matches require exactly 4 players (you + 3 friends)");
-      }
+ 
 
       if (!isSet1Valid || !isSet2Valid) {
         errors.push("Please enter valid scores for both sets");
@@ -1895,10 +1857,15 @@ export default function CreateMatchWizard() {
       if (isPastMatch) {
         const winnerTeam = determineWinnerTeam();
 
-        const playerIds = [session?.user?.id, ...selectedFriends].filter(
-          (id) => id != null,
-        ) as string[];
-        if (playerIds.length !== 4) {
+        // FIXED: Use selectedPlayers to get player IDs
+        const playerIds = [session?.user?.id];
+        selectedPlayers.forEach((player) => {
+          playerIds.push(player.id);
+        });
+        
+        const filteredPlayerIds = playerIds.filter((id) => id != null) as string[];
+        
+        if (filteredPlayerIds.length !== 4) {
           throw new Error("Could not form a team of 4 players");
         }
 
@@ -1930,12 +1897,7 @@ export default function CreateMatchWizard() {
           court: court.trim() || null,
           is_public: false,
           description: matchDescription.trim() || null,
-          validation_deadline: validationDeadline.toISOString(),
-          validation_status: "pending",
           rating_applied: false,
-          report_count: 0,
-          updated_by: session?.user?.id as string,
-          creator_confirmed: true,
         };
 
         console.log(
@@ -1990,7 +1952,7 @@ export default function CreateMatchWizard() {
 
         try {
           await NotificationHelpers.sendMatchConfirmationNotifications(
-            playerIds,
+            filteredPlayerIds,
             matchResult.id,
             session!.user.id,
           );
@@ -2006,6 +1968,8 @@ export default function CreateMatchWizard() {
           ? "1 hour"
           : "24 hours";
 
+        const firstMatch = await isFirstMatch(session!.user.id);
+        
         Alert.alert(
           "✅ Match Created Successfully!",
           `Match has been recorded with automatic validation system.\n\n` +
@@ -2013,25 +1977,8 @@ export default function CreateMatchWizard() {
             `🤖 Rating Processing: Automated server processing\n` +
             `📊 Ratings will be calculated and applied automatically after validation period expires.\n\n` +
             `📢 All players can report issues during validation period.\n` +
-            `💡 You can delete this match within 24 hours if needed.
-
-` +
-            `🎉 Congratulations on creating your first match!
-` +
-            `🎯 Server automation will handle rating calculations every 30 minutes.`,
-          [          {
-            text: "OK",
-            onPress: async () => {
-              const firstMatch = await isFirstMatch(session!.user.id);
-              if (firstMatch) {
-                Alert.alert(
-                  "🎉 Congratulations!",
-                  "You've created your first match! Keep playing to improve your rating.",
-                );
-              }
-            },
-          },
-        ],
+            `💡 You can delete this match within 24 hours if needed.` +
+            (firstMatch ? `\n\n🎉 Congratulations on creating your first match!\n🎯 Server automation will handle rating calculations every 30 minutes.` : ''),
           [
             {
               text: "View Match Details",
@@ -2050,11 +1997,14 @@ export default function CreateMatchWizard() {
 
         Vibration.vibrate([100, 50, 100]);
       } else {
+        // FIXED: Use selectedPlayers IDs for future matches
+        const playerIds = selectedPlayers.map(p => p.id);
+        
         const matchData: MatchData = {
           player1_id: session?.user?.id as string,
-          player2_id: selectedFriends[0] || null,
-          player3_id: selectedFriends[1] || null,
-          player4_id: selectedFriends[2] || null,
+          player2_id: playerIds[0] || null,
+          player3_id: playerIds[1] || null,
+          player4_id: playerIds[2] || null,
           team1_score_set1: null,
           team2_score_set1: null,
           team1_score_set2: null,
@@ -2123,12 +2073,12 @@ export default function CreateMatchWizard() {
 
         try {
           if (profile?.full_name && session?.user?.id) {
-            const playerIds = [session.user.id, ...selectedFriends].filter(
+            const allPlayerIds = [session.user.id, ...playerIds].filter(
               Boolean,
             ) as string[];
 
             await NotificationHelpers.sendMatchInvitationNotifications(
-              playerIds,
+              allPlayerIds,
               session.user.id,
               profile.full_name,
               matchResult.id,
@@ -2136,7 +2086,7 @@ export default function CreateMatchWizard() {
             );
 
             await NotificationHelpers.scheduleMatchReminder(
-              playerIds,
+              allPlayerIds,
               matchResult.id,
               matchData.start_time,
             );

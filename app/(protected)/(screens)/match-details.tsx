@@ -1,3 +1,4 @@
+/* eslint-disable import/no-unresolved */
 import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
@@ -13,7 +14,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, router } from "expo-router";
 import { format } from "date-fns";
-
+import { MatchConfirmationSection } from "@/components/MatchConfirmationSection";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/supabase-provider";
@@ -70,53 +71,60 @@ interface ScoreSet {
 // Enhanced Avatar Component with Navigation
 interface AvatarProps {
   player: PlayerDetail | null;
-  size?: 'sm' | 'md' | 'lg';
+  size?: "sm" | "md" | "lg";
   isCurrentUser?: boolean;
   teamColor?: string;
   currentUserId?: string;
 }
 
-const Avatar: React.FC<AvatarProps> = ({ 
-  player, 
-  size = 'md', 
+const Avatar: React.FC<AvatarProps> = ({
+  player,
+  size = "md",
   isCurrentUser = false,
-  teamColor = '#3B82F6',
-  currentUserId
+  teamColor = "#3B82F6",
+  currentUserId,
 }) => {
   const [imageError, setImageError] = useState(false);
 
   const sizeConfig = {
-    sm: { width: 40, height: 40, borderRadius: 20, textClass: 'text-sm' },
-    md: { width:48, height: 48, borderRadius: 24, textClass: 'text-base' },
-    lg: { width: 56, height: 56, borderRadius: 28, textClass: 'text-lg' }
+    sm: { width: 40, height: 40, borderRadius: 20, textClass: "text-sm" },
+    md: { width: 48, height: 48, borderRadius: 24, textClass: "text-base" },
+    lg: { width: 56, height: 56, borderRadius: 28, textClass: "text-lg" },
   }[size];
 
   const handleProfilePress = () => {
     if (!player) return;
-    
+
     // Don't navigate if it's the current user (they can use the Profile tab)
     if (isCurrentUser) return;
-    
+
     // Navigate to friend profile screen
     router.push({
-      pathname: '/(protected)/(screens)/friend-profile',
-      params: { 
+      pathname: "/(protected)/(screens)/friend-profile",
+      params: {
         userId: player.id,
-        playerName: player.full_name || player.email.split('@')[0]
-      }
+        playerName: player.full_name || player.email.split("@")[0],
+      },
     });
   };
 
   if (!player) {
     return (
       <View className="items-center">
-        <View 
-          className="bg-gray-300 dark:bg-gray-600 items-center justify-center" 
+        <View
+          className="bg-gray-300 dark:bg-gray-600 items-center justify-center"
           style={sizeConfig}
         >
-          <Text className={`${sizeConfig.textClass} text-gray-600 dark:text-gray-300 font-bold`}>?</Text>
+          <Text
+            className={`${sizeConfig.textClass} text-gray-600 dark:text-gray-300 font-bold`}
+          >
+            ?
+          </Text>
         </View>
-        <Text className="text-xs font-medium mt-2 text-center" numberOfLines={1}>
+        <Text
+          className="text-xs font-medium mt-2 text-center"
+          numberOfLines={1}
+        >
           Empty
         </Text>
       </View>
@@ -132,9 +140,9 @@ const Avatar: React.FC<AvatarProps> = ({
 
   const getName = () => {
     if (player.full_name?.trim()) {
-      return player.full_name.split(' ')[0];
+      return player.full_name.split(" ")[0];
     }
-    return player.email.split('@')[0];
+    return player.email.split("@")[0];
   };
 
   const AvatarContent = () => (
@@ -146,19 +154,19 @@ const Avatar: React.FC<AvatarProps> = ({
             style={{
               ...sizeConfig,
               borderWidth: isCurrentUser ? 2 : 0,
-              borderColor: isCurrentUser ? '#10B981' : 'transparent'
+              borderColor: isCurrentUser ? "#10B981" : "transparent",
             }}
             resizeMode="cover"
             onError={() => setImageError(true)}
           />
         ) : (
-          <View 
-            className="items-center justify-center" 
+          <View
+            className="items-center justify-center"
             style={{
               ...sizeConfig,
               backgroundColor: teamColor,
               borderWidth: isCurrentUser ? 2 : 0,
-              borderColor: isCurrentUser ? '#10B981' : 'transparent'
+              borderColor: isCurrentUser ? "#10B981" : "transparent",
             }}
           >
             <Text className={`${sizeConfig.textClass} font-bold text-white`}>
@@ -166,26 +174,29 @@ const Avatar: React.FC<AvatarProps> = ({
             </Text>
           </View>
         )}
-        
+
         {isCurrentUser && (
           <View className="absolute -bottom-1 -right-1 bg-green-500 rounded-full w-5 h-5 items-center justify-center border-2 border-white">
             <Ionicons name="person" size={10} color="white" />
           </View>
         )}
       </View>
-      
-      <TouchableOpacity 
+
+      <TouchableOpacity
         onPress={handleProfilePress}
         disabled={isCurrentUser}
         activeOpacity={isCurrentUser ? 1 : 0.7}
       >
-        <Text className={`text-xs font-medium mt-2 text-center ${
-          !isCurrentUser ? 'text-blue-600 dark:text-blue-400' : ''
-        }`} numberOfLines={1}>
-          {isCurrentUser ? 'You' : getName()}
+        <Text
+          className={`text-xs font-medium mt-2 text-center ${
+            !isCurrentUser ? "text-blue-600 dark:text-blue-400" : ""
+          }`}
+          numberOfLines={1}
+        >
+          {isCurrentUser ? "You" : getName()}
         </Text>
       </TouchableOpacity>
-      
+
       {player.glicko_rating && (
         <Text className="text-xs text-gray-500 dark:text-gray-400">
           {Math.round(parseFloat(player.glicko_rating))}
@@ -200,7 +211,7 @@ const Avatar: React.FC<AvatarProps> = ({
   }
 
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       onPress={handleProfilePress}
       activeOpacity={0.7}
       className="items-center"
@@ -212,19 +223,19 @@ const Avatar: React.FC<AvatarProps> = ({
             style={{
               ...sizeConfig,
               borderWidth: isCurrentUser ? 2 : 0,
-              borderColor: isCurrentUser ? '#10B981' : 'transparent'
+              borderColor: isCurrentUser ? "#10B981" : "transparent",
             }}
             resizeMode="cover"
             onError={() => setImageError(true)}
           />
         ) : (
-          <View 
-            className="items-center justify-center" 
+          <View
+            className="items-center justify-center"
             style={{
               ...sizeConfig,
               backgroundColor: teamColor,
               borderWidth: isCurrentUser ? 2 : 0,
-              borderColor: isCurrentUser ? '#10B981' : 'transparent'
+              borderColor: isCurrentUser ? "#10B981" : "transparent",
             }}
           >
             <Text className={`${sizeConfig.textClass} font-bold text-white`}>
@@ -232,20 +243,23 @@ const Avatar: React.FC<AvatarProps> = ({
             </Text>
           </View>
         )}
-        
+
         {isCurrentUser && (
           <View className="absolute -bottom-1 -right-1 bg-green-500 rounded-full w-5 h-5 items-center justify-center border-2 border-white">
             <Ionicons name="person" size={10} color="white" />
           </View>
         )}
       </View>
-      
-      <Text className={`text-xs font-medium mt-2 text-center ${
-        !isCurrentUser ? 'text-blue-600 dark:text-blue-400' : ''
-      }`} numberOfLines={1}>
-        {isCurrentUser ? 'You' : getName()}
+
+      <Text
+        className={`text-xs font-medium mt-2 text-center ${
+          !isCurrentUser ? "text-blue-600 dark:text-blue-400" : ""
+        }`}
+        numberOfLines={1}
+      >
+        {isCurrentUser ? "You" : getName()}
       </Text>
-      
+
       {player.glicko_rating && (
         <Text className="text-xs text-gray-500 dark:text-gray-400">
           {Math.round(parseFloat(player.glicko_rating))}
@@ -262,7 +276,7 @@ export default function CleanMatchDetails() {
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingScores, setEditingScores] = useState(mode === "score-entry");
-  
+
   // Score state
   const [set1Score, setSet1Score] = useState<ScoreSet>({ team1: 0, team2: 0 });
   const [set2Score, setSet2Score] = useState<ScoreSet>({ team1: 0, team2: 0 });
@@ -294,50 +308,53 @@ export default function CleanMatchDetails() {
     const now = new Date();
     const startTime = new Date(match.start_time);
     const endTime = match.end_time ? new Date(match.end_time) : null;
-    
+
     const isCreator = userId === match.player1_id;
     const isFuture = startTime > now;
     const isPast = endTime ? endTime < now : startTime < now;
-    const hasScores = match.team1_score_set1 !== null && match.team2_score_set1 !== null;
-    const needsScores = isPast && !hasScores && match.status !== MatchStatus.CANCELLED;
-    
+    const hasScores =
+      match.team1_score_set1 !== null && match.team2_score_set1 !== null;
+    const needsScores =
+      isPast && !hasScores && match.status !== MatchStatus.CANCELLED;
+
     const isPlayer1 = match.player1_id === userId;
     const isPlayer2 = match.player2_id === userId;
     const isPlayer3 = match.player3_id === userId;
     const isPlayer4 = match.player4_id === userId;
-    
-    const userParticipating = isPlayer1 || isPlayer2 || isPlayer3 || isPlayer4;
-    const userTeam: 1 | 2 | null = 
-      (isPlayer1 || isPlayer2) ? 1 : 
-      (isPlayer3 || isPlayer4) ? 2 : null;
 
-    const hasOpenSlots = !match.player2_id || !match.player3_id || !match.player4_id;
+    const userParticipating = isPlayer1 || isPlayer2 || isPlayer3 || isPlayer4;
+    const userTeam: 1 | 2 | null =
+      isPlayer1 || isPlayer2 ? 1 : isPlayer3 || isPlayer4 ? 2 : null;
+
+    const hasOpenSlots =
+      !match.player2_id || !match.player3_id || !match.player4_id;
     const canJoin = isFuture && !userParticipating && hasOpenSlots;
     const canEnterScores = isCreator && needsScores;
 
     // Calculate sets
-    let team1Sets = 0, team2Sets = 0, winnerTeam = 0;
-    
+    let team1Sets = 0,
+      team2Sets = 0,
+      winnerTeam = 0;
+
     if (hasScores) {
       if (match.team1_score_set1 > match.team2_score_set1) team1Sets++;
       else if (match.team2_score_set1 > match.team1_score_set1) team2Sets++;
-      
+
       if (match.team1_score_set2 !== null && match.team2_score_set2 !== null) {
         if (match.team1_score_set2 > match.team2_score_set2) team1Sets++;
         else if (match.team2_score_set2 > match.team1_score_set2) team2Sets++;
       }
-      
+
       if (match.team1_score_set3 !== null && match.team2_score_set3 !== null) {
         if (match.team1_score_set3 > match.team2_score_set3) team1Sets++;
         else if (match.team2_score_set3 > match.team1_score_set3) team2Sets++;
       }
-      
+
       winnerTeam = team1Sets > team2Sets ? 1 : team2Sets > team1Sets ? 2 : 0;
     }
 
-    const userWon: boolean | null = userParticipating && winnerTeam > 0 
-      ? userTeam === winnerTeam 
-      : null;
+    const userWon: boolean | null =
+      userParticipating && winnerTeam > 0 ? userTeam === winnerTeam : null;
 
     return {
       userParticipating,
@@ -372,7 +389,7 @@ export default function CleanMatchDetails() {
         team1: match.team1_score_set2 || 0,
         team2: match.team2_score_set2 || 0,
       });
-      
+
       if (match.team1_score_set3 !== null && match.team2_score_set3 !== null) {
         setSet3Score({
           team1: match.team1_score_set3,
@@ -389,7 +406,8 @@ export default function CleanMatchDetails() {
 
     const team1WonSet1 = set1Score.team1 > set1Score.team2;
     const team1WonSet2 = set2Score.team1 > set2Score.team2;
-    const isTied = (team1WonSet1 && !team1WonSet2) || (!team1WonSet1 && team1WonSet2);
+    const isTied =
+      (team1WonSet1 && !team1WonSet2) || (!team1WonSet1 && team1WonSet2);
 
     setShowSet3(isTied);
     if (!isTied) {
@@ -405,13 +423,15 @@ export default function CleanMatchDetails() {
 
       const { data, error } = await supabase
         .from("matches")
-        .select(`
+        .select(
+          `
           *,
           player1:profiles!player1_id(id, full_name, email, glicko_rating, avatar_url),
           player2:profiles!player2_id(id, full_name, email, glicko_rating, avatar_url),
           player3:profiles!player3_id(id, full_name, email, glicko_rating, avatar_url),
           player4:profiles!player4_id(id, full_name, email, glicko_rating, avatar_url)
-        `)
+        `,
+        )
         .eq("id", id)
         .single();
 
@@ -470,25 +490,30 @@ export default function CleanMatchDetails() {
     if (!match || !session?.user?.id) return;
 
     if (!matchState.isCreator) {
-      Alert.alert("Permission Denied", "Only the match creator can enter scores");
+      Alert.alert(
+        "Permission Denied",
+        "Only the match creator can enter scores",
+      );
       return;
     }
 
     // Calculate winner
-    let team1Sets = 0, team2Sets = 0;
-    
+    let team1Sets = 0,
+      team2Sets = 0;
+
     if (set1Score.team1 > set1Score.team2) team1Sets++;
     else if (set1Score.team2 > set1Score.team1) team2Sets++;
-    
+
     if (set2Score.team1 > set2Score.team2) team1Sets++;
     else if (set2Score.team2 > set2Score.team1) team2Sets++;
-    
+
     if (showSet3) {
       if (set3Score.team1 > set3Score.team2) team1Sets++;
       else if (set3Score.team2 > set3Score.team1) team2Sets++;
     }
 
-    const winnerTeam = team1Sets > team2Sets ? 1 : team2Sets > team1Sets ? 2 : 0;
+    const winnerTeam =
+      team1Sets > team2Sets ? 1 : team2Sets > team1Sets ? 2 : 0;
 
     try {
       setSaving(true);
@@ -514,10 +539,10 @@ export default function CleanMatchDetails() {
 
       fetchMatchDetails(match.id);
       setEditingScores(false);
-      
+
       Alert.alert(
         "Match Completed!",
-        `Scores saved successfully. ${winnerTeam === matchState.userTeam ? 'Congratulations!' : 'Better luck next time!'}`
+        `Scores saved successfully. ${winnerTeam === matchState.userTeam ? "Congratulations!" : "Better luck next time!"}`,
       );
     } catch (error) {
       console.error("Error saving scores:", error);
@@ -535,34 +560,32 @@ export default function CleanMatchDetails() {
       "Are you sure you want to delete this match? This cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
-        { 
-          text: "Delete", 
+        {
+          text: "Delete",
           style: "destructive",
           onPress: async () => {
             try {
               setSaving(true);
-              
+
               const { error } = await supabase
                 .from("matches")
                 .delete()
                 .eq("id", match.id);
-                
+
               if (error) throw error;
-              
-              Alert.alert(
-                "Match Deleted", 
-                "The match has been deleted",
-                [{ text: "OK", onPress: () => router.back() }]
-              );
+
+              Alert.alert("Match Deleted", "The match has been deleted", [
+                { text: "OK", onPress: () => router.back() },
+              ]);
             } catch (error) {
               console.error("Error deleting match:", error);
               Alert.alert("Error", "Failed to delete match");
             } finally {
               setSaving(false);
             }
-          }
-        }
-      ]
+          },
+        },
+      ],
     );
   };
 
@@ -572,13 +595,13 @@ export default function CleanMatchDetails() {
     try {
       const playerNames = [
         match.player1?.full_name || "Player 1",
-        match.player2?.full_name || "Player 2", 
+        match.player2?.full_name || "Player 2",
         match.player3?.full_name || "Player 3",
-        match.player4?.full_name || "Player 4"
+        match.player4?.full_name || "Player 4",
       ];
 
-      const message = matchState.isFuture 
-        ? `🎾 Padel Match\n\n📅 ${format(new Date(match.start_time), "PPP 'at' p")}\n📍 ${match.region || 'TBD'}\n\nTeam 1: ${playerNames[0]} & ${playerNames[1]}\nTeam 2: ${playerNames[2]} & ${playerNames[3]}`
+      const message = matchState.isFuture
+        ? `🎾 Padel Match\n\n📅 ${format(new Date(match.start_time), "PPP 'at' p")}\n📍 ${match.region || "TBD"}\n\nTeam 1: ${playerNames[0]} & ${playerNames[1]}\nTeam 2: ${playerNames[2]} & ${playerNames[3]}`
         : `🏆 Padel Match Result\n\nFinal Score: ${matchState.team1Sets}-${matchState.team2Sets}\nWinner: Team ${matchState.winnerTeam}\n\nTeam 1: ${playerNames[0]} & ${playerNames[1]}\nTeam 2: ${playerNames[2]} & ${playerNames[3]}`;
 
       await Share.share({ message });
@@ -595,43 +618,59 @@ export default function CleanMatchDetails() {
     return format(new Date(dateString), "h:mm a");
   };
 
-  const renderScoreInput = (setNumber: number, score: ScoreSet, onChange: (score: ScoreSet) => void) => {
+  const renderScoreInput = (
+    setNumber: number,
+    score: ScoreSet,
+    onChange: (score: ScoreSet) => void,
+  ) => {
     return (
       <View className="mb-4">
         <Text className="text-sm font-medium mb-2">Set {setNumber}</Text>
         <View className="flex-row items-center justify-center">
           <View className="flex-row items-center bg-card dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
             <TouchableOpacity
-              onPress={() => onChange({ ...score, team1: Math.max(0, score.team1 - 1) })}
+              onPress={() =>
+                onChange({ ...score, team1: Math.max(0, score.team1 - 1) })
+              }
               className="p-3"
             >
               <Ionicons name="remove" size={20} color="#666" />
             </TouchableOpacity>
-            
-            <Text className="text-xl font-bold w-12 text-center">{score.team1}</Text>
-            
+
+            <Text className="text-xl font-bold w-12 text-center">
+              {score.team1}
+            </Text>
+
             <TouchableOpacity
-              onPress={() => onChange({ ...score, team1: Math.min(7, score.team1 + 1) })}
+              onPress={() =>
+                onChange({ ...score, team1: Math.min(7, score.team1 + 1) })
+              }
               className="p-3"
             >
               <Ionicons name="add" size={20} color="#666" />
             </TouchableOpacity>
           </View>
-          
+
           <Text className="text-xl mx-4 text-gray-500">-</Text>
-          
+
           <View className="flex-row items-center bg-card dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
             <TouchableOpacity
-              onPress={() => onChange({ ...score, team2: Math.max(0, score.team2 - 1) })}
+              onPress={() =>
+                onChange({ ...score, team2: Math.max(0, score.team2 - 1) })
+              }
               className="p-3"
             >
               <Ionicons name="remove" size={20} color="#666" />
             </TouchableOpacity>
-            
-            <Text className="text-xl font-bold w-12 text-center">{score.team2}</Text>
-            
+
+            <Text className="text-xl font-bold w-12 text-center">
+              {score.team2}
+            </Text>
+
             <TouchableOpacity
-              onPress={() => onChange({ ...score, team2: Math.min(7, score.team2 + 1) })}
+              onPress={() =>
+                onChange({ ...score, team2: Math.min(7, score.team2 + 1) })
+              }
               className="p-3"
             >
               <Ionicons name="add" size={20} color="#666" />
@@ -642,18 +681,26 @@ export default function CleanMatchDetails() {
     );
   };
 
-  const renderSetScore = (setNumber: number, team1Score: number | null, team2Score: number | null) => {
+  const renderSetScore = (
+    setNumber: number,
+    team1Score: number | null,
+    team2Score: number | null,
+  ) => {
     if (team1Score === null || team2Score === null) return null;
 
     return (
       <View className="flex-row items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg mb-2">
         <Text className="font-medium">Set {setNumber}</Text>
         <View className="flex-row items-center">
-          <Text className={`text-lg font-bold ${team1Score > team2Score ? 'text-blue-600' : 'text-gray-500'}`}>
+          <Text
+            className={`text-lg font-bold ${team1Score > team2Score ? "text-blue-600" : "text-gray-500"}`}
+          >
             {team1Score}
           </Text>
           <Text className="text-lg mx-3 text-gray-500">-</Text>
-          <Text className={`text-lg font-bold ${team2Score > team1Score ? 'text-purple-600' : 'text-gray-500'}`}>
+          <Text
+            className={`text-lg font-bold ${team2Score > team1Score ? "text-purple-600" : "text-gray-500"}`}
+          >
             {team2Score}
           </Text>
         </View>
@@ -666,7 +713,9 @@ export default function CleanMatchDetails() {
       <SafeAreaView className="flex-1 bg-background dark:bg-gray-900">
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#3B82F6" />
-          <Text className="mt-4 text-gray-500 dark:text-gray-400">Loading match details...</Text>
+          <Text className="mt-4 text-gray-500 dark:text-gray-400">
+            Loading match details...
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -710,20 +759,14 @@ export default function CleanMatchDetails() {
               </Text>
             </View>
           </View>
-          
+
           <View className="flex-row gap-3">
-            <TouchableOpacity
-              onPress={shareMatch}
-              className="p-2"
-            >
+            <TouchableOpacity onPress={shareMatch} className="p-2">
               <Ionicons name="share-social" size={20} color="#3B82F6" />
             </TouchableOpacity>
-            
+
             {matchState.isCreator && (
-              <TouchableOpacity
-                onPress={deleteMatch}
-                className="p-2"
-              >
+              <TouchableOpacity onPress={deleteMatch} className="p-2">
                 <Ionicons name="trash" size={20} color="#ef4444" />
               </TouchableOpacity>
             )}
@@ -749,7 +792,7 @@ export default function CleanMatchDetails() {
               {formatTime(match.start_time)}
               {match.end_time && ` - ${formatTime(match.end_time)}`}
             </Text>
-            
+
             <View className="flex-row items-center gap-2">
               {match.is_public && (
                 <View className="bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded-full">
@@ -758,30 +801,46 @@ export default function CleanMatchDetails() {
                   </Text>
                 </View>
               )}
-              
-              <View className={`px-2 py-1 rounded-full ${
-                matchState.isFuture ? 'bg-blue-100 dark:bg-blue-900/30' :
-                matchState.hasScores ? 'bg-green-100 dark:bg-green-900/30' :
-                'bg-orange-100 dark:bg-orange-900/30'
-              }`}>
-                <Text className={`text-xs font-medium ${
-                  matchState.isFuture ? 'text-blue-700 dark:text-blue-300' :
-                  matchState.hasScores ? 'text-green-700 dark:text-green-300' :
-                  'text-orange-700 dark:text-orange-300'
-                }`}>
-                  {matchState.isFuture ? 'Upcoming' :
-                   matchState.hasScores ? 'Completed' :
-                   'Needs Scores'}
+
+              <View
+                className={`px-2 py-1 rounded-full ${
+                  matchState.isFuture
+                    ? "bg-blue-100 dark:bg-blue-900/30"
+                    : matchState.hasScores
+                      ? "bg-green-100 dark:bg-green-900/30"
+                      : "bg-orange-100 dark:bg-orange-900/30"
+                }`}
+              >
+                <Text
+                  className={`text-xs font-medium ${
+                    matchState.isFuture
+                      ? "text-blue-700 dark:text-blue-300"
+                      : matchState.hasScores
+                        ? "text-green-700 dark:text-green-300"
+                        : "text-orange-700 dark:text-orange-300"
+                  }`}
+                >
+                  {matchState.isFuture
+                    ? "Upcoming"
+                    : matchState.hasScores
+                      ? "Completed"
+                      : "Needs Scores"}
                 </Text>
               </View>
             </View>
           </View>
-          
+
           {(match.region || match.court) && (
             <View className="flex-row items-center">
-              <Ionicons name="location-outline" size={16} color="#6B7280" style={{ marginRight: 8 }} />
+              <Ionicons
+                name="location-outline"
+                size={16}
+                color="#6B7280"
+                style={{ marginRight: 8 }}
+              />
               <Text className="text-gray-600 dark:text-gray-400">
-                {match.court ? `${match.court}, ` : ''}{match.region || 'TBD'}
+                {match.court ? `${match.court}, ` : ""}
+                {match.region || "TBD"}
               </Text>
             </View>
           )}
@@ -821,7 +880,9 @@ export default function CleanMatchDetails() {
         ) : matchState.hasScores ? (
           <View className="bg-card dark:bg-gray-800 rounded-xl p-6 mb-6 border border-gray-200 dark:border-gray-700">
             <View className="items-center mb-6">
-              <Text className="text-sm text-gray-500 dark:text-gray-400 mb-2">Final Score</Text>
+              <Text className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                Final Score
+              </Text>
               <View className="flex-row items-center">
                 <Text className="text-4xl font-bold text-blue-600">
                   {matchState.team1Sets}
@@ -831,32 +892,57 @@ export default function CleanMatchDetails() {
                   {matchState.team2Sets}
                 </Text>
               </View>
-              
+
               {matchState.userParticipating && (
-                <View className={`mt-3 px-4 py-2 rounded-full ${
-                  matchState.userWon === true ? 'bg-green-100 dark:bg-green-900/30' :
-                  matchState.userWon === false ? 'bg-red-100 dark:bg-red-900/30' :
-                  'bg-yellow-100 dark:bg-yellow-900/30'
-                }`}>
-                  <Text className={`font-medium ${
-                    matchState.userWon === true ? 'text-green-700 dark:text-green-300' :
-                    matchState.userWon === false ? 'text-red-700 dark:text-red-300' :
-                    'text-yellow-700 dark:text-yellow-300'
-                  }`}>
-                    {matchState.userWon === true ? '🏆 Victory!' :
-                     matchState.userWon === false ? '😔 Defeat' :
-                     '🤝 Draw'}
+                <View
+                  className={`mt-3 px-4 py-2 rounded-full ${
+                    matchState.userWon === true
+                      ? "bg-green-100 dark:bg-green-900/30"
+                      : matchState.userWon === false
+                        ? "bg-red-100 dark:bg-red-900/30"
+                        : "bg-yellow-100 dark:bg-yellow-900/30"
+                  }`}
+                >
+                  <Text
+                    className={`font-medium ${
+                      matchState.userWon === true
+                        ? "text-green-700 dark:text-green-300"
+                        : matchState.userWon === false
+                          ? "text-red-700 dark:text-red-300"
+                          : "text-yellow-700 dark:text-yellow-300"
+                    }`}
+                  >
+                    {matchState.userWon === true
+                      ? "🏆 Victory!"
+                      : matchState.userWon === false
+                        ? "😔 Defeat"
+                        : "🤝 Draw"}
                   </Text>
                 </View>
               )}
             </View>
 
             <View>
-              <Text className="font-medium mb-3 text-gray-900 dark:text-gray-100">Set Breakdown</Text>
-              {renderSetScore(1, match.team1_score_set1, match.team2_score_set1)}
-              {renderSetScore(2, match.team1_score_set2, match.team2_score_set2)}
-              {match.team1_score_set3 !== null && match.team2_score_set3 !== null &&
-                renderSetScore(3, match.team1_score_set3, match.team2_score_set3)}
+              <Text className="font-medium mb-3 text-gray-900 dark:text-gray-100">
+                Set Breakdown
+              </Text>
+              {renderSetScore(
+                1,
+                match.team1_score_set1,
+                match.team2_score_set1,
+              )}
+              {renderSetScore(
+                2,
+                match.team1_score_set2,
+                match.team2_score_set2,
+              )}
+              {match.team1_score_set3 !== null &&
+                match.team2_score_set3 !== null &&
+                renderSetScore(
+                  3,
+                  match.team1_score_set3,
+                  match.team2_score_set3,
+                )}
             </View>
           </View>
         ) : null}
@@ -869,14 +955,16 @@ export default function CleanMatchDetails() {
               • Tap names to view profiles
             </Text>
           </Text>
-          
+
           {/* Team 1 */}
           <View className="mb-6">
             <View className="flex-row items-center justify-between mb-3">
               <Text className="font-medium text-blue-600">Team 1</Text>
               {matchState.hasScores && matchState.winnerTeam === 1 && (
                 <View className="bg-yellow-100 dark:bg-yellow-900/30 px-2 py-1 rounded-full">
-                  <Text className="text-xs font-bold text-yellow-700 dark:text-yellow-300">WINNER</Text>
+                  <Text className="text-xs font-bold text-yellow-700 dark:text-yellow-300">
+                    WINNER
+                  </Text>
                 </View>
               )}
             </View>
@@ -902,7 +990,9 @@ export default function CleanMatchDetails() {
               <Text className="font-medium text-purple-600">Team 2</Text>
               {matchState.hasScores && matchState.winnerTeam === 2 && (
                 <View className="bg-yellow-100 dark:bg-yellow-900/30 px-2 py-1 rounded-full">
-                  <Text className="text-xs font-bold text-yellow-700 dark:text-yellow-300">WINNER</Text>
+                  <Text className="text-xs font-bold text-yellow-700 dark:text-yellow-300">
+                    WINNER
+                  </Text>
                 </View>
               )}
             </View>
@@ -926,21 +1016,50 @@ export default function CleanMatchDetails() {
         {/* Match Description */}
         {match.description && (
           <View className="bg-card dark:bg-gray-800 rounded-xl p-6 mb-6 border border-gray-200 dark:border-gray-700">
-            <Text className="font-medium mb-3 text-gray-900 dark:text-gray-100">Description</Text>
+            <Text className="font-medium mb-3 text-gray-900 dark:text-gray-100">
+              Description
+            </Text>
             <Text className="text-gray-600 dark:text-gray-400 leading-5">
               {match.description}
             </Text>
           </View>
         )}
 
+        {match.status === "4" && match.team1_score_set1 !== null && (
+          <MatchConfirmationSection
+            matchId={match.id}
+            players={[
+              {
+                id: match.player1_id,
+                full_name: match.player1?.full_name,
+                email: match.player1?.email,
+              },
+              {
+                id: match.player2_id,
+                full_name: match.player2?.full_name,
+                email: match.player2?.email,
+              },
+              {
+                id: match.player3_id,
+                full_name: match.player3?.full_name,
+                email: match.player3?.email,
+              },
+              {
+                id: match.player4_id,
+                full_name: match.player4?.full_name,
+                email: match.player4?.email,
+              },
+            ].filter((p) => p.id)}
+            onUpdate={() => {
+              // Refresh your match details
+              fetchMatchDetails(matchId as string);
+            }}
+          />
+        )}
         {/* Action Buttons */}
         <View className="gap-3">
           {matchState.canJoin && (
-            <Button
-              onPress={joinMatch}
-              disabled={saving}
-              className="w-full"
-            >
+            <Button onPress={joinMatch} disabled={saving} className="w-full">
               {saving ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
@@ -950,10 +1069,7 @@ export default function CleanMatchDetails() {
           )}
 
           {matchState.canEnterScores && (
-            <Button
-              onPress={() => setEditingScores(true)}
-              className="w-full"
-            >
+            <Button onPress={() => setEditingScores(true)} className="w-full">
               <Text className="text-white font-medium">Enter Scores</Text>
             </Button>
           )}

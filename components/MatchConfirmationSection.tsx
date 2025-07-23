@@ -1,162 +1,94 @@
-import React, { useState, useEffect } from 'react';
+// components/MatchConfirmationSection.tsx
+// REPLACE YOUR ENTIRE FILE WITH THIS
+
+import React, { useState } from 'react';
 import {
   View,
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Vibration,
-  Modal,
   TextInput,
-  ScrollView,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { H3 } from '@/components/ui/typography';
 import { useAuth } from '@/context/supabase-provider';
-import { 
-  MatchConfirmationService, 
-  ConfirmationSummary,
-  MatchConfirmation 
-} from '@/services/match-confirmation.service';
+import { useMatchConfirmation } from '@/hooks/useMatchConfirmation';
+
+interface Player {
+  id: string;
+  full_name: string | null;
+  email: string;
+}
 
 interface MatchConfirmationSectionProps {
   matchId: string;
-  players: Array<{
-    id: string;
-    full_name: string | null;
-    email: string;
-    avatar_url: string | null;
-  }>;
-  isCreator: boolean;
-  onConfirmationUpdate?: () => void;
+  players: Player[];
+  onUpdate?: () => void;
 }
 
 export const MatchConfirmationSection: React.FC<MatchConfirmationSectionProps> = ({
   matchId,
   players,
-  isCreator,
-  onConfirmationUpdate
+  onUpdate
 }) => {
   const { profile } = useAuth();
-  const [confirmationStatus, setConfirmationStatus] = useState<ConfirmationSummary | null>(null);
-  const [userConfirmation, setUserConfirmation] = useState<MatchConfirmation | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [showRejectModal, setShowRejectModal] = useState(false);
-  const [rejectionReason, setRejectionReason] = useState('');
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  
+  const {
+    summary,
+    confirmations,
+    playerConfirmation,
+    loading,
+    approving,
+    reporting,
+    approveMatch,
+    reportMatch,
+    canTakeAction,
+    hasApproved,
+    hasReported,
+    timeRemainingText,
+    statusText,
+    isParticipant
+  } = useMatchConfirmation(matchId);
 
-  // Load confirmation status
-  useEffect(() => {
-    loadConfirmationStatus();
-
-    // Subscribe to real-time updates
-    const subscription = MatchConfirmationService.subscribeToConfirmationUpdates(
-      matchId,
-      () => {
-        loadConfirmationStatus();
-        onConfirmationUpdate?.();
+  const handleApprove = async () => {
+    const result = await approveMatch();
+    
+    if (result.success) {
+      if (result.newStatus === 'approved') {
+        Alert.alert(
+          '🎉 Match Approved!',
+          'All players have confirmed. Ratings will be updated shortly.',
+          [{ text: 'OK' }]
+        );
       }
-    );
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [matchId]);
-
-  const loadConfirmationStatus = async () => {
-    try {
-      setLoading(true);
-      const status = await MatchConfirmationService.getMatchConfirmationStatus(matchId);
-      setConfirmationStatus(status);
-
-      // Find user's confirmation
-      if (status && profile) {
-        const userConf = status.confirmations.find(c => c.player_id === profile.id);
-        setUserConfirmation(userConf || null);
-      }
-    } catch (error) {
-      console.error('Error loading confirmation status:', error);
-    } finally {
-      setLoading(false);
+      onUpdate?.();
+    } else {
+      Alert.alert('Error', result.message);
     }
   };
 
-  const handleConfirm = async () => {
-    if (!profile) return;
-
-    Alert.alert(
-      'Confirm Match Score',
-      'Are you sure you want to confirm these scores? Once all players confirm, ratings will be applied immediately.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm',
-          onPress: async () => {
-            setActionLoading(true);
-            try {
-              const result = await MatchConfirmationService.confirmMatchScore(matchId, profile.id);
-              
-              if (result.success) {
-                Vibration.vibrate([100, 50, 100]);
-                if (result.should_apply_ratings) {
-                  Alert.alert(
-                    'All Players Confirmed!', 
-                    'Ratings have been applied immediately.',
-                    [{ text: 'OK' }]
-                  );
-                }
-                await loadConfirmationStatus();
-                onConfirmationUpdate?.();
-              } else {
-                Alert.alert('Error', result.message);
-              }
-            } catch (error) {
-              console.error('Error confirming match:', error);
-              Alert.alert('Error', 'Failed to confirm match score');
-            } finally {
-              setActionLoading(false);
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  const handleReject = async () => {
-    if (!profile) return;
-
-    setActionLoading(true);
-    try {
-      const result = await MatchConfirmationService.rejectMatchScore(
-        matchId, 
-        profile.id, 
-        rejectionReason.trim() || undefined
-      );
+  const handleReport = async () => {
+    const result = await reportMatch(reportReason.trim() || undefined);
+    
+    if (result.success) {
+      setShowReportModal(false);
+      setReportReason('');
       
-      if (result.success) {
-        Vibration.vibrate([200, 100, 200]);
-        setShowRejectModal(false);
-        setRejectionReason('');
-        
-        if (result.should_cancel) {
-          Alert.alert(
-            'Match Cancelled',
-            'The match has been cancelled due to multiple rejections. No ratings will be applied.',
-            [{ text: 'OK' }]
-          );
-        }
-        
-        await loadConfirmationStatus();
-        onConfirmationUpdate?.();
-      } else {
-        Alert.alert('Error', result.message);
+      if (result.newStatus === 'cancelled') {
+        Alert.alert(
+          '🚫 Match Cancelled',
+          'Multiple players reported issues. No ratings will be applied.',
+          [{ text: 'OK' }]
+        );
       }
-    } catch (error) {
-      console.error('Error rejecting match:', error);
-      Alert.alert('Error', 'Failed to reject match score');
-    } finally {
-      setActionLoading(false);
+      onUpdate?.();
+    } else {
+      Alert.alert('Error', result.message);
     }
   };
 
@@ -168,19 +100,20 @@ export const MatchConfirmationSection: React.FC<MatchConfirmationSectionProps> =
     );
   }
 
-  if (!confirmationStatus) return null;
+  if (!summary || !isParticipant) return null;
 
-  const getPlayerConfirmationStatus = (playerId: string) => {
-    const confirmation = confirmationStatus.confirmations.find(c => c.player_id === playerId);
-    return confirmation?.status || 'pending';
+  // Helper to get player confirmation status
+  const getPlayerConfirmation = (playerId: string) => {
+    const conf = confirmations.find(c => c.player_id === playerId);
+    return conf?.action || 'pending';
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'confirmed':
+      case 'approved':
         return <Ionicons name="checkmark-circle" size={20} color="#10b981" />;
-      case 'rejected':
-        return <Ionicons name="close-circle" size={20} color="#ef4444" />;
+      case 'reported':
+        return <Ionicons name="alert-circle" size={20} color="#ef4444" />;
       default:
         return <Ionicons name="time-outline" size={20} color="#6b7280" />;
     }
@@ -188,74 +121,98 @@ export const MatchConfirmationSection: React.FC<MatchConfirmationSectionProps> =
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'confirmed':
+      case 'approved':
         return 'text-green-600';
-      case 'rejected':
+      case 'reported':
         return 'text-red-600';
       default:
         return 'text-gray-500';
     }
   };
 
-  // FIXED: Check if user needs to make a decision
-  const userNeedsToDecide = () => {
-    if (!profile) return false;
-    
-    // Check if user is one of the players
-    const isPlayer = players.some(player => player.id === profile.id);
-    if (!isPlayer) return false;
-    
-    // If no confirmation record exists yet, user needs to decide
-    if (!userConfirmation) return true;
-    
-    // If confirmation record exists but status is pending, user needs to decide
-    return userConfirmation.status === 'pending';
-  };
-
-  // FIXED: Get user's current status for display
-  const getUserStatus = () => {
-    if (!profile) return 'not_player';
-    
-    const isPlayer = players.some(player => player.id === profile.id);
-    if (!isPlayer) return 'not_player';
-    
-    return userConfirmation?.status || 'pending';
-  };
-
   return (
     <>
       <View className="bg-background/80 rounded-xl p-4 mb-4">
-        <View className="flex-row items-center mb-4">
-          <Ionicons name="shield-checkmark-outline" size={24} color="#2148ce" />
-          <H3 className="ml-2 flex-1">Score Confirmation</H3>
-          {confirmationStatus.all_confirmed && (
+        {/* Header */}
+        <View className="flex-row items-center justify-between mb-4">
+          <View className="flex-row items-center flex-1">
+            <Ionicons name="shield-checkmark-outline" size={24} color="#2148ce" />
+            <H3 className="ml-2">Match Confirmation</H3>
+          </View>
+          
+          {/* Status Badge */}
+          {summary.confirmation_status === 'approved' && (
             <View className="bg-green-100 dark:bg-green-900/30 px-3 py-1 rounded-full">
               <Text className="text-xs font-semibold text-green-700 dark:text-green-300">
-                All Confirmed
+                Approved
               </Text>
             </View>
           )}
-          {confirmationStatus.should_cancel && (
+          
+          {summary.confirmation_status === 'cancelled' && (
             <View className="bg-red-100 dark:bg-red-900/30 px-3 py-1 rounded-full">
               <Text className="text-xs font-semibold text-red-700 dark:text-red-300">
                 Cancelled
               </Text>
             </View>
           )}
+          
+          {summary.confirmation_status === 'pending' && (
+            <View className="bg-blue-100 dark:bg-blue-900/30 px-3 py-1 rounded-full">
+              <Text className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+                {timeRemainingText}
+              </Text>
+            </View>
+          )}
         </View>
 
+        {/* Status Summary */}
+        <View className="mb-4 p-3 bg-muted/30 rounded-lg">
+          <Text className="text-sm font-medium mb-1">{statusText}</Text>
+          {summary.confirmation_status === 'pending' && (
+            <Text className="text-xs text-muted-foreground">
+              Players can optionally confirm or report issues. Auto-approves in {timeRemainingText}.
+            </Text>
+          )}
+        </View>
 
+        {/* Progress Bar for Pending */}
+        {summary.confirmation_status === 'pending' && (
+          <View className="mb-4">
+            <View className="flex-row justify-between mb-1">
+              <Text className="text-xs text-muted-foreground">
+                {summary.approved_count} approved
+              </Text>
+              <Text className="text-xs text-muted-foreground">
+                {summary.reported_count} reported
+              </Text>
+            </View>
+            <View className="h-2 bg-muted rounded-full overflow-hidden">
+              <View className="flex-row h-full">
+                <View 
+                  className="bg-green-500" 
+                  style={{ width: `${(summary.approved_count / 4) * 100}%` }}
+                />
+                <View 
+                  className="bg-red-500" 
+                  style={{ width: `${(summary.reported_count / 4) * 100}%` }}
+                />
+              </View>
+            </View>
+          </View>
+        )}
 
-        {/* Player Confirmations */}
-        <View className="space-y-2 mb-4">
+        {/* Player List */}
+        <View className="mb-4">
+          <Text className="text-sm font-medium mb-2">Player Confirmations</Text>
           {players.map((player) => {
-            const status = getPlayerConfirmationStatus(player.id);
+            const status = getPlayerConfirmation(player.id);
             const isCurrentUser = player.id === profile?.id;
             
             return (
               <View 
                 key={player.id} 
-                className={`flex-row items-center justify-between p-3 rounded-lg border ${
+                className={`flex-row items-center justify-between p-3 mb-2 rounded-lg border ${
                   isCurrentUser 
                     ? 'bg-primary/10 border-primary/20' 
                     : 'bg-background/40 border-border/30'
@@ -267,19 +224,14 @@ export const MatchConfirmationSection: React.FC<MatchConfirmationSectionProps> =
                       {(player.full_name || player.email).charAt(0).toUpperCase()}
                     </Text>
                   </View>
-                  <View className="flex-1">
-                    <Text className="text-sm font-medium">
-                      {player.full_name || player.email.split('@')[0]}
-                      {isCurrentUser && ' (You)'}
-                    </Text>
-                    {player.id === players[0].id && (
-                      <Text className="text-xs text-muted-foreground">Creator</Text>
-                    )}
-                  </View>
+                  <Text className="text-sm font-medium">
+                    {player.full_name || player.email.split('@')[0]}
+                    {isCurrentUser && ' (You)'}
+                  </Text>
                 </View>
                 <View className="flex-row items-center">
                   {getStatusIcon(status)}
-                  <Text className={`ml-2 text-sm capitalize font-medium ${getStatusColor(status)}`}>
+                  <Text className={`ml-2 text-sm capitalize ${getStatusColor(status)}`}>
                     {status}
                   </Text>
                 </View>
@@ -288,74 +240,99 @@ export const MatchConfirmationSection: React.FC<MatchConfirmationSectionProps> =
           })}
         </View>
 
-        {/* FIXED: User Actions - Show buttons when user needs to decide */}
-        {userNeedsToDecide() && !confirmationStatus.should_cancel && (
+        {/* Action Buttons - Only show if user can take action */}
+        {canTakeAction && (
           <View className="space-y-3">
-            {/* Information banner */}
             <View className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
               <View className="flex-row items-start">
-                <Ionicons name="information-circle" size={20} color="#2563eb" style={{ marginTop: 2, marginRight: 8 }} />
+                <Ionicons name="information-circle" size={16} color="#2563eb" style={{ marginTop: 2, marginRight: 6 }} />
                 <View className="flex-1">
                   <Text className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-1">
-                    Score Confirmation Required
+                    Optional Action Available
                   </Text>
-                  <Text className="text-xs text-blue-700 dark:text-blue-400 leading-4">
-                    Please confirm or reject the match scores. Your decision affects rating application.
+                  <Text className="text-xs text-blue-700 dark:text-blue-400">
+                    You can confirm scores or report an issue. No action required - match auto-approves in {timeRemainingText}.
                   </Text>
                 </View>
               </View>
             </View>
 
-            {/* Action buttons */}
             <View className="flex-row gap-3">
               <Button
                 className="flex-1"
-                onPress={handleConfirm}
-                disabled={actionLoading}
+                onPress={handleApprove}
+                disabled={approving}
               >
-                {actionLoading ? (
+                {approving ? (
                   <ActivityIndicator size="small" color="white" />
                 ) : (
                   <View className="flex-row items-center">
                     <Ionicons name="checkmark-circle-outline" size={18} color="white" />
-                    <Text className="ml-2 text-white font-medium">Confirm Scores</Text>
+                    <Text className="ml-2 text-white font-medium">Approve</Text>
                   </View>
                 )}
               </Button>
               
               <Button
-                variant="destructive"
+                variant="outline"
                 className="flex-1"
-                onPress={() => setShowRejectModal(true)}
-                disabled={actionLoading}
+                onPress={() => setShowReportModal(true)}
+                disabled={reporting}
               >
                 <View className="flex-row items-center">
-                  <Ionicons name="close-circle-outline" size={18} color="white" />
-                  <Text className="ml-2 text-white font-medium">Reject Scores</Text>
+                  <Ionicons name="alert-circle-outline" size={18} color="#ef4444" />
+                  <Text className="ml-2 text-red-600 font-medium">Report Issue</Text>
                 </View>
               </Button>
             </View>
           </View>
         )}
 
-        {/* Status Messages */}
-        {confirmationStatus.all_confirmed && (
+        {/* User Already Acted */}
+        {isParticipant && !canTakeAction && playerConfirmation && playerConfirmation.action !== 'pending' && (
+          <View className={`p-3 rounded-lg ${
+            hasApproved ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'
+          }`}>
+            <View className="flex-row items-center">
+              {hasApproved ? (
+                <>
+                  <Ionicons name="checkmark-circle" size={20} color="#10b981" />
+                  <Text className="ml-2 text-sm font-medium text-green-700 dark:text-green-300">
+                    You approved this match
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Ionicons name="alert-circle" size={20} color="#ef4444" />
+                  <Text className="ml-2 text-sm font-medium text-red-700 dark:text-red-300">
+                    You reported this match
+                  </Text>
+                </>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Final Status Messages */}
+        {summary.confirmation_status === 'approved' && (
           <View className="mt-3 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
             <View className="flex-row items-start">
               <Ionicons name="checkmark-circle" size={20} color="#10b981" style={{ marginTop: 2, marginRight: 8 }} />
               <View className="flex-1">
                 <Text className="text-sm font-medium text-green-800 dark:text-green-300 mb-1">
-                  All Players Confirmed
+                  Match Approved
                 </Text>
                 <Text className="text-xs text-green-700 dark:text-green-400">
-                  All players have confirmed the scores. Ratings have been applied immediately.
+                  {summary.approved_count === 4 
+                    ? 'All players confirmed. Ratings updated.'
+                    : 'Auto-approved after 24 hours. Ratings updated.'}
                 </Text>
               </View>
             </View>
           </View>
         )}
 
-        {confirmationStatus.should_cancel && (
+        {summary.confirmation_status === 'cancelled' && (
           <View className="mt-3 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
             <View className="flex-row items-start">
               <Ionicons name="close-circle" size={20} color="#ef4444" style={{ marginTop: 2, marginRight: 8 }} />
@@ -364,88 +341,63 @@ export const MatchConfirmationSection: React.FC<MatchConfirmationSectionProps> =
                   Match Cancelled
                 </Text>
                 <Text className="text-xs text-red-700 dark:text-red-400">
-                  Match cancelled due to multiple rejections. No ratings have been applied.
+                  Multiple players reported issues. No ratings applied.
                 </Text>
               </View>
             </View>
           </View>
         )}
-
-        {!confirmationStatus.all_confirmed && !confirmationStatus.should_cancel && !userNeedsToDecide() && (
-          <View className="mt-3 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-            <View className="flex-row items-start">
-              <Ionicons name="time-outline" size={20} color="#2563eb" style={{ marginTop: 2, marginRight: 8 }} />
-              <View className="flex-1">
-                <Text className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-1">
-                  Waiting for Confirmations
-                </Text>
-                <Text className="text-xs text-blue-700 dark:text-blue-400">
-                  Waiting for all players to confirm. If not all confirmed within 24 hours, 
-                  the validation period will determine if ratings are applied.
-                </Text>
-              </View>
-            </View>
-          </View>
-        )}
-
-    
       </View>
 
-      {/* Enhanced Rejection Modal */}
+      {/* Report Modal */}
       <Modal
-        visible={showRejectModal}
+        visible={showReportModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowRejectModal(false)}
+        onRequestClose={() => setShowReportModal(false)}
       >
         <View className="flex-1 justify-end bg-black/50">
           <View className="bg-background rounded-t-3xl p-6 pb-8">
             <View className="w-12 h-1 bg-gray-300 dark:bg-gray-600 rounded-full self-center mb-6" />
             
             <View className="flex-row items-center mb-4">
-              <Ionicons name="close-circle-outline" size={24} color="#ef4444" />
-              <H3 className="ml-2">Reject Match Score</H3>
+              <Ionicons name="alert-circle-outline" size={24} color="#ef4444" />
+              <H3 className="ml-2">Report Match Issue</H3>
             </View>
             
             <View className="bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg mb-4">
               <View className="flex-row items-start">
                 <Ionicons name="warning" size={16} color="#d97706" style={{ marginTop: 2, marginRight: 6 }} />
                 <Text className="text-sm text-amber-800 dark:text-amber-300 flex-1">
-                  Rejecting scores may cancel the match if multiple players reject. 
-                  This action cannot be undone.
+                  If 2 or more players report, the match will be cancelled with no ratings.
                 </Text>
               </View>
             </View>
             
             <Text className="text-sm text-muted-foreground mb-3">
-              Please provide a reason for rejecting the match scores (optional):
+              Reason (optional):
             </Text>
             
             <TextInput
               className="bg-background/60 rounded-lg p-4 mb-6 text-foreground border border-gray-200 dark:border-gray-700 min-h-[80px]"
-              placeholder="Enter reason for rejection..."
+              placeholder="Incorrect scores, wrong players, etc..."
               placeholderTextColor="#666"
-              value={rejectionReason}
-              onChangeText={setRejectionReason}
+              value={reportReason}
+              onChangeText={setReportReason}
               multiline
               numberOfLines={3}
               maxLength={200}
               textAlignVertical="top"
             />
             
-            <Text className="text-xs text-muted-foreground text-right mb-4">
-              {rejectionReason.length}/200
-            </Text>
-            
             <View className="flex-row gap-3">
               <Button
                 variant="outline"
                 className="flex-1"
                 onPress={() => {
-                  setShowRejectModal(false);
-                  setRejectionReason('');
+                  setShowReportModal(false);
+                  setReportReason('');
                 }}
-                disabled={actionLoading}
               >
                 <Text>Cancel</Text>
               </Button>
@@ -453,13 +405,13 @@ export const MatchConfirmationSection: React.FC<MatchConfirmationSectionProps> =
               <Button
                 variant="destructive"
                 className="flex-1"
-                onPress={handleReject}
-                disabled={actionLoading}
+                onPress={handleReport}
+                disabled={reporting}
               >
-                {actionLoading ? (
+                {reporting ? (
                   <ActivityIndicator size="small" color="white" />
                 ) : (
-                  <Text className="text-white">Reject Score</Text>
+                  <Text className="text-white">Report Issue</Text>
                 )}
               </Button>
             </View>

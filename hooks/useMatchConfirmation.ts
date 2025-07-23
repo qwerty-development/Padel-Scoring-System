@@ -1,182 +1,226 @@
+// hooks/useMatchConfirmation.ts
+// CREATE THIS NEW FILE
+
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/supabase-provider';
 import { 
   MatchConfirmationService,
   ConfirmationSummary,
   MatchConfirmation,
-  ConfirmationResult
+  ActionResult
 } from '@/services/match-confirmation.service';
 
 export interface UseMatchConfirmationReturn {
   // Data
-  confirmationStatus: ConfirmationSummary | null;
-  userConfirmation: MatchConfirmation | null;
-  canConfirm: boolean;
+  summary: ConfirmationSummary | null;
+  confirmations: MatchConfirmation[];
+  playerConfirmation: MatchConfirmation | null;
   
   // State
   loading: boolean;
-  confirming: boolean;
-  rejecting: boolean;
+  approving: boolean;
+  reporting: boolean;
   
   // Actions
-  confirmScore: () => Promise<ConfirmationResult>;
-  rejectScore: (reason?: string) => Promise<ConfirmationResult>;
+  approveMatch: () => Promise<ActionResult>;
+  reportMatch: (reason?: string) => Promise<ActionResult>;
   refresh: () => Promise<void>;
   
   // Computed values
-  isFullyConfirmed: boolean;
-  isCancelled: boolean;
-  needsConfirmation: boolean;
-  confirmationProgress: number;
+  canTakeAction: boolean;
+  hasApproved: boolean;
+  hasReported: boolean;
+  isPending: boolean;
+  timeRemainingText: string;
+  statusText: string;
+  isParticipant: boolean;
 }
 
 export function useMatchConfirmation(matchId: string): UseMatchConfirmationReturn {
   const { profile } = useAuth();
-  const [confirmationStatus, setConfirmationStatus] = useState<ConfirmationSummary | null>(null);
-  const [userConfirmation, setUserConfirmation] = useState<MatchConfirmation | null>(null);
+  const [summary, setSummary] = useState<ConfirmationSummary | null>(null);
+  const [confirmations, setConfirmations] = useState<MatchConfirmation[]>([]);
+  const [playerConfirmation, setPlayerConfirmation] = useState<MatchConfirmation | null>(null);
   const [loading, setLoading] = useState(true);
-  const [confirming, setConfirming] = useState(false);
-  const [rejecting, setRejecting] = useState(false);
-  const [canConfirm, setCanConfirm] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const [isParticipant, setIsParticipant] = useState(false);
 
-  // Load confirmation status
-  const loadConfirmationStatus = useCallback(async () => {
-    if (!matchId) return;
+  // Load all confirmation data
+  const loadConfirmationData = useCallback(async () => {
+    if (!matchId || !profile?.id) return;
 
     try {
       setLoading(true);
       
-      // Get confirmation status
-      const status = await MatchConfirmationService.getMatchConfirmationStatus(matchId);
-      setConfirmationStatus(status);
+      // Check if user is participant
+      const participant = await MatchConfirmationService.isUserParticipant(matchId, profile.id);
+      setIsParticipant(participant);
+      
+      // Get summary
+      const summaryData = await MatchConfirmationService.getMatchConfirmationSummary(matchId);
+      setSummary(summaryData);
 
-      // Find user's confirmation
-      if (status && profile) {
-        const userConf = status.confirmations.find(c => c.player_id === profile.id);
-        setUserConfirmation(userConf || null);
-        
-        // Check if user can confirm
-        const eligible = await MatchConfirmationService.canUserConfirmMatch(matchId, profile.id);
-        setCanConfirm(eligible && (!userConf || userConf.status === 'pending'));
+      // Get all confirmations
+      const confirmationsData = await MatchConfirmationService.getMatchConfirmations(matchId);
+      setConfirmations(confirmationsData);
+
+      // Get player's confirmation
+      if (participant) {
+        const playerData = await MatchConfirmationService.getPlayerConfirmation(
+          matchId, 
+          profile.id
+        );
+        setPlayerConfirmation(playerData);
       }
     } catch (error) {
-      console.error('Error loading confirmation status:', error);
-      setConfirmationStatus(null);
-      setUserConfirmation(null);
-      setCanConfirm(false);
+      console.error('Error loading confirmation data:', error);
     } finally {
       setLoading(false);
     }
-  }, [matchId, profile]);
+  }, [matchId, profile?.id]);
 
-  // Confirm score
-  const confirmScore = useCallback(async (): Promise<ConfirmationResult> => {
-    if (!profile || !canConfirm) {
+  // Approve match
+  const approveMatch = useCallback(async (): Promise<ActionResult> => {
+    if (!profile?.id) {
       return {
         success: false,
-        message: 'Cannot confirm score'
+        message: 'Not authenticated'
       };
     }
 
     try {
-      setConfirming(true);
-      const result = await MatchConfirmationService.confirmMatchScore(matchId, profile.id);
+      setApproving(true);
+      const result = await MatchConfirmationService.approveMatch(matchId, profile.id);
       
-      // Reload status if successful
       if (result.success) {
-        await loadConfirmationStatus();
+        await loadConfirmationData();
       }
       
       return result;
-    } catch (error) {
-      console.error('Error confirming score:', error);
-      return {
-        success: false,
-        message: 'Failed to confirm score'
-      };
     } finally {
-      setConfirming(false);
+      setApproving(false);
     }
-  }, [matchId, profile, canConfirm, loadConfirmationStatus]);
+  }, [matchId, profile?.id, loadConfirmationData]);
 
-  // Reject score
-  const rejectScore = useCallback(async (reason?: string): Promise<ConfirmationResult> => {
-    if (!profile || !canConfirm) {
+  // Report match
+  const reportMatch = useCallback(async (reason?: string): Promise<ActionResult> => {
+    if (!profile?.id) {
       return {
         success: false,
-        message: 'Cannot reject score'
+        message: 'Not authenticated'
       };
     }
 
     try {
-      setRejecting(true);
-      const result = await MatchConfirmationService.rejectMatchScore(matchId, profile.id, reason);
+      setReporting(true);
+      const result = await MatchConfirmationService.reportMatch(
+        matchId, 
+        profile.id, 
+        reason
+      );
       
-      // Reload status if successful
       if (result.success) {
-        await loadConfirmationStatus();
+        await loadConfirmationData();
       }
       
       return result;
-    } catch (error) {
-      console.error('Error rejecting score:', error);
-      return {
-        success: false,
-        message: 'Failed to reject score'
-      };
     } finally {
-      setRejecting(false);
+      setReporting(false);
     }
-  }, [matchId, profile, canConfirm, loadConfirmationStatus]);
+  }, [matchId, profile?.id, loadConfirmationData]);
 
   // Subscribe to real-time updates
   useEffect(() => {
     if (!matchId) return;
 
     // Initial load
-    loadConfirmationStatus();
+    loadConfirmationData();
 
     // Subscribe to updates
     const subscription = MatchConfirmationService.subscribeToConfirmationUpdates(
       matchId,
       () => {
-        loadConfirmationStatus();
+        loadConfirmationData();
       }
     );
 
+    // Refresh every minute to update countdown
+    const interval = setInterval(() => {
+      if (summary?.confirmation_status === 'pending') {
+        loadConfirmationData();
+      }
+    }, 60000);
+
     return () => {
       subscription.unsubscribe();
+      clearInterval(interval);
     };
-  }, [matchId, loadConfirmationStatus]);
+  }, [matchId, loadConfirmationData]);
 
   // Computed values
-  const isFullyConfirmed = confirmationStatus?.all_confirmed || false;
-  const isCancelled = confirmationStatus?.should_cancel || false;
-  const needsConfirmation = !isFullyConfirmed && !isCancelled && userConfirmation?.status === 'pending';
-  const confirmationProgress = confirmationStatus 
-    ? (confirmationStatus.confirmed_count / confirmationStatus.total_players) * 100 
-    : 0;
+  const canTakeAction = isParticipant && 
+    summary?.confirmation_status === 'pending' &&
+    playerConfirmation?.action === 'pending' &&
+    summary?.hours_remaining > 0;
+  
+  const hasApproved = playerConfirmation?.action === 'approved';
+  const hasReported = playerConfirmation?.action === 'reported';
+  const isPending = playerConfirmation?.action === 'pending';
+
+  const timeRemainingText = (() => {
+    if (!summary || summary.confirmation_status !== 'pending') return '';
+    
+    const hours = Math.floor(summary.hours_remaining);
+    const minutes = Math.floor((summary.hours_remaining % 1) * 60);
+    
+    if (hours === 0 && minutes === 0) return 'Expired';
+    if (hours === 0) return `${minutes}m remaining`;
+    if (minutes === 0) return `${hours}h remaining`;
+    return `${hours}h ${minutes}m remaining`;
+  })();
+
+  const statusText = (() => {
+    if (!summary) return '';
+    
+    if (summary.confirmation_status === 'approved') {
+      return 'Match Approved';
+    }
+    
+    if (summary.confirmation_status === 'cancelled') {
+      return 'Match Cancelled';
+    }
+    
+    if (summary.hours_remaining <= 0) {
+      return 'Awaiting Auto-Approval';
+    }
+    
+    return `${summary.approved_count}/4 approved, ${summary.reported_count} reported`;
+  })();
 
   return {
     // Data
-    confirmationStatus,
-    userConfirmation,
-    canConfirm,
+    summary,
+    confirmations,
+    playerConfirmation,
     
     // State
     loading,
-    confirming,
-    rejecting,
+    approving,
+    reporting,
     
     // Actions
-    confirmScore,
-    rejectScore,
-    refresh: loadConfirmationStatus,
+    approveMatch,
+    reportMatch,
+    refresh: loadConfirmationData,
     
     // Computed values
-    isFullyConfirmed,
-    isCancelled,
-    needsConfirmation,
-    confirmationProgress
+    canTakeAction,
+    hasApproved,
+    hasReported,
+    isPending,
+    timeRemainingText,
+    statusText,
+    isParticipant
   };
 }
