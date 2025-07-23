@@ -67,19 +67,21 @@ interface ScoreSet {
   team2: number;
 }
 
-// Clean Avatar Component
+// Enhanced Avatar Component with Navigation
 interface AvatarProps {
   player: PlayerDetail | null;
   size?: 'sm' | 'md' | 'lg';
   isCurrentUser?: boolean;
   teamColor?: string;
+  currentUserId?: string;
 }
 
 const Avatar: React.FC<AvatarProps> = ({ 
   player, 
   size = 'md', 
   isCurrentUser = false,
-  teamColor = '#3B82F6'
+  teamColor = '#3B82F6',
+  currentUserId
 }) => {
   const [imageError, setImageError] = useState(false);
 
@@ -89,13 +91,34 @@ const Avatar: React.FC<AvatarProps> = ({
     lg: { width: 56, height: 56, borderRadius: 28, textClass: 'text-lg' }
   }[size];
 
+  const handleProfilePress = () => {
+    if (!player) return;
+    
+    // Don't navigate if it's the current user (they can use the Profile tab)
+    if (isCurrentUser) return;
+    
+    // Navigate to friend profile screen
+    router.push({
+      pathname: '/(protected)/(screens)/friend-profile',
+      params: { 
+        userId: player.id,
+        playerName: player.full_name || player.email.split('@')[0]
+      }
+    });
+  };
+
   if (!player) {
     return (
-      <View 
-        className="bg-gray-300 dark:bg-gray-600 items-center justify-center" 
-        style={sizeConfig}
-      >
-        <Text className={`${sizeConfig.textClass} text-gray-600 dark:text-gray-300 font-bold`}>?</Text>
+      <View className="items-center">
+        <View 
+          className="bg-gray-300 dark:bg-gray-600 items-center justify-center" 
+          style={sizeConfig}
+        >
+          <Text className={`${sizeConfig.textClass} text-gray-600 dark:text-gray-300 font-bold`}>?</Text>
+        </View>
+        <Text className="text-xs font-medium mt-2 text-center" numberOfLines={1}>
+          Empty
+        </Text>
       </View>
     );
   }
@@ -114,7 +137,7 @@ const Avatar: React.FC<AvatarProps> = ({
     return player.email.split('@')[0];
   };
 
-  return (
+  const AvatarContent = () => (
     <View className="items-center">
       <View className="relative">
         {player.avatar_url && !imageError ? (
@@ -151,7 +174,75 @@ const Avatar: React.FC<AvatarProps> = ({
         )}
       </View>
       
-      <Text className="text-xs font-medium mt-2 text-center" numberOfLines={1}>
+      <TouchableOpacity 
+        onPress={handleProfilePress}
+        disabled={isCurrentUser}
+        activeOpacity={isCurrentUser ? 1 : 0.7}
+      >
+        <Text className={`text-xs font-medium mt-2 text-center ${
+          !isCurrentUser ? 'text-blue-600 dark:text-blue-400' : ''
+        }`} numberOfLines={1}>
+          {isCurrentUser ? 'You' : getName()}
+        </Text>
+      </TouchableOpacity>
+      
+      {player.glicko_rating && (
+        <Text className="text-xs text-gray-500 dark:text-gray-400">
+          {Math.round(parseFloat(player.glicko_rating))}
+        </Text>
+      )}
+    </View>
+  );
+
+  // Wrap the entire avatar in TouchableOpacity if not current user
+  if (isCurrentUser) {
+    return <AvatarContent />;
+  }
+
+  return (
+    <TouchableOpacity 
+      onPress={handleProfilePress}
+      activeOpacity={0.7}
+      className="items-center"
+    >
+      <View className="relative">
+        {player.avatar_url && !imageError ? (
+          <Image
+            source={{ uri: player.avatar_url }}
+            style={{
+              ...sizeConfig,
+              borderWidth: isCurrentUser ? 2 : 0,
+              borderColor: isCurrentUser ? '#10B981' : 'transparent'
+            }}
+            resizeMode="cover"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <View 
+            className="items-center justify-center" 
+            style={{
+              ...sizeConfig,
+              backgroundColor: teamColor,
+              borderWidth: isCurrentUser ? 2 : 0,
+              borderColor: isCurrentUser ? '#10B981' : 'transparent'
+            }}
+          >
+            <Text className={`${sizeConfig.textClass} font-bold text-white`}>
+              {getInitial()}
+            </Text>
+          </View>
+        )}
+        
+        {isCurrentUser && (
+          <View className="absolute -bottom-1 -right-1 bg-green-500 rounded-full w-5 h-5 items-center justify-center border-2 border-white">
+            <Ionicons name="person" size={10} color="white" />
+          </View>
+        )}
+      </View>
+      
+      <Text className={`text-xs font-medium mt-2 text-center ${
+        !isCurrentUser ? 'text-blue-600 dark:text-blue-400' : ''
+      }`} numberOfLines={1}>
         {isCurrentUser ? 'You' : getName()}
       </Text>
       
@@ -160,7 +251,7 @@ const Avatar: React.FC<AvatarProps> = ({
           {Math.round(parseFloat(player.glicko_rating))}
         </Text>
       )}
-    </View>
+    </TouchableOpacity>
   );
 };
 
@@ -772,7 +863,12 @@ export default function CleanMatchDetails() {
 
         {/* Players */}
         <View className="bg-card dark:bg-gray-800 rounded-xl p-6 mb-6 border border-gray-200 dark:border-gray-700">
-          <Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Players</Text>
+          <Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+            Players
+            <Text className="text-sm text-gray-500 dark:text-gray-400 font-normal ml-2">
+              • Tap names to view profiles
+            </Text>
+          </Text>
           
           {/* Team 1 */}
           <View className="mb-6">
@@ -789,11 +885,13 @@ export default function CleanMatchDetails() {
                 player={match.player1}
                 isCurrentUser={match.player1_id === session?.user?.id}
                 teamColor="#3B82F6"
+                currentUserId={session?.user?.id}
               />
               <Avatar
                 player={match.player2}
                 isCurrentUser={match.player2_id === session?.user?.id}
                 teamColor="#3B82F6"
+                currentUserId={session?.user?.id}
               />
             </View>
           </View>
@@ -813,11 +911,13 @@ export default function CleanMatchDetails() {
                 player={match.player3}
                 isCurrentUser={match.player3_id === session?.user?.id}
                 teamColor="#8B5CF6"
+                currentUserId={session?.user?.id}
               />
               <Avatar
                 player={match.player4}
                 isCurrentUser={match.player4_id === session?.user?.id}
                 teamColor="#8B5CF6"
+                currentUserId={session?.user?.id}
               />
             </View>
           </View>
