@@ -132,7 +132,13 @@ export default function EditProfile() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-
+      <View className="flex-row items-center p-4 border-b border-border">
+        <TouchableOpacity onPress={() => router.back()} className="p-2">
+          <Ionicons name="arrow-back" size={24} color="#2148ce" />
+        </TouchableOpacity>
+        <H2 className="flex-1 text-center">Edit Profile</H2>
+        <View style={{ width: 40 }} />
+      </View>
       <ScrollView className="flex-1 p-6">
         <View className="items-center mb-8">
           {renderAvatar()}

@@ -23,7 +23,7 @@ import {
   Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useNavigation } from "expo-router";
 
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
@@ -262,14 +262,11 @@ interface MatchData {
   court: string | null;
   is_public: boolean;
   description?: string;
-  // FIXED: Use updated_by instead of created_by to match database schema
   updated_by?: string;
-  // ENHANCEMENT: Validation fields
   validation_deadline?: string;
   validation_status?: string;
   rating_applied?: boolean;
   report_count?: number;
-  // ENHANCEMENT: Creator confirmation field to match schema
   creator_confirmed?: boolean;
 }
 
@@ -312,7 +309,7 @@ const CourtSelectionModal: React.FC<CourtSelectionModalProps> = ({
 
   const regions = useMemo(() => {
     const uniqueRegions = new Set(
-      PREDEFINED_COURTS.map((court) => court.region)
+      PREDEFINED_COURTS.map((court) => court.region),
     );
     return Array.from(uniqueRegions).sort();
   }, []);
@@ -330,7 +327,7 @@ const CourtSelectionModal: React.FC<CourtSelectionModalProps> = ({
         (court) =>
           court.name.toLowerCase().includes(query) ||
           court.area.toLowerCase().includes(query) ||
-          court.region.toLowerCase().includes(query)
+          court.region.toLowerCase().includes(query),
       );
     }
 
@@ -919,13 +916,15 @@ function TeamPlayerRow({
 }
 
 /**
- * WIZARD PROGRESS INDICATOR COMPONENT
+ * ENHANCED WIZARD PROGRESS INDICATOR WITH CLICKABLE STEPS
  */
 interface ProgressIndicatorProps {
   currentStep: WizardStep;
   totalSteps: number;
   completedSteps: Set<WizardStep>;
   stepConfig: StepConfig[];
+  onStepPress: (step: WizardStep) => void;
+  canNavigateToStep: (step: WizardStep) => boolean;
 }
 
 const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
@@ -933,67 +932,107 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
   totalSteps,
   completedSteps,
   stepConfig,
+  onStepPress,
+  canNavigateToStep,
 }) => {
-  const currentIndex =
-    stepConfig.findIndex((step) => step.id === currentStep) + 1;
+  const currentIndex = stepConfig.findIndex((step) => step.id === currentStep);
 
   return (
-    <View className=" dark:bg-gray-900/80 mb-3  dark:border-gray-700">
+    <View className="dark:bg-gray-900/80 mb-3 dark:border-gray-700">
+      {/* Back Button */}
+      <TouchableOpacity
+        onPress={() => router.back()}
+        className="p-4 self-start"
+        activeOpacity={0.7}
+      >
+        <View className="flex-row items-center">
+          <Ionicons name="arrow-back" size={24} color="#2148ce" />
+          <Text className="ml-2 text-primary font-medium">Back</Text>
+        </View>
+      </TouchableOpacity>
+
       {/* Step indicators */}
-      <View className="flex-row">
-        {stepConfig.map((step, index) => {
-          const isCompleted = completedSteps.has(step.id);
-          const isCurrent = step.id === currentStep;
-          const currentIdx = stepConfig.findIndex((s) => s.id === currentStep);
-          const isPassed = index < currentIdx;
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          paddingHorizontal: 16,
+        }}
+      >
+        <View className="flex-row items-center">
+          {stepConfig.map((step, index) => {
+            const isCompleted = completedSteps.has(step.id);
+            const isCurrent = step.id === currentStep;
+            const isPassed = index < currentIndex;
+            const canNavigate = canNavigateToStep(step.id);
 
-          return (
-            <View key={step.id} className="flex-row items-center">
-              <View className="items-center">
-                <View
-                  className={`w-12 h-12 rounded-full border items-center justify-center ${
-                    isCompleted || isPassed
-                      ? "bg-primary border-primary"
-                      : isCurrent
-                        ? "bg-gray-100 border-primary"
-                        : "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600"
-                  }`}
+            return (
+              <View key={step.id} className="flex-row items-center">
+                {/* Step Circle */}
+                <TouchableOpacity
+                  className="items-center"
+                  onPress={() => canNavigate && onStepPress(step.id)}
+                  disabled={!canNavigate}
+                  activeOpacity={0.7}
                 >
-                  {isCompleted || isPassed ? (
-                    <Ionicons
-                      name="tennisball-outline"
-                      size={24}
-                      color="white"
-                    />
-                  ) : (
-                    <Ionicons
-                      name={step.icon as any}
-                      size={24}
-                      color={isCurrent ? "#2148ce" : "#9ca3af"}
-                    />
-                  )}
-                </View>
-              </View>
+                  <View
+                    className={`w-12 h-12 rounded-full border-2 items-center justify-center ${
+                      isCompleted || isPassed
+                        ? "bg-primary border-primary"
+                        : isCurrent
+                          ? "bg-gray-100 border-primary"
+                          : "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+                    }`}
+                  >
+                    {isCompleted || isPassed ? (
+                      <Ionicons name="checkmark" size={24} color="white" />
+                    ) : (
+                      <Ionicons
+                        name={step.icon as any}
+                        size={20}
+                        color={isCurrent ? "#2148ce" : "#9ca3af"}
+                      />
+                    )}
+                  </View>
 
-              {index < stepConfig.length - 1 && (
-                <View
-                  className={`w-8 h-0.5 mx-2 ${
-                    isPassed || isCompleted
-                      ? "bg-primary"
-                      : "bg-gray-300 dark:bg-gray-600"
-                  }`}
-                />
-              )}
-            </View>
-          );
-        })}
-      </View>
+                  {/* Step Label */}
+                  <Text
+                    className={`text-xs mt-1 text-center ${
+                      isCurrent
+                        ? "text-primary font-semibold"
+                        : isCompleted || isPassed
+                          ? "text-primary"
+                          : "text-muted-foreground"
+                    }`}
+                  >
+                    {step.title}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Connector Line */}
+                {index < stepConfig.length - 1 && (
+                  <View
+                    className={`w-8 h-0.5 mx-2 ${
+                      isPassed || isCompleted
+                        ? "bg-primary"
+                        : "bg-gray-300 dark:bg-gray-600"
+                    }`}
+                  />
+                )}
+              </View>
+            );
+          })}
+        </View>
+      </ScrollView>
     </View>
   );
 };
 
 /**
- * SLIDE TRANSITION CONTAINER
+ * ENHANCED SLIDE TRANSITION CONTAINER WITH BETTER ANIMATIONS
  */
 interface SlideContainerProps {
   children: React.ReactNode;
@@ -1006,23 +1045,51 @@ const SlideContainer: React.FC<SlideContainerProps> = ({
   isActive,
   direction = "forward",
 }) => {
-  const slideAnimation = useRef(new Animated.Value(0)).current;
+  const slideAnimation = useRef(new Animated.Value(isActive ? 1 : 0)).current;
+  const fadeAnimation = useRef(new Animated.Value(isActive ? 1 : 0)).current;
 
   useEffect(() => {
-    Animated.timing(slideAnimation, {
-      toValue: isActive ? 1 : 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, [isActive, slideAnimation]);
+    if (isActive) {
+      // Animate in
+      Animated.parallel([
+        Animated.timing(slideAnimation, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnimation, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      // Animate out
+      Animated.parallel([
+        Animated.timing(slideAnimation, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnimation, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [isActive, slideAnimation, fadeAnimation]);
 
-  if (!isActive) return null;
+  if (!isActive && slideAnimation._value === 0) return null;
 
   return (
     <Animated.View
+      pointerEvents={isActive ? "auto" : "none"}
       style={{
-        flex: 1,
-        opacity: slideAnimation,
+        position: "absolute",
+        width: "100%",
+        height: "100%",
+        opacity: fadeAnimation,
         transform: [
           {
             translateX: slideAnimation.interpolate({
@@ -1049,13 +1116,13 @@ export default function CreateMatchWizard() {
 
   // 2. WIZARD STATE HOOKS
   const [currentStep, setCurrentStep] = useState<WizardStep>(
-    WizardStep.MATCH_TYPE_TIME
+    WizardStep.LOCATION_SETTINGS,
   );
   const [completedSteps, setCompletedSteps] = useState<Set<WizardStep>>(
-    new Set()
+    new Set(),
   );
   const [slideDirection, setSlideDirection] = useState<"forward" | "backward">(
-    "forward"
+    "forward",
   );
 
   // 3. CORE STATE HOOKS
@@ -1063,13 +1130,12 @@ export default function CreateMatchWizard() {
   const [refreshing, setRefreshing] = useState(false);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [selectedFriends, setSelectedFriends] = useState<string[]>(
-    friendId ? [friendId as string] : []
+    friendId ? [friendId as string] : [],
   );
   const [selectedPlayers, setSelectedPlayers] = useState<Friend[]>([]);
   const [showPlayerModal, setShowPlayerModal] = useState(false);
 
   // 4. IMPROVED DATE AND TIME STATE
-  // Store the complete start and end date/time
   const getDefaultStartDateTime = () => {
     const now = new Date();
     const minutes = now.getMinutes();
@@ -1093,7 +1159,7 @@ export default function CreateMatchWizard() {
 
   const [startDateTime, setStartDateTime] = useState(getDefaultStartDateTime());
   const [endDateTime, setEndDateTime] = useState(
-    getDefaultEndDateTime(getDefaultStartDateTime())
+    getDefaultEndDateTime(getDefaultStartDateTime()),
   );
   const [endTimeManuallyChanged, setEndTimeManuallyChanged] = useState(false);
 
@@ -1130,18 +1196,26 @@ export default function CreateMatchWizard() {
   // 10. COMPUTED VALUES WITH USEMEMO
   const isPastMatch = useMemo(() => {
     const now = new Date();
-    // Consider it a past match if it starts within 15 minutes from now
     return startDateTime.getTime() <= now.getTime() + 15 * 60 * 1000;
   }, [startDateTime]);
 
   const isFutureMatch = useMemo(() => {
     const now = new Date();
-    // It's a future match if it's more than 15 minutes from now
     return startDateTime.getTime() > now.getTime() + 15 * 60 * 1000;
   }, [startDateTime]);
 
   const teamComposition = useMemo(() => {
-    const totalPlayers = 1 + selectedFriends.length;
+    // DEBUG: Add logging to see what's happening
+    console.log("🔍 teamComposition calculation:", {
+      selectedFriendsLength: selectedFriends.length,
+      selectedPlayersLength: selectedPlayers.length,
+      selectedFriends: selectedFriends,
+      selectedPlayersIds: selectedPlayers.map((p) => p.id),
+      friendsAvailable: friends.length,
+      isPastMatch: isPastMatch,
+    });
+
+    const totalPlayers = 1 + selectedFriends.length; // Use selectedFriends for now
     const availableSlots = 4 - totalPlayers;
 
     const team1Players = [
@@ -1181,7 +1255,7 @@ export default function CreateMatchWizard() {
       }
     });
 
-    return {
+    const result = {
       totalPlayers,
       availableSlots,
       team1Players,
@@ -1190,11 +1264,46 @@ export default function CreateMatchWizard() {
       isValidForPast: totalPlayers === 4,
       isValidForFuture: totalPlayers >= 1,
     };
+
+    // DEBUG: Log the final result
+    console.log("🎯 teamComposition result:", result);
+
+    return result;
   }, [selectedFriends, selectedPlayers, session?.user?.id, profile]);
+
+  // ALSO SEARCH FOR THIS useEffect (around line 650) AND REPLACE IT:
+  useEffect(() => {
+    if (selectedFriends.length > 0 && friends.length > 0) {
+      const selected = friends.filter((friend) =>
+        selectedFriends.includes(friend.id),
+      );
+      setSelectedPlayers(selected);
+    } else {
+      setSelectedPlayers([]);
+    }
+  }, [selectedFriends, friends]);
+
+  // ALSO FIX: The useEffect that updates selectedPlayers - make it more robust
+  useEffect(() => {
+    if (selectedFriends.length > 0 && friends.length > 0) {
+      const selected = friends.filter((friend) =>
+        selectedFriends.includes(friend.id),
+      );
+      setSelectedPlayers(selected);
+    } else {
+      setSelectedPlayers([]);
+    }
+  }, [selectedFriends, friends]);
 
   // 11. WIZARD CONFIGURATION
   const stepConfig: StepConfig[] = useMemo(() => {
     const baseSteps = [
+      {
+        id: WizardStep.LOCATION_SETTINGS,
+        title: "Location",
+        description: "Set location and match settings",
+        icon: "location-outline",
+      },
       {
         id: WizardStep.MATCH_TYPE_TIME,
         title: "Time",
@@ -1206,12 +1315,6 @@ export default function CreateMatchWizard() {
         title: "Players",
         description: "Select team members",
         icon: "people-outline",
-      },
-      {
-        id: WizardStep.LOCATION_SETTINGS,
-        title: "Location",
-        description: "Set location and match settings",
-        icon: "location-outline",
       },
     ];
 
@@ -1251,7 +1354,7 @@ export default function CreateMatchWizard() {
       const { data, error } = await supabase
         .from("profiles")
         .select(
-          "id, email, full_name, avatar_url, glicko_rating, preferred_hand, court_playing_side"
+          "id, email, full_name, avatar_url, glicko_rating, preferred_hand, court_playing_side",
         )
         .in("id", profile.friends_list);
 
@@ -1298,7 +1401,7 @@ export default function CreateMatchWizard() {
   useEffect(() => {
     if (selectedFriends.length > 0) {
       const selected = friends.filter((friend) =>
-        selectedFriends.includes(friend.id)
+        selectedFriends.includes(friend.id),
       );
       setSelectedPlayers(selected);
     } else {
@@ -1306,7 +1409,6 @@ export default function CreateMatchWizard() {
     }
   }, [selectedFriends, friends]);
 
-  // Auto-update end time when start time changes
   useEffect(() => {
     if (!endTimeManuallyChanged) {
       setEndDateTime(getDefaultEndDateTime(startDateTime));
@@ -1319,7 +1421,6 @@ export default function CreateMatchWizard() {
     }
   }, [isPastMatch, isPublicMatch]);
 
-  // Update region and court when a court is selected
   useEffect(() => {
     if (selectedCourt) {
       setRegion(selectedCourt.region);
@@ -1333,11 +1434,10 @@ export default function CreateMatchWizard() {
     newStartDateTime.setFullYear(
       date.getFullYear(),
       date.getMonth(),
-      date.getDate()
+      date.getDate(),
     );
     setStartDateTime(newStartDateTime);
 
-    // Update end date if it's on a different day
     const newEndDateTime = new Date(endDateTime);
     if (
       newEndDateTime.getDate() !== date.getDate() ||
@@ -1347,7 +1447,7 @@ export default function CreateMatchWizard() {
       newEndDateTime.setFullYear(
         date.getFullYear(),
         date.getMonth(),
-        date.getDate()
+        date.getDate(),
       );
       setEndDateTime(newEndDateTime);
     }
@@ -1363,7 +1463,6 @@ export default function CreateMatchWizard() {
     const newEndDateTime = new Date(endDateTime);
     newEndDateTime.setHours(time.getHours(), time.getMinutes(), 0, 0);
 
-    // If end time is before start time, assume it's the next day
     if (newEndDateTime <= startDateTime) {
       newEndDateTime.setDate(newEndDateTime.getDate() + 1);
     }
@@ -1373,36 +1472,125 @@ export default function CreateMatchWizard() {
   };
 
   // ========================================
-  // WIZARD NAVIGATION FUNCTIONS
+  // ENHANCED WIZARD NAVIGATION FUNCTIONS
   // ========================================
 
   const goToNextStep = useCallback(() => {
     const currentIndex = stepConfig.findIndex(
-      (step) => step.id === currentStep
+      (step) => step.id === currentStep,
     );
     const nextIndex = currentIndex + 1;
 
     if (nextIndex < stepConfig.length) {
+      // Validate current step before proceeding
+      const validation = validateCurrentStep();
+      if (!validation.isValid) {
+        Alert.alert("Validation Error", validation.errors.join("\n"), [
+          { text: "OK" },
+        ]);
+        return;
+      }
+
       setSlideDirection("forward");
       setCompletedSteps((prev) => new Set(prev).add(currentStep));
       setCurrentStep(stepConfig[nextIndex].id);
+
+      // Add haptic feedback
+      Vibration.vibrate(50);
     }
   }, [currentStep, stepConfig]);
 
   const goToPreviousStep = useCallback(() => {
     const currentIndex = stepConfig.findIndex(
-      (step) => step.id === currentStep
+      (step) => step.id === currentStep,
     );
     const prevIndex = currentIndex - 1;
 
     if (prevIndex >= 0) {
       setSlideDirection("backward");
       setCurrentStep(stepConfig[prevIndex].id);
+
+      // Add haptic feedback
+      Vibration.vibrate(50);
     }
   }, [currentStep, stepConfig]);
 
+  // NEW: Enhanced step navigation with validation
+  const goToStep = useCallback(
+    (targetStep: WizardStep) => {
+      const currentIndex = stepConfig.findIndex(
+        (step) => step.id === currentStep,
+      );
+      const targetIndex = stepConfig.findIndex(
+        (step) => step.id === targetStep,
+      );
+
+      if (targetIndex === -1) return;
+
+      // If going forward, validate all steps in between
+      if (targetIndex > currentIndex) {
+        for (let i = currentIndex; i < targetIndex; i++) {
+          const stepToValidate = stepConfig[i].id;
+          const tempCurrentStep = currentStep;
+
+          // Temporarily set current step for validation
+          setCurrentStep(stepToValidate);
+          const validation = validateCurrentStep();
+          setCurrentStep(tempCurrentStep);
+
+          if (!validation.isValid) {
+            Alert.alert(
+              "Cannot Skip Steps",
+              `Please complete "${stepConfig[i].title}" first.\n\n${validation.errors.join("\n")}`,
+              [{ text: "OK" }],
+            );
+            return;
+          }
+
+          // Mark step as completed
+          setCompletedSteps((prev) => new Set(prev).add(stepToValidate));
+        }
+      }
+
+      // Set direction based on navigation
+      setSlideDirection(targetIndex > currentIndex ? "forward" : "backward");
+      setCurrentStep(targetStep);
+
+      // Add haptic feedback
+      Vibration.vibrate(targetIndex > currentIndex ? [50, 50] : 50);
+    },
+    [currentStep, stepConfig],
+  );
+
+  // NEW: Check if we can navigate to a specific step
+  const canNavigateToStep = useCallback(
+    (targetStep: WizardStep) => {
+      const currentIndex = stepConfig.findIndex(
+        (step) => step.id === currentStep,
+      );
+      const targetIndex = stepConfig.findIndex(
+        (step) => step.id === targetStep,
+      );
+
+      if (targetIndex === -1) return false;
+
+      // Can always go backward to completed steps
+      if (targetIndex <= currentIndex) return true;
+
+      // Can go forward only one step at a time (and only if current step is valid)
+      if (targetIndex === currentIndex + 1) {
+        const validation = validateCurrentStep();
+        return validation.isValid;
+      }
+
+      // Cannot skip multiple steps forward
+      return false;
+    },
+    [currentStep, stepConfig],
+  );
+
   // ========================================
-  // STEP VALIDATION FUNCTIONS
+  // ENHANCED STEP VALIDATION FUNCTIONS
   // ========================================
 
   const validateCurrentStep = useCallback((): {
@@ -1435,16 +1623,15 @@ export default function CreateMatchWizard() {
             (now.getTime() - startDateTime.getTime()) / (1000 * 60 * 60 * 24);
           if (daysDiff > VALIDATION_CONFIG.MIN_MATCH_AGE_DAYS) {
             errors.push(
-              `Cannot record matches older than ${VALIDATION_CONFIG.MIN_MATCH_AGE_DAYS} days`
+              `Cannot record matches older than ${VALIDATION_CONFIG.MIN_MATCH_AGE_DAYS} days`,
             );
           }
         } else {
-          // For future matches, ensure they're at least 15 minutes in the future
           const now = new Date();
           const minFutureTime = now.getTime() + 15 * 60 * 1000;
           if (startDateTime.getTime() <= minFutureTime) {
             errors.push(
-              "Future matches must be scheduled at least 15 minutes from now"
+              "Future matches must be scheduled at least 15 minutes from now",
             );
           }
 
@@ -1452,7 +1639,7 @@ export default function CreateMatchWizard() {
             (startDateTime.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
           if (daysDiff > VALIDATION_CONFIG.MAX_FUTURE_DAYS) {
             errors.push(
-              `Cannot schedule matches more than ${VALIDATION_CONFIG.MAX_FUTURE_DAYS} days in advance`
+              `Cannot schedule matches more than ${VALIDATION_CONFIG.MAX_FUTURE_DAYS} days in advance`,
             );
           }
         }
@@ -1462,7 +1649,7 @@ export default function CreateMatchWizard() {
         if (isPastMatch) {
           if (!teamComposition.isValidForPast) {
             errors.push(
-              "Past matches require exactly 4 players (you + 3 friends)"
+              "Past matches require exactly 4 players (you + 3 friends)",
             );
           }
         } else {
@@ -1515,10 +1702,9 @@ export default function CreateMatchWizard() {
   ]);
 
   // ========================================
-  // BUSINESS LOGIC FUNCTIONS
+  // BUSINESS LOGIC FUNCTIONS (SAME AS BEFORE)
   // ========================================
 
-  // ENHANCED: Score input handlers with keyboard management
   const handleTeam1Set1Change = (text: string) => {
     if (text.length === 1 && /^\d$/.test(text)) {
       team2Set1Ref.current?.focus();
@@ -1541,7 +1727,6 @@ export default function CreateMatchWizard() {
     if (showSet3 && text.length === 1 && /^\d$/.test(text)) {
       team1Set3Ref.current?.focus();
     } else if (!showSet3 && text.length === 1 && /^\d$/.test(text)) {
-      // Dismiss keyboard when last score is entered
       Keyboard.dismiss();
     }
   };
@@ -1554,12 +1739,10 @@ export default function CreateMatchWizard() {
 
   const handleTeam2Set3Change = (text: string) => {
     if (text.length === 1 && /^\d$/.test(text)) {
-      // Dismiss keyboard when final score is entered
       Keyboard.dismiss();
     }
   };
 
-  // CORRECTED: Backspace navigation with proper field sequence
   const handleBackspaceNavigation = useCallback((currentField: string) => {
     switch (currentField) {
       case "team2Set1":
@@ -1577,7 +1760,6 @@ export default function CreateMatchWizard() {
       case "team2Set3":
         team1Set3Ref.current?.focus();
         break;
-      // team1Set1 has no previous field
       default:
         break;
     }
@@ -1640,7 +1822,7 @@ export default function CreateMatchWizard() {
         (now.getTime() - startDateTime.getTime()) / (1000 * 60 * 60 * 24);
       if (daysDiff > VALIDATION_CONFIG.MIN_MATCH_AGE_DAYS) {
         errors.push(
-          `Cannot record matches older than ${VALIDATION_CONFIG.MIN_MATCH_AGE_DAYS} days`
+          `Cannot record matches older than ${VALIDATION_CONFIG.MIN_MATCH_AGE_DAYS} days`,
         );
       }
 
@@ -1652,7 +1834,7 @@ export default function CreateMatchWizard() {
       const minFutureTime = now.getTime() + 15 * 60 * 1000;
       if (startDateTime.getTime() <= minFutureTime) {
         errors.push(
-          "Future matches must be scheduled at least 15 minutes from now"
+          "Future matches must be scheduled at least 15 minutes from now",
         );
       }
 
@@ -1664,7 +1846,7 @@ export default function CreateMatchWizard() {
         (startDateTime.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
       if (daysDiff > VALIDATION_CONFIG.MAX_FUTURE_DAYS) {
         errors.push(
-          `Cannot schedule matches more than ${VALIDATION_CONFIG.MAX_FUTURE_DAYS} days in advance`
+          `Cannot schedule matches more than ${VALIDATION_CONFIG.MAX_FUTURE_DAYS} days in advance`,
         );
       }
     }
@@ -1679,312 +1861,302 @@ export default function CreateMatchWizard() {
     };
   };
 
-const createMatch = async () => {
-  try {
-    const validation = validateMatch();
+  const createMatch = async () => {
+    try {
+      const validation = validateMatch();
 
-    if (!validation.isValid) {
-      Alert.alert("Validation Error", validation.errors.join("\n"), [
-        { text: "OK" },
-      ]);
-      return;
-    }
-
-    setLoading(true);
-
-    if (isPastMatch) {
-      const winnerTeam = determineWinnerTeam();
-
-      const playerIds = [session?.user?.id, ...selectedFriends].filter(
-        (id) => id != null
-      ) as string[];
-      if (playerIds.length !== 4) {
-        throw new Error("Could not form a team of 4 players");
+      if (!validation.isValid) {
+        Alert.alert("Validation Error", validation.errors.join("\n"), [
+          { text: "OK" },
+        ]);
+        return;
       }
 
-      const now = new Date();
-      const validationHours = useQuickValidation
-        ? VALIDATION_CONFIG.QUICK_VALIDATION_HOURS
-        : VALIDATION_CONFIG.DISPUTE_WINDOW_HOURS;
-      const validationDeadline = new Date(
-        now.getTime() + validationHours * 60 * 60 * 1000
-      );
+      setLoading(true);
 
-      // FIXED: Map fields correctly using only existing database columns
-      const matchData: MatchData = {
-        player1_id: session?.user?.id as string,
-        player2_id: selectedFriends[0] || null,
-        player3_id: selectedFriends[1] || null,
-        player4_id: selectedFriends[2] || null,
-        team1_score_set1: set1Score.team1,
-        team2_score_set1: set1Score.team2,
-        team1_score_set2: set2Score.team1,
-        team2_score_set2: set2Score.team2,
-        team1_score_set3: showSet3 ? set3Score.team1 : null,
-        team2_score_set3: showSet3 ? set3Score.team2 : null,
-        winner_team: winnerTeam,
-        status: MatchStatus.COMPLETED,
-        completed_at: new Date().toISOString(),
-        start_time: startDateTime.toISOString(),
-        end_time: endDateTime.toISOString(),
-        region: region.trim() || null,
-        court: court.trim() || null,
-        is_public: false,
-        description: matchDescription.trim() || null,
-        validation_deadline: validationDeadline.toISOString(),
-        validation_status: "pending",
-        rating_applied: false,
-        report_count: 0,
-        // REMOVED: created_by field - doesn't exist in database schema
-        // player1_id serves as the creator identifier for triggers
-        // KEEP: updated_by field exists in schema
-        updated_by: session?.user?.id as string,
-        // KEEP: creator_confirmed field exists in schema
-        creator_confirmed: true,
-      };
+      if (isPastMatch) {
+        const winnerTeam = determineWinnerTeam();
 
-      console.log("🎯 Creating past match with existing database columns only:", {
-        player1_id: matchData.player1_id,
-        updated_by: matchData.updated_by,
-        creator_confirmed: matchData.creator_confirmed,
-        validation_deadline: matchData.validation_deadline,
-        validation_status: matchData.validation_status,
-        rating_applied: matchData.rating_applied,
-        hours_until_deadline: validationHours,
-        processing_method: "postgresql_cron_job",
-        note: "Triggers should use player1_id as creator identifier"
-      });
-
-      // ENHANCED: Better error handling for database operations
-      let matchResult;
-      try {
-        const { data: insertResult, error: matchError } = await supabase
-          .from("matches")
-          .insert(matchData)
-          .select()
-          .single();
-
-        if (matchError) {
-          console.error("Database insert error:", matchError);
-          throw new Error(`Database error: ${matchError.message}`);
+        const playerIds = [session?.user?.id, ...selectedFriends].filter(
+          (id) => id != null,
+        ) as string[];
+        if (playerIds.length !== 4) {
+          throw new Error("Could not form a team of 4 players");
         }
 
-        matchResult = insertResult;
-      } catch (dbError) {
-        console.error("Failed to insert match:", dbError);
-        
-        // Provide more specific error messages
-        if (dbError instanceof Error) {
-          if (dbError.message.includes("created_by")) {
-            throw new Error(
-              "Database trigger needs update: Triggers should use player1_id instead of created_by field."
-            );
-          } else if (dbError.message.includes("foreign key")) {
-            throw new Error(
-              "Invalid player reference. Please refresh and try again."
-            );
-          } else if (dbError.message.includes("check constraint")) {
-            throw new Error(
-              "Invalid match data. Please check all fields and try again."
-            );
-          }
-        }
-        throw dbError;
-      }
-
-      // ENHANCED: Only send notifications if match was created successfully
-      try {
-        await NotificationHelpers.sendMatchConfirmationNotifications(
-          playerIds,
-          matchResult.id,
-          session!.user.id
+        const now = new Date();
+        const validationHours = useQuickValidation
+          ? VALIDATION_CONFIG.QUICK_VALIDATION_HOURS
+          : VALIDATION_CONFIG.DISPUTE_WINDOW_HOURS;
+        const validationDeadline = new Date(
+          now.getTime() + validationHours * 60 * 60 * 1000,
         );
-      } catch (notificationError) {
-        console.warn("Failed to send notifications:", notificationError);
-        // Don't fail the match creation for notification errors
-      }
 
-      console.log(
-        "✅ Match created successfully. PostgreSQL cron job will process ratings after validation period."
-      );
+        const matchData: MatchData = {
+          player1_id: session?.user?.id as string,
+          player2_id: selectedFriends[0] || null,
+          player3_id: selectedFriends[1] || null,
+          player4_id: selectedFriends[2] || null,
+          team1_score_set1: set1Score.team1,
+          team2_score_set1: set1Score.team2,
+          team1_score_set2: set2Score.team1,
+          team2_score_set2: set2Score.team2,
+          team1_score_set3: showSet3 ? set3Score.team1 : null,
+          team2_score_set3: showSet3 ? set3Score.team2 : null,
+          winner_team: winnerTeam,
+          status: MatchStatus.COMPLETED,
+          completed_at: new Date().toISOString(),
+          start_time: startDateTime.toISOString(),
+          end_time: endDateTime.toISOString(),
+          region: region.trim() || null,
+          court: court.trim() || null,
+          is_public: false,
+          description: matchDescription.trim() || null,
+          validation_deadline: validationDeadline.toISOString(),
+          validation_status: "pending",
+          rating_applied: false,
+          report_count: 0,
+          updated_by: session?.user?.id as string,
+          creator_confirmed: true,
+        };
 
-      const validationHoursDisplay = useQuickValidation
-        ? "1 hour"
-        : "24 hours";
-
-      Alert.alert(
-        "✅ Match Created Successfully!",
-        `Match has been recorded with automatic validation system.\n\n` +
-          `⏰ Validation Period: ${validationHoursDisplay}\n\n` +
-          `🤖 Rating Processing: Automated server processing\n` +
-          `📊 Ratings will be calculated and applied automatically after validation period expires.\n\n` +
-          `📢 All players can report issues during validation period.\n` +
-          `💡 You can delete this match within 24 hours if needed.\n\n` +
-          `🎯 Server automation will handle rating calculations every 30 minutes.`,
-        [
+        console.log(
+          "🎯 Creating past match with existing database columns only:",
           {
-            text: "View Match Details",
-            onPress: () =>
-              router.push({
-                pathname: "/(protected)/(screens)/match-details",
-                params: { matchId: matchResult.id },
-              }),
+            player1_id: matchData.player1_id,
+            updated_by: matchData.updated_by,
+            creator_confirmed: matchData.creator_confirmed,
+            validation_deadline: matchData.validation_deadline,
+            validation_status: matchData.validation_status,
+            rating_applied: matchData.rating_applied,
+            hours_until_deadline: validationHours,
+            processing_method: "postgresql_cron_job",
+            note: "Triggers should use player1_id as creator identifier",
           },
-          {
-            text: "OK",
-            onPress: () => router.push("/(protected)/(tabs)"),
-          },
-        ]
-      );
+        );
 
-      Vibration.vibrate([100, 50, 100]);
-    } else {
-      // FIXED: Future match creation using only existing database columns
-      const matchData: MatchData = {
-        player1_id: session?.user?.id as string,
-        player2_id: selectedFriends[0] || null,
-        player3_id: selectedFriends[1] || null,
-        player4_id: selectedFriends[2] || null,
-        team1_score_set1: null,
-        team2_score_set1: null,
-        team1_score_set2: null,
-        team2_score_set2: null,
-        team1_score_set3: null,
-        team2_score_set3: null,
-        winner_team: null,
-        status: teamComposition.isComplete
-          ? MatchStatus.PENDING
-          : MatchStatus.RECRUITING,
-        completed_at: null,
-        start_time: startDateTime.toISOString(),
-        end_time: endDateTime.toISOString(),
-        region: region.trim() || null,
-        court: court.trim() || null,
-        is_public: isPublicMatch,
-        description: matchDescription.trim() || null,
-        // REMOVED: created_by field - doesn't exist in database schema
-        // player1_id serves as the creator identifier for triggers
-        // KEEP: updated_by field exists in schema
-        updated_by: session?.user?.id as string,
-      };
+        let matchResult;
+        try {
+          const { data: insertResult, error: matchError } = await supabase
+            .from("matches")
+            .insert(matchData)
+            .select()
+            .single();
 
-      console.log("🎯 Creating future match with existing database columns only:", {
-        player1_id: matchData.player1_id,
-        updated_by: matchData.updated_by,
-        is_public: matchData.is_public,
-        status: matchData.status,
-        note: "Triggers should use player1_id as creator identifier"
-      });
+          if (matchError) {
+            console.error("Database insert error:", matchError);
+            throw new Error(`Database error: ${matchError.message}`);
+          }
 
-      // ENHANCED: Better error handling for future matches
-      let matchResult;
-      try {
-        const { data: insertResult, error: matchError } = await supabase
-          .from("matches")
-          .insert(matchData)
-          .select()
-          .single();
+          matchResult = insertResult;
+        } catch (dbError) {
+          console.error("Failed to insert match:", dbError);
 
-        if (matchError) {
-          console.error("Database insert error:", matchError);
-          throw new Error(`Database error: ${matchError.message}`);
+          if (dbError instanceof Error) {
+            if (dbError.message.includes("created_by")) {
+              throw new Error(
+                "Database trigger needs update: Triggers should use player1_id instead of created_by field.",
+              );
+            } else if (dbError.message.includes("foreign key")) {
+              throw new Error(
+                "Invalid player reference. Please refresh and try again.",
+              );
+            } else if (dbError.message.includes("check constraint")) {
+              throw new Error(
+                "Invalid match data. Please check all fields and try again.",
+              );
+            }
+          }
+          throw dbError;
         }
 
-        matchResult = insertResult;
-      } catch (dbError) {
-        console.error("Failed to insert future match:", dbError);
-        
-        // Provide more specific error messages
-        if (dbError instanceof Error) {
-          if (dbError.message.includes("created_by")) {
-            throw new Error(
-              "Database trigger needs update: Triggers should use player1_id instead of created_by field."
+        try {
+          await NotificationHelpers.sendMatchConfirmationNotifications(
+            playerIds,
+            matchResult.id,
+            session!.user.id,
+          );
+        } catch (notificationError) {
+          console.warn("Failed to send notifications:", notificationError);
+        }
+
+        console.log(
+          "✅ Match created successfully. PostgreSQL cron job will process ratings after validation period.",
+        );
+
+        const validationHoursDisplay = useQuickValidation
+          ? "1 hour"
+          : "24 hours";
+
+        Alert.alert(
+          "✅ Match Created Successfully!",
+          `Match has been recorded with automatic validation system.\n\n` +
+            `⏰ Validation Period: ${validationHoursDisplay}\n\n` +
+            `🤖 Rating Processing: Automated server processing\n` +
+            `📊 Ratings will be calculated and applied automatically after validation period expires.\n\n` +
+            `📢 All players can report issues during validation period.\n` +
+            `💡 You can delete this match within 24 hours if needed.\n\n` +
+            `🎯 Server automation will handle rating calculations every 30 minutes.`,
+          [
+            {
+              text: "View Match Details",
+              onPress: () =>
+                router.replace({
+                  pathname: "/(protected)/(screens)/match-details",
+                  params: { matchId: matchResult.id },
+                }),
+            },
+            {
+              text: "OK",
+              onPress: () => router.replace("/(protected)/(tabs)"),
+            },
+          ],
+        );
+
+        Vibration.vibrate([100, 50, 100]);
+      } else {
+        const matchData: MatchData = {
+          player1_id: session?.user?.id as string,
+          player2_id: selectedFriends[0] || null,
+          player3_id: selectedFriends[1] || null,
+          player4_id: selectedFriends[2] || null,
+          team1_score_set1: null,
+          team2_score_set1: null,
+          team1_score_set2: null,
+          team2_score_set2: null,
+          team1_score_set3: null,
+          team2_score_set3: null,
+          winner_team: null,
+          status: teamComposition.isComplete
+            ? MatchStatus.PENDING
+            : MatchStatus.RECRUITING,
+          completed_at: null,
+          start_time: startDateTime.toISOString(),
+          end_time: endDateTime.toISOString(),
+          region: region.trim() || null,
+          court: court.trim() || null,
+          is_public: isPublicMatch,
+          description: matchDescription.trim() || null,
+          updated_by: session?.user?.id as string,
+        };
+
+        console.log(
+          "🎯 Creating future match with existing database columns only:",
+          {
+            player1_id: matchData.player1_id,
+            updated_by: matchData.updated_by,
+            is_public: matchData.is_public,
+            status: matchData.status,
+            note: "Triggers should use player1_id as creator identifier",
+          },
+        );
+
+        let matchResult;
+        try {
+          const { data: insertResult, error: matchError } = await supabase
+            .from("matches")
+            .insert(matchData)
+            .select()
+            .single();
+
+          if (matchError) {
+            console.error("Database insert error:", matchError);
+            throw new Error(`Database error: ${matchError.message}`);
+          }
+
+          matchResult = insertResult;
+        } catch (dbError) {
+          console.error("Failed to insert future match:", dbError);
+
+          if (dbError instanceof Error) {
+            if (dbError.message.includes("created_by")) {
+              throw new Error(
+                "Database trigger needs update: Triggers should use player1_id instead of created_by field.",
+              );
+            } else if (dbError.message.includes("foreign key")) {
+              throw new Error(
+                "Invalid player reference. Please refresh and try again.",
+              );
+            } else if (dbError.message.includes("check constraint")) {
+              throw new Error(
+                "Invalid match data. Please check all fields and try again.",
+              );
+            }
+          }
+          throw dbError;
+        }
+
+        try {
+          if (profile?.full_name && session?.user?.id) {
+            const playerIds = [session.user.id, ...selectedFriends].filter(
+              Boolean,
+            ) as string[];
+
+            await NotificationHelpers.sendMatchInvitationNotifications(
+              playerIds,
+              session.user.id,
+              profile.full_name,
+              matchResult.id,
+              matchData.start_time,
             );
-          } else if (dbError.message.includes("foreign key")) {
-            throw new Error(
-              "Invalid player reference. Please refresh and try again."
-            );
-          } else if (dbError.message.includes("check constraint")) {
-            throw new Error(
-              "Invalid match data. Please check all fields and try again."
+
+            await NotificationHelpers.scheduleMatchReminder(
+              playerIds,
+              matchResult.id,
+              matchData.start_time,
             );
           }
+        } catch (notificationError) {
+          console.warn("Failed to send notifications:", notificationError);
         }
-        throw dbError;
-      }
 
-      // NOTIFICATION INTEGRATION: Send match invitations and schedule reminders
-      try {
-        if (profile?.full_name && session?.user?.id) {
-          const playerIds = [session.user.id, ...selectedFriends].filter(
-            Boolean
-          ) as string[];
-
-          await NotificationHelpers.sendMatchInvitationNotifications(
-            playerIds,
-            session.user.id,
-            profile.full_name,
-            matchResult.id,
-            matchData.start_time
-          );
-
-          await NotificationHelpers.scheduleMatchReminder(
-            playerIds,
-            matchResult.id,
-            matchData.start_time
-          );
+        let statusMessage = "";
+        if (teamComposition.isComplete) {
+          statusMessage = isPublicMatch
+            ? "Your public match has been scheduled successfully!"
+            : "Your private match has been scheduled successfully!";
+        } else {
+          statusMessage = isPublicMatch
+            ? "Your public match has been created! Other players can now join."
+            : `Private match created with ${teamComposition.availableSlots} open slot${teamComposition.availableSlots > 1 ? "s" : ""}. Invite more friends to complete the match.`;
         }
-      } catch (notificationError) {
-        console.warn("Failed to send notifications:", notificationError);
-        // Don't fail the match creation for notification errors
+
+        Alert.alert("Match Scheduled!", statusMessage, [
+          { text: "OK", onPress: () => router.push("/(protected)/(tabs)") },
+        ]);
+
+        Vibration.vibrate(100);
+      }
+    } catch (error) {
+      console.error("Error creating match:", error);
+
+      let errorMessage = "Failed to create match";
+
+      if (error instanceof Error) {
+        if (error.message.includes("Database trigger needs update")) {
+          errorMessage = error.message;
+        } else if (error.message.includes("foreign key")) {
+          errorMessage = "Invalid player data. Please refresh and try again.";
+        } else if (error.message.includes("check constraint")) {
+          errorMessage = "Invalid match data. Please check all fields.";
+        } else if (error.message.includes("Network")) {
+          errorMessage =
+            "Network error. Please check your connection and try again.";
+        } else {
+          errorMessage = `Failed to create match: ${error.message}`;
+        }
       }
 
-      let statusMessage = "";
-      if (teamComposition.isComplete) {
-        statusMessage = isPublicMatch
-          ? "Your public match has been scheduled successfully!"
-          : "Your private match has been scheduled successfully!";
-      } else {
-        statusMessage = isPublicMatch
-          ? "Your public match has been created! Other players can now join."
-          : `Private match created with ${teamComposition.availableSlots} open slot${teamComposition.availableSlots > 1 ? "s" : ""}. Invite more friends to complete the match.`;
-      }
-
-      Alert.alert("Match Scheduled!", statusMessage, [
-        { text: "OK", onPress: () => router.push("/(protected)/(tabs)") },
-      ]);
-
-      Vibration.vibrate(100);
+      Alert.alert("Error", errorMessage, [{ text: "OK" }]);
+      Vibration.vibrate(300);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error("Error creating match:", error);
-    
-    // ENHANCED: More user-friendly error messages
-    let errorMessage = "Failed to create match";
-    
-    if (error instanceof Error) {
-      if (error.message.includes("Database trigger needs update")) {
-        errorMessage = error.message;
-      } else if (error.message.includes("foreign key")) {
-        errorMessage = "Invalid player data. Please refresh and try again.";
-      } else if (error.message.includes("check constraint")) {
-        errorMessage = "Invalid match data. Please check all fields.";
-      } else if (error.message.includes("Network")) {
-        errorMessage = "Network error. Please check your connection and try again.";
-      } else {
-        errorMessage = `Failed to create match: ${error.message}`;
-      }
-    }
-    
-    Alert.alert("Error", errorMessage, [{ text: "OK" }]);
-    Vibration.vibrate(300);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
+
   const { width: screenWidth } = Dimensions.get("window");
   const CARD_WIDTH = 80;
-  const CARD_HEIGHT = 100; // ← taller cards
+  const CARD_HEIGHT = 100;
   const CARD_SPACING = 16;
 
   type Props = {
@@ -2007,7 +2179,6 @@ const createMatch = async () => {
     const [selectedIndex, setSelectedIndex] = useState<number>(pastDays);
     const [isInitialized, setIsInitialized] = useState(false);
 
-    /* build list + index */
     useEffect(() => {
       const today = new Date();
       const generated: Date[] = [];
@@ -2026,31 +2197,28 @@ const createMatch = async () => {
 
       setDates(generated);
 
-      // Only update selected index if we have a valid selectedDate and it's different
       if (selectedDate) {
         const idx = generated.findIndex(
-          (d) => d.toDateString() === selectedDate.toDateString()
+          (d) => d.toDateString() === selectedDate.toDateString(),
         );
         if (idx >= 0 && idx !== selectedIndex) {
           setSelectedIndex(idx);
         }
       }
 
-      // Only auto-scroll on initial mount
       if (!isInitialized) {
         const targetIndex = selectedDate
           ? generated.findIndex(
-              (d) => d.toDateString() === selectedDate.toDateString()
+              (d) => d.toDateString() === selectedDate.toDateString(),
             )
           : pastDays;
 
         const finalIndex = targetIndex >= 0 ? targetIndex : pastDays;
 
         if (!selectedDate) {
-          onDateSelect(generated[pastDays]); // fire once on mount
+          onDateSelect(generated[pastDays]);
         }
 
-        // Centre only on mount
         requestAnimationFrame(() => {
           const offsetX = finalIndex * (CARD_WIDTH + CARD_SPACING);
           scrollViewRef.current?.scrollTo({
@@ -2062,7 +2230,6 @@ const createMatch = async () => {
       }
     }, [pastDays, futureDays, selectedDate, isInitialized]);
 
-    /* helpers */
     const handlePress = (d: Date, idx: number) => {
       setSelectedIndex(idx);
       onDateSelect(d);
@@ -2094,18 +2261,17 @@ const createMatch = async () => {
       return c < t;
     };
 
-    /* render */
     return (
       <View className="mb-6">
-        {/* Header with calendar button */}
         <View className="flex-row justify-between items-center mb-4">
           <Text className="text-lg font-semibold text-foreground">
             Select Date
           </Text>
-          <Ionicons name="calendar-outline" size={20} color="#666" />
+          <TouchableOpacity onPress={onCalendarPress} activeOpacity={0.7}>
+            <Ionicons name="calendar-outline" size={20} color="#666" />
+          </TouchableOpacity>
         </View>
 
-        {/* cards */}
         <ScrollView
           ref={scrollViewRef}
           horizontal
@@ -2169,7 +2335,6 @@ const createMatch = async () => {
     );
   };
 
-  // Enhanced CustomDateTimePicker with value display
   const CustomDateTimePickerWithDisplay = ({
     label,
     value,
@@ -2181,21 +2346,11 @@ const createMatch = async () => {
     onChange: (date: Date) => void;
     mode?: "time" | "date" | "datetime";
   }) => {
-    const formatTime = (date: Date) => {
-      return date.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      });
-    };
-
     return (
       <View className="flex-1">
         <Text className="text-sm font-medium text-foreground mb-2">
           {label}
         </Text>
-
-        {/* Your existing CustomDateTimePicker component would go here */}
         <CustomDateTimePicker
           label=""
           value={value}
@@ -2206,53 +2361,44 @@ const createMatch = async () => {
     );
   };
 
-  // -----------------------------------------------------------------------------
-  // STEP 1  –  "Match Date & Time"
-  // (put this inside the component that renders your wizard step)
-  // -----------------------------------------------------------------------------
+  // ========================================
+  // RENDER STEP FUNCTIONS (SAME AS BEFORE BUT USING SlideContainer)
+  // ========================================
+
   const renderStep1MatchTypeTime = () => {
-    /* -------------------------------------------------- local state & helpers */
     const [isCalendarVisible, setCalendarVisible] = useState(false);
 
-    /** When a day card OR the modal calendar is picked */
     const handleDateCardSelect = (d: Date) => {
-      // preserve current time but swap the date
       const current = new Date(startDateTime);
       const newDT = new Date(d);
       newDT.setHours(
         current.getHours(),
         current.getMinutes(),
         current.getSeconds(),
-        0
+        0,
       );
-      handleDateChange(newDT); // <- your existing parent callback
+      handleDateChange(newDT);
     };
 
-    /** Start-time (wheel) changed */
     const handleStartTimeChange = (t: Date) => {
       const newStart = new Date(startDateTime);
       newStart.setHours(t.getHours(), t.getMinutes(), 0, 0);
-      setStartDateTime
-        ? setStartDateTime(newStart)
-        : handleDateChange(newStart);
+      setStartDateTime(newStart);
 
-      // keep duration if an end-time already exists
       if (endDateTime) {
         const dur = endDateTime.getTime() - startDateTime.getTime();
         const newEnd = new Date(newStart.getTime() + dur);
-        setEndDateTime ? setEndDateTime(newEnd) : handleEndTimeChange(newEnd);
+        setEndDateTime(newEnd);
       }
     };
 
-    /** End-time (wheel) changed */
     const handleEndTimeChange = (t: Date) => {
       const newEnd = new Date(startDateTime);
       newEnd.setHours(t.getHours(), t.getMinutes(), 0, 0);
-      if (newEnd <= startDateTime) newEnd.setDate(newEnd.getDate() + 1); // next day
-      setEndDateTime ? setEndDateTime(newEnd) : handleEndTimeChange(newEnd);
+      if (newEnd <= startDateTime) newEnd.setDate(newEnd.getDate() + 1);
+      setEndDateTime(newEnd);
     };
 
-    // Helper functions for formatting
     const formatDisplayDate = (date: Date) => {
       return date.toLocaleDateString([], {
         weekday: "long",
@@ -2270,7 +2416,6 @@ const createMatch = async () => {
       });
     };
 
-    /* ------------------------------------------------------------- JSX return */
     return (
       <SlideContainer
         isActive={currentStep === WizardStep.MATCH_TYPE_TIME}
@@ -2288,9 +2433,7 @@ const createMatch = async () => {
                 Select when your match will take place
               </Text>
 
-              {/* main card wrapper */}
               <View className="bg-card rounded-xl p-6 border border-border/30 shadow-sm">
-                {/* —— 1. Swipeable day cards —— */}
                 <SwipeableDateCards
                   selectedDate={startDateTime}
                   onDateSelect={handleDateCardSelect}
@@ -2299,7 +2442,6 @@ const createMatch = async () => {
                   futureDays={VALIDATION_CONFIG?.MAX_FUTURE_DAYS || 10}
                 />
 
-                {/* —— 2. Modal calendar (no limits) —— */}
                 <DateTimePickerModal
                   isVisible={isCalendarVisible}
                   mode="datetime"
@@ -2311,7 +2453,6 @@ const createMatch = async () => {
                   onCancel={() => setCalendarVisible(false)}
                 />
 
-                {/* —— 3. Time selection section —— */}
                 <View className="mb-6">
                   <Text className="text-lg font-semibold text-foreground mb-2">
                     Select Times
@@ -2332,7 +2473,6 @@ const createMatch = async () => {
                   </View>
                 </View>
 
-                {/* —— 4. Match Summary —— */}
                 <View className="mb-6 p-4 bg-muted/20 rounded-lg border border-border/10">
                   <View className="flex-row items-center mb-3">
                     <Ionicons name="calendar-outline" size={20} color="#666" />
@@ -2378,7 +2518,7 @@ const createMatch = async () => {
                       <Text className="text-sm font-medium text-foreground">
                         {Math.round(
                           (endDateTime.getTime() - startDateTime.getTime()) /
-                            60000
+                            60000,
                         )}{" "}
                         minutes
                       </Text>
@@ -2394,7 +2534,6 @@ const createMatch = async () => {
                   </View>
                 </View>
 
-                {/* —— 5. Mode banner —— */}
                 <View className="mb-6 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
                   <View className="flex-row items-center mb-2">
                     <Ionicons
@@ -2414,7 +2553,6 @@ const createMatch = async () => {
                 </View>
               </View>
 
-              {/* —— 6. Validation info card moved outside and styled better —— */}
               {isPastMatch && (
                 <View className="mt-6">
                   <ValidationInfoCard
@@ -2448,7 +2586,6 @@ const createMatch = async () => {
           />
         }
       >
-        {/* Main Content */}
         <View className="px-6 bg-background rounded-t-3xl relative z-10 -mt-6">
           <View className="mb-6 mt-6">
             <H2 className="mb-2">Team Composition</H2>
@@ -2677,7 +2814,6 @@ const createMatch = async () => {
           />
         }
       >
-        {/* Main Content */}
         <View className="px-6 bg-background rounded-t-3xl relative z-10 -mt-6">
           <View className="mb-6 mt-6">
             <H2 className="mb-2">Location & Settings</H2>
@@ -2900,7 +3036,6 @@ const createMatch = async () => {
                   onTeam1Change={handleTeam1Set1Change}
                   onTeam2Change={handleTeam2Set1Change}
                   onBackspace={handleBackspaceNavigation}
-                  // NEW: Pass Set 2 references for auto-jumping
                   nextSetTeam1Ref={team1Set2Ref}
                   nextSetTeam2Ref={team2Set2Ref}
                   enableAutoJump={true}
@@ -2917,7 +3052,6 @@ const createMatch = async () => {
                   onTeam1Change={handleTeam1Set2Change}
                   onTeam2Change={handleTeam2Set2Change}
                   onBackspace={handleBackspaceNavigation}
-                  // NEW: Only pass Set 3 references if Set 3 is shown
                   nextSetTeam1Ref={showSet3 ? team1Set3Ref : undefined}
                   nextSetTeam2Ref={showSet3 ? team2Set3Ref : undefined}
                   enableAutoJump={true}
@@ -2935,7 +3069,6 @@ const createMatch = async () => {
                     onTeam1Change={handleTeam1Set3Change}
                     onTeam2Change={handleTeam2Set3Change}
                     onBackspace={handleBackspaceNavigation}
-                    // NEW: No next set - will dismiss keyboard when complete
                     nextSetTeam1Ref={undefined}
                     nextSetTeam2Ref={undefined}
                     enableAutoJump={true}
@@ -2980,7 +3113,6 @@ const createMatch = async () => {
           />
         }
       >
-        {/* Main Content */}
         <View className="px-6 bg-background rounded-t-3xl relative z-10 -mt-6">
           <View className="mb-6 mt-6">
             <H2 className="mb-2">Review Match</H2>
@@ -3015,7 +3147,7 @@ const createMatch = async () => {
                   Duration:{" "}
                   {Math.round(
                     (endDateTime.getTime() - startDateTime.getTime()) /
-                      (1000 * 60)
+                      (1000 * 60),
                   )}{" "}
                   minutes
                 </Text>
@@ -3259,19 +3391,19 @@ const createMatch = async () => {
   );
 
   // ========================================
-  // WIZARD NAVIGATION CONTROLS
+  // ENHANCED WIZARD NAVIGATION CONTROLS
   // ========================================
 
   const renderNavigationControls = () => {
     const currentStepValidation = validateCurrentStep();
     const canProceed = currentStepValidation.isValid;
     const currentIndex = stepConfig.findIndex(
-      (step) => step.id === currentStep
+      (step) => step.id === currentStep,
     );
     const isLastStep = currentIndex === stepConfig.length - 1;
 
     return (
-      <View className="px-6 py-4 bg-white/80 dark:bg-gray-900/80 border-t border-gray-200 dark:border-gray-700">
+      <View className="px-6 py-4 bg-white/95 dark:bg-gray-900/95 border-t border-gray-200 dark:border-gray-700 backdrop-blur-sm">
         <View className="flex-row gap-3">
           {/* Previous Button */}
           {currentIndex > 0 && (
@@ -3282,7 +3414,7 @@ const createMatch = async () => {
             >
               <View className="flex-row items-center">
                 <Ionicons name="chevron-back" size={16} color="#2148ce" />
-                <Text className="ml-1 text-black font-medium">Previous</Text>
+                <Text className="ml-1 font-medium">Previous</Text>
               </View>
             </Button>
           )}
@@ -3293,13 +3425,13 @@ const createMatch = async () => {
               variant="default"
               className={`${currentIndex === 0 ? "flex-1" : "flex-[2]"}`}
               onPress={goToNextStep}
-              disabled={!canProceed}
+              disabled={!canProceed || loading}
             >
               <View className="flex-row items-center">
-                <Text className="mr-1 font-extrabold text-white">
-                  {stepConfig[currentIndex + 1]?.title || "Next"}
+                <Text className="mr-1 font-bold text-white">
+                  Next: {stepConfig[currentIndex + 1]?.title || "Continue"}
                 </Text>
-                <Ionicons name="arrow-forward" size={22} color="white" />
+                <Ionicons name="arrow-forward" size={18} color="white" />
               </View>
             </Button>
           ) : (
@@ -3321,41 +3453,65 @@ const createMatch = async () => {
                   </Text>
                 </View>
               ) : (
-                <Text className="text-primary-foreground font-medium">
-                  {isPastMatch ? "Record Match" : "Schedule Match"}
-                </Text>
+                <View className="flex-row items-center">
+                  <Ionicons
+                    name={isPastMatch ? "save" : "calendar"}
+                    size={18}
+                    color="white"
+                    style={{ marginRight: 8 }}
+                  />
+                  <Text className="text-primary-foreground font-bold">
+                    {isPastMatch ? "Record Match" : "Schedule Match"}
+                  </Text>
+                </View>
               )}
             </Button>
           )}
         </View>
 
-        {/* Validation Errors */}
+        {/* Enhanced Validation Errors */}
         {!currentStepValidation.isValid &&
           currentStepValidation.errors.length > 0 && (
-            <View className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+            <View className="mt-3 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
               <View className="flex-row items-start">
                 <Ionicons
                   name="alert-circle"
-                  size={16}
+                  size={18}
                   color="#ef4444"
                   style={{ marginTop: 1 }}
                 />
-                <View className="flex-1 ml-2">
+                <View className="flex-1 ml-3">
+                  <Text className="text-sm font-semibold text-red-600 dark:text-red-400 mb-1">
+                    Please fix the following issues:
+                  </Text>
                   {currentStepValidation.errors.map((error, index) => (
                     <Text
                       key={index}
                       className="text-sm text-red-600 dark:text-red-400"
                     >
-                      {error}
+                      • {error}
                     </Text>
                   ))}
                 </View>
               </View>
             </View>
           )}
+
+        {/* Step Progress Info */}
+        <View className="mt-3 flex-row items-center justify-center">
+          <Text className="text-xs text-muted-foreground">
+            Step {currentIndex + 1} of {stepConfig.length} •{" "}
+            {Math.round(((currentIndex + 1) / stepConfig.length) * 100)}%
+            Complete
+          </Text>
+        </View>
       </View>
     );
   };
+
+  // ========================================
+  // MAIN COMPONENT RETURN
+  // ========================================
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -3371,7 +3527,7 @@ const createMatch = async () => {
         }}
       >
         <Image
-          source={require("../../../assets/padelcourt.jpg")} // Adjust path as needed
+          source={require("../../../assets/padelcourt.jpg")}
           style={{
             width: "100%",
             height: "100%",
@@ -3390,16 +3546,19 @@ const createMatch = async () => {
         />
       </View>
 
-      {/* Header */}
-      <View className="flex-row  mx-auto  items-center">
+      {/* Enhanced Header with Progress Indicator */}
+      <View className="relative z-20">
         <ProgressIndicator
           currentStep={currentStep}
           totalSteps={totalSteps}
           completedSteps={completedSteps}
           stepConfig={stepConfig}
+          onStepPress={goToStep}
+          canNavigateToStep={canNavigateToStep}
         />
       </View>
-      {/* Step Content */}
+
+      {/* Step Content Container */}
       <View className="flex-1 relative z-10">
         {renderStep1MatchTypeTime()}
         {renderStep2PlayerSelection()}
@@ -3407,6 +3566,8 @@ const createMatch = async () => {
         {renderStep4ScoreEntry()}
         {renderStep5ReviewSubmit()}
       </View>
+
+      {/* Modals */}
       <PlayerSelectionModal
         visible={showPlayerModal}
         onClose={() => setShowPlayerModal(false)}
@@ -3415,6 +3576,7 @@ const createMatch = async () => {
         onSelectFriends={setSelectedFriends}
         loading={loading}
         maxSelections={3}
+        isPastMatch={isPastMatch} // ADD THIS LINE
       />
 
       <CourtSelectionModal
@@ -3424,9 +3586,7 @@ const createMatch = async () => {
         selectedCourt={selectedCourt}
       />
 
-      {/* Navigation Controls */}
-
-      {/* Navigation Controls */}
+      {/* Enhanced Navigation Controls */}
       {renderNavigationControls()}
     </SafeAreaView>
   );

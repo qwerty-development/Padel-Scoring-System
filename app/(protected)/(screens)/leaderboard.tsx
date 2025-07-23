@@ -496,6 +496,13 @@ export default function Leaderboard() {
   
   return (
     <SafeAreaView className="flex-1 bg-background">
+      <View className="flex-row items-center p-4 border-b border-border">
+        <TouchableOpacity onPress={() => router.back()} className="p-2">
+          <Ionicons name="arrow-back" size={24} color="#2148ce" />
+        </TouchableOpacity>
+        <H1 className="flex-1 text-center">Leaderboard</H1>
+        <View style={{ width: 40 }} />
+      </View>
       {/* Enhanced Tab Navigation with Visual Feedback */}
       <View className="flex-row border-b border-border bg-background">
         <TouchableOpacity

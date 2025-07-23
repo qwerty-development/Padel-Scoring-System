@@ -513,9 +513,14 @@ export default function CleanMatchHistory() {
     <SafeAreaView className="flex-1 bg-background  dark:bg-gray-900">
       {/* Header */}
       <View className=" dark:bg-gray-800 px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-        <Text className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-          Match History
-        </Text>
+        <View className="flex-row items-center mb-4">
+          <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
+            <Ionicons name="arrow-back" size={24} color="#3B82F6" />
+          </TouchableOpacity>
+          <Text className="text-2xl font-bold text-gray-900 dark:text-gray-100 ml-2">
+            Match History
+          </Text>
+        </View>
         
 
         {/* Filters */}

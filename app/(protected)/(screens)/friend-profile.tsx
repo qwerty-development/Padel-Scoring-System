@@ -1424,7 +1424,7 @@ export default function FriendProfileScreen() {
           {profile.nickname && (
             <H2 className="text-muted-foreground text-center">"{profile.nickname}"</H2>
           )}
-          <Text className="text-sm text-muted-foreground mt-2">{profile.email}</Text>
+        
         </View> 
 
         {/* Enhanced Content Section */}
@@ -1442,7 +1442,7 @@ export default function FriendProfileScreen() {
           <H3 className="mb-4">Personal Information</H3>
           {renderInfoCard("Age", profile.age, "person-outline")}
           {renderInfoCard("Gender", profile.sex, "body-outline")}
-          {renderInfoCard("Email", profile.email, "mail-outline")}
+     
 
           {/* Playing Preferences Section */}
           <H3 className="mb-4 mt-6">Playing Preferences</H3>
