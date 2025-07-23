@@ -718,107 +718,112 @@ export default function EnhancedCleanDashboard() {
         </View>
 
         {/* Enhanced Stats Grid */}
-        <View className="bg-card dark:bg-gray-800 rounded-2xl p-6 border border-gray-100 dark:border-gray-700"
-          style={{
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.05,
-            shadowRadius: 8,
-            elevation: 2,
-          }}
+        <TouchableOpacity
+          onPress={() => router.push('/(tabs)/profile')}
+          activeOpacity={0.8}
         >
-          <View className="flex-row justify-around mb-4">
-            <View className="items-center">
-              <Text className="text-2xl font-bold text-blue-600">
-                {profile?.glicko_rating 
-                  ? Math.round(parseFloat(profile.glicko_rating))
-                  : '-'}
-              </Text>
-              <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Rating
-              </Text>
-            </View>
-            
-            <View className="items-center">
-              <Text className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                {userStats.winRate}%
-              </Text>
-              <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Win Rate
-              </Text>
-            </View>
-            
-            <View className="items-center">
-              <Text className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                {userStats.totalMatches}
-              </Text>
-              <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Matches
-              </Text>
-            </View>
-            
-            <View className="items-center">
-              <Text className={`text-2xl font-bold ${
-                userStats.currentStreak > 0 ? 'text-green-600' :
-                userStats.currentStreak < 0 ? 'text-red-600' : 'text-gray-900 dark:text-gray-100'
-              }`}>
-                {userStats.currentStreak}
-              </Text>
-              <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Streak
-              </Text>
-            </View>
-          </View>
-
-          {/* Additional Stats Row */}
-          {userStats.totalMatches > 0 && (
-            <View className="border-t border-gray-100 dark:border-gray-700 pt-4">
-              <View className="flex-row justify-around">
-                <View className="items-center">
-                  <Text className="text-lg font-semibold text-blue-600">
-                    {categorizedMatches.thisWeek.length}
-                  </Text>
-                  <Text className="text-xs text-gray-500 dark:text-gray-400">
-                    This Week
-                  </Text>
-                </View>
-                
-                <View className="items-center">
-                  <Text className={`text-lg font-semibold ${
-                    userStats.recentPerformance === 'improving' ? 'text-green-600' :
-                    userStats.recentPerformance === 'declining' ? 'text-red-600' : 'text-gray-600'
-                  }`}>
-                    {userStats.recentPerformance === 'improving' ? '📈' :
-                     userStats.recentPerformance === 'declining' ? '📉' : '➡️'}
-                  </Text>
-                  <Text className="text-xs text-gray-500 dark:text-gray-400">
-                    Trend
-                  </Text>
-                </View>
-                
-                <View className="items-center">
-                  <Text className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                    {userStats.publicMatches}
-                  </Text>
-                  <Text className="text-xs text-gray-500 dark:text-gray-400">
-                    Public
-                  </Text>
-                </View>
-                
-                <View className="items-center">
-                  <Text className={`text-lg font-semibold ${
-                    userStats.needsConfirmation > 0 ? 'text-orange-600' : 'text-gray-600'
-                  }`}>
-                    {userStats.needsConfirmation}
-                  </Text>
-                  <Text className="text-xs text-gray-500 dark:text-gray-400">
-                    Pending
-                  </Text>
-                </View>
+          <View className="bg-card dark:bg-gray-800 rounded-2xl p-6 border border-gray-100 dark:border-gray-700"
+            style={{
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.05,
+              shadowRadius: 8,
+              elevation: 2,
+            }}
+          >
+            <View className="flex-row justify-around mb-4">
+              <View className="items-center">
+                <Text className="text-2xl font-bold text-blue-600">
+                  {profile?.glicko_rating 
+                    ? Math.round(parseFloat(profile.glicko_rating))
+                    : '-'}
+                </Text>
+                <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Rating
+                </Text>
+              </View>
+              
+              <View className="items-center">
+                <Text className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                  {userStats.winRate}%
+                </Text>
+                <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Win Rate
+                </Text>
+              </View>
+              
+              <View className="items-center">
+                <Text className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                  {userStats.totalMatches}
+                </Text>
+                <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Matches
+                </Text>
+              </View>
+              
+              <View className="items-center">
+                <Text className={`text-2xl font-bold ${
+                  userStats.currentStreak > 0 ? 'text-green-600' :
+                  userStats.currentStreak < 0 ? 'text-red-600' : 'text-gray-900 dark:text-gray-100'
+                }`}>
+                  {userStats.currentStreak}
+                </Text>
+                <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Streak
+                </Text>
               </View>
             </View>
-          )}
-        </View>
+
+            {/* Additional Stats Row */}
+            {userStats.totalMatches > 0 && (
+              <View className="border-t border-gray-100 dark:border-gray-700 pt-4">
+                <View className="flex-row justify-around">
+                  <View className="items-center">
+                    <Text className="text-lg font-semibold text-blue-600">
+                      {categorizedMatches.thisWeek.length}
+                    </Text>
+                    <Text className="text-xs text-gray-500 dark:text-gray-400">
+                      This Week
+                    </Text>
+                  </View>
+                  
+                  <View className="items-center">
+                    <Text className={`text-lg font-semibold ${
+                      userStats.recentPerformance === 'improving' ? 'text-green-600' :
+                      userStats.recentPerformance === 'declining' ? 'text-red-600' : 'text-gray-600'
+                    }`}>
+                      {userStats.recentPerformance === 'improving' ? '📈' :
+                       userStats.recentPerformance === 'declining' ? '📉' : '➡️'}
+                    </Text>
+                    <Text className="text-xs text-gray-500 dark:text-gray-400">
+                      Trend
+                    </Text>
+                  </View>
+                  
+                  <View className="items-center">
+                    <Text className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                      {userStats.publicMatches}
+                    </Text>
+                    <Text className="text-xs text-gray-500 dark:text-gray-400">
+                      Public
+                    </Text>
+                  </View>
+                  
+                  <View className="items-center">
+                    <Text className={`text-lg font-semibold ${
+                      userStats.needsConfirmation > 0 ? 'text-orange-600' : 'text-gray-600'
+                    }`}>
+                      {userStats.needsConfirmation}
+                    </Text>
+                    <Text className="text-xs text-gray-500 dark:text-gray-400">
+                      Pending
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+          </View>
+        </TouchableOpacity>
       </View>
     );
   };
