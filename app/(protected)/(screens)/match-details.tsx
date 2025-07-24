@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/supabase-provider";
 import { supabase } from "@/config/supabase";
 import { SafeAreaView } from "@/components/safe-area-view";
+import { useMatchConfirmation } from "@/hooks/useMatchConfirmation";
 
 // Simplified enums and interfaces
 export enum MatchStatus {
@@ -285,6 +286,31 @@ export default function CleanMatchDetails() {
 
   const { session, profile } = useAuth();
 
+  // Match confirmation hook (for approve/report flow)
+  const {
+    canTakeAction: canConfirmMatch,
+    approveMatch,
+    approving,
+  } = useMatchConfirmation(matchId as string);
+
+  const confirmMatch = async () => {
+    if (!match) return;
+
+    try {
+      const result = await approveMatch();
+
+      if (result.success) {
+        Alert.alert("Match Confirmed", result.message);
+        fetchMatchDetails(match.id);
+      } else {
+        Alert.alert("Error", result.message);
+      }
+    } catch (error) {
+      console.error("Error confirming match:", error);
+      Alert.alert("Error", "Failed to confirm match");
+    }
+  };
+
   // Calculate match state
   const matchState = useMemo(() => {
     if (!match || !session?.user?.id) {
@@ -337,17 +363,18 @@ export default function CleanMatchDetails() {
       winnerTeam = 0;
 
     if (hasScores) {
-      if (match.team1_score_set1 > match.team2_score_set1) team1Sets++;
-      else if (match.team2_score_set1 > match.team1_score_set1) team2Sets++;
+      // Non-null assertion is safe here because hasScores guarantees both values are present
+      if (match.team1_score_set1! > match.team2_score_set1!) team1Sets++;
+      else if (match.team2_score_set1! > match.team1_score_set1!) team2Sets++;
 
       if (match.team1_score_set2 !== null && match.team2_score_set2 !== null) {
-        if (match.team1_score_set2 > match.team2_score_set2) team1Sets++;
-        else if (match.team2_score_set2 > match.team1_score_set2) team2Sets++;
+        if (match.team1_score_set2! > match.team2_score_set2!) team1Sets++;
+        else if (match.team2_score_set2! > match.team1_score_set2!) team2Sets++;
       }
 
       if (match.team1_score_set3 !== null && match.team2_score_set3 !== null) {
-        if (match.team1_score_set3 > match.team2_score_set3) team1Sets++;
-        else if (match.team2_score_set3 > match.team1_score_set3) team2Sets++;
+        if (match.team1_score_set3! > match.team2_score_set3!) team1Sets++;
+        else if (match.team2_score_set3! > match.team1_score_set3!) team2Sets++;
       }
 
       winnerTeam = team1Sets > team2Sets ? 1 : team2Sets > team1Sets ? 2 : 0;
@@ -1025,33 +1052,33 @@ export default function CleanMatchDetails() {
           </View>
         )}
 
-        {match.status === "4" && match.team1_score_set1 !== null && (
+        { match.team1_score_set1 !== null && (
           <MatchConfirmationSection
             matchId={match.id}
             players={[
               {
-                id: match.player1_id,
-                full_name: match.player1?.full_name,
-                email: match.player1?.email,
+                id: match.player1_id!,
+                full_name: match.player1?.full_name ?? null,
+                email: match.player1?.email ?? "",
               },
               {
-                id: match.player2_id,
-                full_name: match.player2?.full_name,
-                email: match.player2?.email,
+                id: match.player2_id!,
+                full_name: match.player2?.full_name ?? null,
+                email: match.player2?.email ?? "",
               },
               {
-                id: match.player3_id,
-                full_name: match.player3?.full_name,
-                email: match.player3?.email,
+                id: match.player3_id!,
+                full_name: match.player3?.full_name ?? null,
+                email: match.player3?.email ?? "",
               },
               {
-                id: match.player4_id,
-                full_name: match.player4?.full_name,
-                email: match.player4?.email,
+                id: match.player4_id!,
+                full_name: match.player4?.full_name ?? null,
+                email: match.player4?.email ?? "",
               },
             ].filter((p) => p.id)}
             onUpdate={() => {
-              // Refresh your match details
+              // Refresh match details after confirmation changes
               fetchMatchDetails(matchId as string);
             }}
           />
@@ -1064,6 +1091,21 @@ export default function CleanMatchDetails() {
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
                 <Text className="text-white font-medium">Join Match</Text>
+              )}
+            </Button>
+          )}
+
+          {/* Confirm Match (approve) action */}
+          {canConfirmMatch && (
+            <Button
+              onPress={confirmMatch}
+              disabled={approving}
+              className="w-full"
+            >
+              {approving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text className="text-white font-medium">Confirm Match</Text>
               )}
             </Button>
           )}

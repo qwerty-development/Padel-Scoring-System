@@ -82,6 +82,7 @@ export const NotificationHelpers = {
           p_data: { 
             type: 'match_invitation',
             match_id: matchId,
+            created_by: createdById,
             start_time: startTime
           }
         });
