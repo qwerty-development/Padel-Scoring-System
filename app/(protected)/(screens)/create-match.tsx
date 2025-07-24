@@ -4,7 +4,6 @@ import React, {
   useCallback,
   useMemo,
   useRef,
-  useLayoutEffect,
 } from "react";
 import {
   View,
@@ -23,7 +22,7 @@ import {
   Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { router, useLocalSearchParams, useNavigation } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
@@ -272,9 +271,9 @@ interface MatchData {
 
 // WIZARD STEP CONFIGURATION
 enum WizardStep {
-  MATCH_TYPE_TIME = 1,
-  PLAYER_SELECTION = 2,
-  LOCATION_SETTINGS = 3,
+  LOCATION_SETTINGS = 1,
+  MATCH_TYPE_TIME = 2,
+  PLAYER_SELECTION = 3,
   SCORE_ENTRY = 4,
   REVIEW_SUBMIT = 5,
 }
@@ -1257,7 +1256,7 @@ export default function CreateMatchWizard() {
     };
 
     return result;
-  }, [selectedPlayers, session?.user?.id, profile]); // Changed dependency to selectedPlayers
+  }, [selectedPlayers, session?.user?.id, profile]);
 
   // 11. WIZARD CONFIGURATION
   const stepConfig: StepConfig[] = useMemo(() => {
@@ -1435,6 +1434,136 @@ export default function CreateMatchWizard() {
     setEndTimeManuallyChanged(true);
   };
 
+
+  const validateCurrentStep = useCallback((): {
+    isValid: boolean;
+    errors: string[];
+  } => {
+    const errors: string[] = [];
+
+    console.log(`🔍 Validating step: ${currentStep}, isPastMatch: ${isPastMatch}`);
+
+    switch (currentStep) {
+      case WizardStep.LOCATION_SETTINGS:
+        // Only validate location settings
+        if (isPublicMatch && !selectedCourt && !region.trim()) {
+          errors.push("Public matches require a location to be specified");
+        }
+        break;
+
+      case WizardStep.MATCH_TYPE_TIME:
+        // Only validate date/time logic
+        const now = new Date();
+        
+        // Create properly normalized date objects for comparison
+        const normalizedStart = new Date(startDateTime);
+        const normalizedEnd = new Date(endDateTime);
+        
+        // Ensure same date for time comparison
+        if (normalizedEnd.getDate() === normalizedStart.getDate()) {
+          if (normalizedEnd.getTime() <= normalizedStart.getTime()) {
+            errors.push("End time must be after start time");
+          }
+        }
+
+        const matchDurationMs = normalizedEnd.getTime() - normalizedStart.getTime();
+        const minDurationMs = 30 * 60 * 1000; // 30 minutes
+        const maxDurationMs = 6 * 60 * 60 * 1000; // 6 hours
+
+        if (matchDurationMs < minDurationMs) {
+          errors.push("Match duration must be at least 30 minutes");
+        }
+
+        if (matchDurationMs > maxDurationMs) {
+          errors.push("Match duration cannot exceed 6 hours");
+        }
+
+        // Past match validation
+        if (isPastMatch) {
+          const daysDiff = (now.getTime() - normalizedStart.getTime()) / (1000 * 60 * 60 * 24);
+          if (daysDiff > VALIDATION_CONFIG.MIN_MATCH_AGE_DAYS) {
+            errors.push(`Cannot record matches older than ${VALIDATION_CONFIG.MIN_MATCH_AGE_DAYS} days`);
+          }
+        } else {
+          // Future match validation
+          const minFutureTime = now.getTime() + 15 * 60 * 1000; // 15 minutes from now
+          if (normalizedStart.getTime() <= minFutureTime) {
+            errors.push("Future matches must be scheduled at least 15 minutes from now");
+          }
+
+          const daysDiff = (normalizedStart.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+          if (daysDiff > VALIDATION_CONFIG.MAX_FUTURE_DAYS) {
+            errors.push(`Cannot schedule matches more than ${VALIDATION_CONFIG.MAX_FUTURE_DAYS} days in advance`);
+          }
+        }
+        break;
+
+      case WizardStep.PLAYER_SELECTION:
+        // Only validate player selection
+        console.log(`🔍 Player validation - selectedPlayers.length: ${selectedPlayers.length}, isPastMatch: ${isPastMatch}`);
+        
+        if (isPastMatch) {
+          // Past matches require exactly 3 friends (4 total including user)
+          if (selectedPlayers.length !== 3) {
+            errors.push(`Past matches require exactly 4 players (you + 3 friends). Currently selected: ${selectedPlayers.length + 1}/4`);
+          }
+        } else {
+          // Future matches require at least the user (can be 1-4 total)
+          if (selectedPlayers.length > 3) {
+            errors.push("Cannot select more than 3 additional players");
+          }
+          // No minimum requirement for future matches
+        }
+        break;
+
+      case WizardStep.SCORE_ENTRY:
+        // Only validate if this is a past match and we're in score entry
+        if (isPastMatch) {
+          console.log(`🔍 Score validation - set1Valid: ${isSet1Valid}, set2Valid: ${isSet2Valid}, showSet3: ${showSet3}, set3Valid: ${isSet3Valid}`);
+          
+          if (!isSet1Valid || !isSet2Valid) {
+            errors.push("Please enter valid scores for both sets");
+          }
+
+          if (showSet3 && !isSet3Valid) {
+            errors.push("Please enter a valid score for the third set");
+          }
+        }
+        break;
+
+      case WizardStep.REVIEW_SUBMIT:
+        // Final validation - but this should be caught by previous steps
+        // We can do a final sanity check here but shouldn't repeat all validations
+        if (isPastMatch && (!isSet1Valid || !isSet2Valid)) {
+          errors.push("Score validation incomplete");
+        }
+        if (isPastMatch && selectedPlayers.length !== 3) {
+          errors.push("Player selection incomplete");
+        }
+        break;
+    }
+
+    console.log(`🔍 Validation result for step ${currentStep}:`, { isValid: errors.length === 0, errors });
+    
+    return {
+      isValid: errors.length === 0,
+      errors,
+    };
+  }, [
+    currentStep,
+    startDateTime,
+    endDateTime,
+    isPastMatch,
+    selectedPlayers.length,
+    isPublicMatch,
+    selectedCourt,
+    region,
+    isSet1Valid,
+    isSet2Valid,
+    showSet3,
+    isSet3Valid,
+  ]);
+
   // ========================================
   // ENHANCED WIZARD NAVIGATION FUNCTIONS
   // ========================================
@@ -1462,7 +1591,7 @@ export default function CreateMatchWizard() {
       // Add haptic feedback
       Vibration.vibrate(50);
     }
-  }, [currentStep, stepConfig]);
+  }, [currentStep, stepConfig, validateCurrentStep]);
 
   const goToPreviousStep = useCallback(() => {
     const currentIndex = stepConfig.findIndex(
@@ -1491,29 +1620,20 @@ export default function CreateMatchWizard() {
 
       if (targetIndex === -1) return;
 
-      // If going forward, validate all steps in between
+      // If going forward, validate current step
       if (targetIndex > currentIndex) {
-        for (let i = currentIndex; i < targetIndex; i++) {
-          const stepToValidate = stepConfig[i].id;
-          const tempCurrentStep = currentStep;
-
-          // Temporarily set current step for validation
-          setCurrentStep(stepToValidate);
-          const validation = validateCurrentStep();
-          setCurrentStep(tempCurrentStep);
-
-          if (!validation.isValid) {
-            Alert.alert(
-              "Cannot Skip Steps",
-              `Please complete "${stepConfig[i].title}" first.\n\n${validation.errors.join("\n")}`,
-              [{ text: "OK" }],
-            );
-            return;
-          }
-
-          // Mark step as completed
-          setCompletedSteps((prev) => new Set(prev).add(stepToValidate));
+        const validation = validateCurrentStep();
+        if (!validation.isValid) {
+          Alert.alert(
+            "Cannot Skip Steps",
+            `Please complete "${stepConfig[currentIndex].title}" first.\n\n${validation.errors.join("\n")}`,
+            [{ text: "OK" }],
+          );
+          return;
         }
+
+        // Mark current step as completed
+        setCompletedSteps((prev) => new Set(prev).add(currentStep));
       }
 
       // Set direction based on navigation
@@ -1523,7 +1643,7 @@ export default function CreateMatchWizard() {
       // Add haptic feedback
       Vibration.vibrate(targetIndex > currentIndex ? [50, 50] : 50);
     },
-    [currentStep, stepConfig],
+    [currentStep, stepConfig, validateCurrentStep],
   );
 
   // NEW: Check if we can navigate to a specific step
@@ -1550,120 +1670,8 @@ export default function CreateMatchWizard() {
       // Cannot skip multiple steps forward
       return false;
     },
-    [currentStep, stepConfig],
+    [currentStep, stepConfig, validateCurrentStep],
   );
-
-  // ========================================
-  // ENHANCED STEP VALIDATION FUNCTIONS
-  // ========================================
-
-  const validateCurrentStep = useCallback((): {
-    isValid: boolean;
-    errors: string[];
-  } => {
-    const errors: string[] = [];
-
-    switch (currentStep) {
-      case WizardStep.MATCH_TYPE_TIME:
-        if (endDateTime <= startDateTime) {
-          errors.push("End time must be after start time");
-        }
-
-        const matchDuration = endDateTime.getTime() - startDateTime.getTime();
-        const minDuration = 30 * 60 * 1000;
-        const maxDuration = 4 * 60 * 60 * 1000;
-
-        if (matchDuration < minDuration) {
-          errors.push("Match duration must be at least 30 minutes");
-        }
-
-        if (matchDuration > maxDuration) {
-          errors.push("Match duration cannot exceed 4 hours");
-        }
-
-        if (isPastMatch) {
-          const now = new Date();
-          const daysDiff =
-            (now.getTime() - startDateTime.getTime()) / (1000 * 60 * 60 * 24);
-          if (daysDiff > VALIDATION_CONFIG.MIN_MATCH_AGE_DAYS) {
-            errors.push(
-              `Cannot record matches older than ${VALIDATION_CONFIG.MIN_MATCH_AGE_DAYS} days`,
-            );
-          }
-        } else {
-          const now = new Date();
-          const minFutureTime = now.getTime() + 15 * 60 * 1000;
-          if (startDateTime.getTime() <= minFutureTime) {
-            errors.push(
-              "Future matches must be scheduled at least 15 minutes from now",
-            );
-          }
-
-          const daysDiff =
-            (startDateTime.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-          if (daysDiff > VALIDATION_CONFIG.MAX_FUTURE_DAYS) {
-            errors.push(
-              `Cannot schedule matches more than ${VALIDATION_CONFIG.MAX_FUTURE_DAYS} days in advance`,
-            );
-          }
-        }
-        break;
-
-      case WizardStep.PLAYER_SELECTION:
-        if (isPastMatch) {
-          if (selectedPlayers.length<3) {
-          
-              errors.push(`Past matches require exactly 4 players (you + 3 friends) ${selectedPlayers.length} `);
-            
-          }
-        } else {
-          if (!teamComposition.isValidForFuture) {
-            errors.push("You must be part of the match");
-          }
-        }
-        break;
-
-      case WizardStep.LOCATION_SETTINGS:
-        if (isPublicMatch && !region.trim()) {
-          errors.push("Public matches require a location to be specified");
-        }
-        break;
-
-      case WizardStep.SCORE_ENTRY:
-        if (isPastMatch) {
-          if (!isSet1Valid || !isSet2Valid) {
-            errors.push("Please enter valid scores for both sets");
-          }
-
-          if (showSet3 && !isSet3Valid) {
-            errors.push("Please enter a valid score for the third set");
-          }
-        }
-        break;
-
-      case WizardStep.REVIEW_SUBMIT:
-        // Final validation happens in createMatch function
-        break;
-    }
-
-    return {
-      isValid: errors.length === 0,
-      errors,
-    };
-  }, [
-    currentStep,
-    startDateTime,
-    endDateTime,
-    isPastMatch,
-    isFutureMatch,
-    teamComposition,
-    isPublicMatch,
-    region,
-    isSet1Valid,
-    isSet2Valid,
-    showSet3,
-    isSet3Valid,
-  ]);
 
   // ========================================
   // BUSINESS LOGIC FUNCTIONS (SAME AS BEFORE)
@@ -1749,72 +1757,35 @@ export default function CreateMatchWizard() {
     return 0;
   };
 
-  const validateMatch = (): { isValid: boolean; errors: string[] } => {
+  /**
+   * FIXED: Final validation that only checks essential requirements
+   */
+  const validateFinalMatch = (): { isValid: boolean; errors: string[] } => {
     const errors: string[] = [];
 
+    // Essential date/time validation
     if (endDateTime <= startDateTime) {
       errors.push("End time must be after start time");
     }
 
-    const matchDuration = endDateTime.getTime() - startDateTime.getTime();
-    const minDuration = 30 * 60 * 1000;
-    const maxDuration = 4 * 60 * 60 * 1000;
-
-    if (matchDuration < minDuration) {
-      errors.push("Match duration must be at least 30 minutes");
+    // Essential player validation
+    if (isPastMatch && selectedPlayers.length !== 3) {
+      errors.push("Past matches require exactly 4 players total");
     }
 
-    if (matchDuration > maxDuration) {
-      errors.push("Match duration cannot exceed 4 hours");
-    }
-
+    // Essential score validation for past matches
     if (isPastMatch) {
- 
-
       if (!isSet1Valid || !isSet2Valid) {
         errors.push("Please enter valid scores for both sets");
       }
-
       if (showSet3 && !isSet3Valid) {
         errors.push("Please enter a valid score for the third set");
       }
-
-      const now = new Date();
-      const daysDiff =
-        (now.getTime() - startDateTime.getTime()) / (1000 * 60 * 60 * 24);
-      if (daysDiff > VALIDATION_CONFIG.MIN_MATCH_AGE_DAYS) {
-        errors.push(
-          `Cannot record matches older than ${VALIDATION_CONFIG.MIN_MATCH_AGE_DAYS} days`,
-        );
-      }
-
-      if (isPublicMatch) {
-        errors.push("Past matches cannot be made public");
-      }
-    } else {
-      const now = new Date();
-      const minFutureTime = now.getTime() + 15 * 60 * 1000;
-      if (startDateTime.getTime() <= minFutureTime) {
-        errors.push(
-          "Future matches must be scheduled at least 15 minutes from now",
-        );
-      }
-
-      if (!teamComposition.isValidForFuture) {
-        errors.push("You must be part of the match");
-      }
-
-      const daysDiff =
-        (startDateTime.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-      if (daysDiff > VALIDATION_CONFIG.MAX_FUTURE_DAYS) {
-        errors.push(
-          `Cannot schedule matches more than ${VALIDATION_CONFIG.MAX_FUTURE_DAYS} days in advance`,
-        );
-      }
     }
 
-    if (isPublicMatch && !region.trim()) {
-      errors.push("Public matches require a location to be specified");
+    // Public match location requirement
+    if (isPublicMatch && !selectedCourt && !region.trim()) {
+      errors.push("Public matches require a location");
     }
 
     return {
@@ -1843,7 +1814,7 @@ export default function CreateMatchWizard() {
 
   const createMatch = async () => {
     try {
-      const validation = validateMatch();
+      const validation = validateFinalMatch();
 
       if (!validation.isValid) {
         Alert.alert("Validation Error", validation.errors.join("\n"), [
@@ -1857,7 +1828,7 @@ export default function CreateMatchWizard() {
       if (isPastMatch) {
         const winnerTeam = determineWinnerTeam();
 
-        // FIXED: Use selectedPlayers to get player IDs
+        // Use selectedPlayers to get player IDs
         const playerIds = [session?.user?.id];
         selectedPlayers.forEach((player) => {
           playerIds.push(player.id);
@@ -1900,21 +1871,6 @@ export default function CreateMatchWizard() {
           rating_applied: false,
         };
 
-        console.log(
-          "🎯 Creating past match with existing database columns only:",
-          {
-            player1_id: matchData.player1_id,
-            updated_by: matchData.updated_by,
-            creator_confirmed: matchData.creator_confirmed,
-            validation_deadline: matchData.validation_deadline,
-            validation_status: matchData.validation_status,
-            rating_applied: matchData.rating_applied,
-            hours_until_deadline: validationHours,
-            processing_method: "postgresql_cron_job",
-            note: "Triggers should use player1_id as creator identifier",
-          },
-        );
-
         let matchResult;
         try {
           const { data: insertResult, error: matchError } = await supabase
@@ -1931,22 +1887,6 @@ export default function CreateMatchWizard() {
           matchResult = insertResult;
         } catch (dbError) {
           console.error("Failed to insert match:", dbError);
-
-          if (dbError instanceof Error) {
-            if (dbError.message.includes("created_by")) {
-              throw new Error(
-                "Database trigger needs update: Triggers should use player1_id instead of created_by field.",
-              );
-            } else if (dbError.message.includes("foreign key")) {
-              throw new Error(
-                "Invalid player reference. Please refresh and try again.",
-              );
-            } else if (dbError.message.includes("check constraint")) {
-              throw new Error(
-                "Invalid match data. Please check all fields and try again.",
-              );
-            }
-          }
           throw dbError;
         }
 
@@ -1959,10 +1899,6 @@ export default function CreateMatchWizard() {
         } catch (notificationError) {
           console.warn("Failed to send notifications:", notificationError);
         }
-
-        console.log(
-          "✅ Match created successfully. PostgreSQL cron job will process ratings after validation period.",
-        );
 
         const validationHoursDisplay = useQuickValidation
           ? "1 hour"
@@ -1997,7 +1933,7 @@ export default function CreateMatchWizard() {
 
         Vibration.vibrate([100, 50, 100]);
       } else {
-        // FIXED: Use selectedPlayers IDs for future matches
+        // Use selectedPlayers IDs for future matches
         const playerIds = selectedPlayers.map(p => p.id);
         
         const matchData: MatchData = {
@@ -2025,17 +1961,6 @@ export default function CreateMatchWizard() {
           updated_by: session?.user?.id as string,
         };
 
-        console.log(
-          "🎯 Creating future match with existing database columns only:",
-          {
-            player1_id: matchData.player1_id,
-            updated_by: matchData.updated_by,
-            is_public: matchData.is_public,
-            status: matchData.status,
-            note: "Triggers should use player1_id as creator identifier",
-          },
-        );
-
         let matchResult;
         try {
           const { data: insertResult, error: matchError } = await supabase
@@ -2052,22 +1977,6 @@ export default function CreateMatchWizard() {
           matchResult = insertResult;
         } catch (dbError) {
           console.error("Failed to insert future match:", dbError);
-
-          if (dbError instanceof Error) {
-            if (dbError.message.includes("created_by")) {
-              throw new Error(
-                "Database trigger needs update: Triggers should use player1_id instead of created_by field.",
-              );
-            } else if (dbError.message.includes("foreign key")) {
-              throw new Error(
-                "Invalid player reference. Please refresh and try again.",
-              );
-            } else if (dbError.message.includes("check constraint")) {
-              throw new Error(
-                "Invalid match data. Please check all fields and try again.",
-              );
-            }
-          }
           throw dbError;
         }
 
@@ -2118,18 +2027,7 @@ export default function CreateMatchWizard() {
       let errorMessage = "Failed to create match";
 
       if (error instanceof Error) {
-        if (error.message.includes("Database trigger needs update")) {
-          errorMessage = error.message;
-        } else if (error.message.includes("foreign key")) {
-          errorMessage = "Invalid player data. Please refresh and try again.";
-        } else if (error.message.includes("check constraint")) {
-          errorMessage = "Invalid match data. Please check all fields.";
-        } else if (error.message.includes("Network")) {
-          errorMessage =
-            "Network error. Please check your connection and try again.";
-        } else {
-          errorMessage = `Failed to create match: ${error.message}`;
-        }
+        errorMessage = `Failed to create match: ${error.message}`;
       }
 
       Alert.alert("Error", errorMessage, [{ text: "OK" }]);
