@@ -96,8 +96,10 @@ const Avatar: React.FC<AvatarProps> = ({
   const handleProfilePress = () => {
     if (!player) return;
 
-    // Don't navigate if it's the current user (they can use the Profile tab)
-    if (isCurrentUser) return;
+    if (isCurrentUser) {
+      router.push('/(tabs)/profile');
+      return;
+    }
 
     // Navigate to friend profile screen
     router.push({

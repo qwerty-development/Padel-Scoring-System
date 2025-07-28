@@ -709,9 +709,14 @@ export default function EnhancedCleanDashboard() {
       <View className="mb-8">
         {/* Enhanced Greeting */}
         <View className="mb-6">
-          <Text className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1">
-            {greeting.emoji} Hi, {firstName}
-          </Text>
+          <TouchableOpacity
+            onPress={() => router.push('/(tabs)/profile')}
+            activeOpacity={0.8}
+          >
+            <Text className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1">
+              {greeting.emoji} Hi, {firstName}
+            </Text>
+          </TouchableOpacity>
           <Text className="text-gray-600 dark:text-gray-400">
             {greeting.message}
           </Text>

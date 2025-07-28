@@ -1752,63 +1752,6 @@ export default function FriendProfileScreen() {
     );
   };
 
-  /**
-   * Enhanced Rating Comparison Card with Visual Rating Bar
-   */
-  const renderComparisonCard = () => {
-    if (!currentUserProfile || !profile || !currentUserProfile.glicko_rating || !profile.glicko_rating) {
-      return null;
-    }
-    
-    const userRating = parseInt(currentUserProfile.glicko_rating);
-    const friendRating = parseInt(profile.glicko_rating);
-    const ratingDiff = userRating - friendRating;
-    
-    return (
-      <View 
-        className="bg-card rounded-lg p-4 mb-6 border border-border/30"
-        style={{
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-          elevation: 3,
-        }}
-      >
-        <H3 className="mb-4">Rating Comparison</H3>
-        
-        <View className="flex-row justify-between items-center mb-2">
-          <View className="items-center flex-1">
-            <Text className="text-lg font-bold">{userRating}</Text>
-            <Text className="text-xs text-muted-foreground">Your Rating</Text>
-          </View>
-          
-          <View className="items-center">
-            <View className={`px-2 py-1 rounded-full ${ratingDiff > 0 ? 'bg-green-100' : (ratingDiff < 0 ? 'bg-red-100' : 'bg-gray-100')}`}>
-              <Text className={`text-xs font-bold ${ratingDiff > 0 ? 'text-green-700' : (ratingDiff < 0 ? 'text-red-700' : 'text-gray-700')}`}>
-                {ratingDiff > 0 ? `+${ratingDiff}` : ratingDiff}
-              </Text>
-            </View>
-          </View>
-          
-          <View className="items-center flex-1">
-            <Text className="text-lg font-bold">{friendRating}</Text>
-            <Text className="text-xs text-muted-foreground">Their Rating</Text>
-          </View>
-        </View>
-        
-        {/* Rating bar visualization */}
-        <View className="h-3 bg-gray-200 rounded-full mt-3 overflow-hidden">
-          <View 
-            className="h-full bg-primary"
-            style={{ 
-              width: `${Math.min(100, Math.max(0, (userRating / (userRating + friendRating)) * 100))}%` 
-            }}
-          />
-        </View>
-      </View>
-    );
-  };
 
   if (loading && !refreshing) {
     return (
@@ -1882,8 +1825,7 @@ export default function FriendProfileScreen() {
           {/* NEW: Friend's Performance Overview */}
           {renderFriendPerformanceOverview()}
           
-          {/* Rating comparison */}
-          {renderComparisonCard()}
+   
           
           {/* Friendship Status and Action Button */}
           {renderFriendshipButton()}
