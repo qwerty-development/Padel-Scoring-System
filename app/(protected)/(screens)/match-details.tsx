@@ -14,13 +14,13 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, router } from "expo-router";
 import { format } from "date-fns";
-import { MatchConfirmationSection } from "@/components/MatchConfirmationSection";
+import { MatchConfirmationSectionV2 } from "@/components/MatchConfirmationSection";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/supabase-provider";
 import { supabase } from "@/config/supabase";
 import { SafeAreaView } from "@/components/safe-area-view";
-import { useMatchConfirmation } from "@/hooks/useMatchConfirmation";
+import { useMatchConfirmationV2 } from "@/hooks/useMatchConfirmation";
 
 // Simplified enums and interfaces
 export enum MatchStatus {
@@ -287,11 +287,11 @@ export default function CleanMatchDetails() {
   const { session, profile } = useAuth();
 
   // Match confirmation hook (for approve/report flow)
-  const {
-    canTakeAction: canConfirmMatch,
-    approveMatch,
-    approving,
-  } = useMatchConfirmation(matchId as string);
+ const {
+   canTakeAction: canConfirmMatch,
+   approveMatch,
+   processing: approving,
+ } = useMatchConfirmationV2(matchId as string);
 
   const confirmMatch = async () => {
     if (!match) return;
@@ -1053,7 +1053,7 @@ export default function CleanMatchDetails() {
         )}
 
         { match.team1_score_set1 !== null && (
-          <MatchConfirmationSection
+          <MatchConfirmationSectionV2
             matchId={match.id}
             players={[
               {
