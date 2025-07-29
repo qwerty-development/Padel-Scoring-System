@@ -1432,6 +1432,7 @@ export default function Profile() {
             {safeRender(() => renderInfoCard("Age", profile?.age ? profile.age.toString() : null, "person-outline"))}
             {safeRender(() => renderInfoCard("Gender", profile?.sex, "body-outline"))}
             {safeRender(() => renderInfoCard("Email", profile?.email, "mail-outline"))}
+            {safeRender(() => renderInfoCard("Number", profile?.number, "mail-outline"))}
           </View>
 
           <View className="mb-6">

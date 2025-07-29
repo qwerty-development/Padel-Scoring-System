@@ -29,6 +29,7 @@ export interface UserProfile {
 	full_name: string | null;
 	age: number | null;  // FIXED: Database stores as integer
 	nickname: string | null;
+	number: string | null;  // Contact number field
 	sex: string | null;
 	preferred_hand: string | null;
 	preferred_area: string | null;

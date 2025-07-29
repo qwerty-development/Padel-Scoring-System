@@ -44,6 +44,9 @@ import {
 // NOTIFICATION INTEGRATION: Import notification helpers
 import { NotificationHelpers } from "@/services/notificationHelpers";
 
+// --- Add import for feature flags ---
+import { FEATURE_FLAGS } from "@/constants/features";
+
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // ENHANCEMENT: Add validation status enum
@@ -880,15 +883,41 @@ interface TeamPlayerRowProps {
   };
   team: 1 | 2;
   showRating?: boolean;
+  onRemove?: () => void;
+  onSwapTeam?: () => void;
 }
 
 function TeamPlayerRow({
   player,
   team,
   showRating = false,
+  onRemove,
+  onSwapTeam,
 }: TeamPlayerRowProps) {
   return (
-    <View className="flex-row items-center mb-2 p-2 w-32 rounded-lg bg-white/40 dark:bg-white/5">
+    <View className="flex-row items-center mb-2 p-2 rounded-lg bg-white/40 dark:bg-white/5 relative">
+      {/* Remove button - only for non-current users */}
+      {!player.isCurrentUser && onRemove && (
+        <TouchableOpacity
+          className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full items-center justify-center z-10"
+          onPress={onRemove}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="close" size={12} color="white" />
+        </TouchableOpacity>
+      )}
+
+      {/* Swap button - only for non-current users */}
+      {!player.isCurrentUser && onSwapTeam && (
+        <TouchableOpacity
+          className="absolute -top-1 -left-1 w-5 h-5 bg-blue-500 rounded-full items-center justify-center z-10"
+          onPress={onSwapTeam}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="swap-horizontal" size={10} color="white" />
+        </TouchableOpacity>
+      )}
+
       <MatchPlayerAvatar
         player={{
           id: player.id,
@@ -898,17 +927,20 @@ function TeamPlayerRow({
           isCurrentUser: player.isCurrentUser,
         }}
         team={team}
-        size="md"
+        size="sm"
         showBorder={true}
         showShadow={true}
       />
 
-      <View className="flex-1 ml-3">
-        <View className="flex-row items-center">
-          <Text className="font-medium" numberOfLines={1}>
-            {player.isCurrentUser ? "You" : player.name}
+      <View className="flex-1 ml-2">
+        <Text className="font-medium text-xs" numberOfLines={1}>
+          {player.isCurrentUser ? "You" : player.name}
+        </Text>
+        {showRating && player.glicko_rating && (
+          <Text className="text-xs text-muted-foreground">
+            {Math.round(Number(player.glicko_rating))}
           </Text>
-        </View>
+        )}
       </View>
     </View>
   );
@@ -1137,23 +1169,22 @@ export default function CreateMatchWizard() {
   // 4. IMPROVED DATE AND TIME STATE
   const getDefaultStartDateTime = () => {
     const now = new Date();
-    const minutes = now.getMinutes();
-    const roundedMinutes = Math.ceil(minutes / 30) * 30;
-
-    const startDateTime = new Date(now);
-    if (roundedMinutes === 60) {
-      startDateTime.setHours(startDateTime.getHours() + 1, 0, 0, 0);
-    } else {
-      startDateTime.setMinutes(roundedMinutes, 0, 0);
-    }
-
-    return startDateTime;
+    // Default to 2 hours ago, rounded to nearest 15 minutes
+    const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+    const minutes = twoHoursAgo.getMinutes();
+    const roundedMinutes = Math.floor(minutes / 15) * 15;
+    
+    twoHoursAgo.setMinutes(roundedMinutes, 0, 0);
+    return twoHoursAgo;
   };
 
   const getDefaultEndDateTime = (startDateTime: Date) => {
-    const endDateTime = new Date(startDateTime);
-    endDateTime.setTime(endDateTime.getTime() + 90 * 60 * 1000); // Add 90 minutes
-    return endDateTime;
+    // Default end time is start time + 90 minutes, but max 30 minutes before now
+    const now = new Date();
+    const maxEndTime = new Date(now.getTime() - 30 * 60 * 1000); // 30 min before now
+    const proposedEndTime = new Date(startDateTime.getTime() + 90 * 60 * 1000);
+    
+    return proposedEndTime <= maxEndTime ? proposedEndTime : maxEndTime;
   };
 
   const [startDateTime, setStartDateTime] = useState(getDefaultStartDateTime());
@@ -1263,15 +1294,9 @@ export default function CreateMatchWizard() {
     const baseSteps = [
       {
         id: WizardStep.LOCATION_SETTINGS,
-        title: "Location",
-        description: "Set location and match settings",
-        icon: "location-outline",
-      },
-      {
-        id: WizardStep.MATCH_TYPE_TIME,
-        title: "Time",
-        description: "Set match date and time",
-        icon: "time-outline",
+        title: "Details",
+        description: "Set location and time",
+        icon: "information-circle-outline",
       },
       {
         id: WizardStep.PLAYER_SELECTION,
@@ -1334,7 +1359,45 @@ export default function CreateMatchWizard() {
     setRefreshing(false);
   }, [fetchFriends]);
 
-  // 13. EFFECT HOOKS
+  // 13. PLAYER MANAGEMENT FUNCTIONS
+  const removePlayer = useCallback((playerId: string) => {
+    setSelectedPlayers(prev => prev.filter(p => p.id !== playerId));
+    setSelectedFriends(prev => prev.filter(id => id !== playerId));
+  }, []);
+
+  const swapPlayerTeam = useCallback((playerId: string) => {
+    setSelectedPlayers(prev => {
+      const playerIndex = prev.findIndex(p => p.id === playerId);
+      if (playerIndex === -1) return prev;
+      
+      const newPlayers = [...prev];
+      const player = newPlayers[playerIndex];
+      
+      // Remove player from current position
+      newPlayers.splice(playerIndex, 1);
+      
+      // Find appropriate position on other team
+      // Team 1 positions: 0 (after current user)
+      // Team 2 positions: 1, 2
+      if (playerIndex === 0) {
+        // Player was on team 1, move to team 2 (position 1 or 2)
+        const team2HasSpace = newPlayers.length < 3;
+        if (team2HasSpace) {
+          newPlayers.push(player);
+        } else {
+          // Team 2 is full, swap with first team 2 player
+          newPlayers.splice(1, 0, player);
+        }
+      } else {
+        // Player was on team 2, move to team 1 (position 0)
+        newPlayers.unshift(player);
+      }
+      
+      return newPlayers;
+    });
+  }, []);
+
+  // 14. EFFECT HOOKS
   useEffect(() => {
     if (session?.user?.id) {
       setLoading(true);
@@ -1420,17 +1483,19 @@ export default function CreateMatchWizard() {
     const newStartDateTime = new Date(startDateTime);
     newStartDateTime.setHours(time.getHours(), time.getMinutes(), 0, 0);
     setStartDateTime(newStartDateTime);
+
+    if (endDateTime) {
+      const dur = endDateTime.getTime() - startDateTime.getTime();
+      const newEnd = new Date(newStartDateTime.getTime() + dur);
+      setEndDateTime(newEnd);
+    }
   };
 
-  const handleEndTimeChange = (time: Date) => {
-    const newEndDateTime = new Date(endDateTime);
-    newEndDateTime.setHours(time.getHours(), time.getMinutes(), 0, 0);
-
-    if (newEndDateTime <= startDateTime) {
-      newEndDateTime.setDate(newEndDateTime.getDate() + 1);
-    }
-
-    setEndDateTime(newEndDateTime);
+  const handleEndTimeChange = (t: Date) => {
+    const newEnd = new Date(startDateTime);
+    newEnd.setHours(t.getHours(), t.getMinutes(), 0, 0);
+    if (newEnd <= startDateTime) newEnd.setDate(newEnd.getDate() + 1);
+    setEndDateTime(newEnd);
     setEndTimeManuallyChanged(true);
   };
 
@@ -1814,6 +1879,20 @@ export default function CreateMatchWizard() {
 
   const createMatch = async () => {
     try {
+      // Prevent creation if disabled by feature flags
+      if (
+        (!FEATURE_FLAGS.FUTURE_MATCH_SCHEDULING_ENABLED && isFutureMatch) ||
+        (!FEATURE_FLAGS.PUBLIC_MATCHES_ENABLED && isPublicMatch)
+      ) {
+        Alert.alert(
+          "Feature Unavailable",
+          !FEATURE_FLAGS.FUTURE_MATCH_SCHEDULING_ENABLED && isFutureMatch
+            ? "Scheduling matches in the future is currently disabled."
+            : "Creating public matches is currently disabled."
+        );
+        return;
+      }
+
       const validation = validateFinalMatch();
 
       if (!validation.isValid) {
@@ -2218,28 +2297,104 @@ export default function CreateMatchWizard() {
     );
   };
 
-  const CustomDateTimePickerWithDisplay = ({
+  const CustomPastTimeSelector = ({
     label,
     value,
     onChange,
-    mode = "time",
+    isEndTime = false,
+    startTime
   }: {
     label: string;
     value: Date;
     onChange: (date: Date) => void;
-    mode?: "time" | "date" | "datetime";
+    isEndTime?: boolean;
+    startTime?: Date;
   }) => {
+    const [showPicker, setShowPicker] = useState(false);
+    
+    const getMaxTime = () => {
+      const now = new Date();
+      const selectedDate = new Date(value);
+      const today = new Date();
+      
+      // If selected date is today, max time is 30 minutes ago
+      if (selectedDate.toDateString() === today.toDateString()) {
+        const maxTime = new Date(now.getTime() - 30 * 60 * 1000); // 30 minutes ago
+        return maxTime;
+      }
+      
+      // If it's a past date, max time is end of day (23:59)
+      const maxTime = new Date(selectedDate);
+      maxTime.setHours(23, 59, 0, 0);
+      return maxTime;
+    };
+
+    const getMinTime = () => {
+      if (isEndTime && startTime) {
+        // End time must be at least 30 minutes after start time
+        return new Date(startTime.getTime() + 30 * 60 * 1000);
+      }
+      
+      // For start time, use beginning of selected day
+      const minTime = new Date(value);
+      minTime.setHours(0, 0, 0, 0);
+      return minTime;
+    };
+
+    const formatTime = (date: Date) => {
+      return date.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+    };
+
+    const isTimeValid = (selectedTime: Date) => {
+      const maxTime = getMaxTime();
+      const minTime = getMinTime();
+      
+      return selectedTime >= minTime && selectedTime <= maxTime;
+    };
+
     return (
       <View className="flex-1">
-        <Text className="text-sm font-medium text-foreground mb-2">
-          {label}
-        </Text>
-        <CustomDateTimePicker
-          label=""
-          value={value}
-          onChange={onChange}
-          mode={mode}
+        <Text className="text-xs font-medium text-muted-foreground mb-1">{label}</Text>
+        
+        <TouchableOpacity
+          className="bg-background dark:bg-background/60 border border-border rounded-lg px-3 py-3 flex-row items-center justify-between"
+          onPress={() => setShowPicker(true)}
+          activeOpacity={0.7}
+        >
+          <View className="flex-row items-center flex-1">
+            <Ionicons name="time-outline" size={16} color="#2148ce" />
+            <Text className="ml-2 text-foreground font-medium">
+              {formatTime(value)}
+            </Text>
+          </View>
+          <Ionicons name="chevron-down" size={16} color="#666" />
+        </TouchableOpacity>
+
+        <DateTimePickerModal
+          isVisible={showPicker}
+          mode="time"
+          date={value}
+          maximumDate={getMaxTime()}
+          minimumDate={getMinTime()}
+          onConfirm={(selectedTime) => {
+            if (isTimeValid(selectedTime)) {
+              onChange(selectedTime);
+            } else {
+              Alert.alert(
+                "Invalid Time",
+                `Please select a time between ${formatTime(getMinTime())} and ${formatTime(getMaxTime())}`
+              );
+            }
+            setShowPicker(false);
+          }}
+          onCancel={() => setShowPicker(false)}
         />
+        
+
       </View>
     );
   };
@@ -2264,13 +2419,13 @@ export default function CreateMatchWizard() {
     };
 
     const handleStartTimeChange = (t: Date) => {
-      const newStart = new Date(startDateTime);
-      newStart.setHours(t.getHours(), t.getMinutes(), 0, 0);
-      setStartDateTime(newStart);
+      const newStartDateTime = new Date(startDateTime);
+      newStartDateTime.setHours(t.getHours(), t.getMinutes(), 0, 0);
+      setStartDateTime(newStartDateTime);
 
       if (endDateTime) {
         const dur = endDateTime.getTime() - startDateTime.getTime();
-        const newEnd = new Date(newStart.getTime() + dur);
+        const newEnd = new Date(newStartDateTime.getTime() + dur);
         setEndDateTime(newEnd);
       }
     };
@@ -2322,7 +2477,7 @@ export default function CreateMatchWizard() {
                   onDateSelect={handleDateCardSelect}
                   onCalendarPress={() => setCalendarVisible(true)}
                   pastDays={VALIDATION_CONFIG?.MIN_MATCH_AGE_DAYS || 3}
-                  futureDays={VALIDATION_CONFIG?.MAX_FUTURE_DAYS || 10}
+                  futureDays={0}
                 />
 
                 <DateTimePickerModal
@@ -2337,22 +2492,34 @@ export default function CreateMatchWizard() {
                 />
 
                 <View className="mb-6">
-                  <Text className="text-lg font-semibold text-foreground mb-2">
+                  <Text className="text-lg font-semibold text-foreground mb-4">
                     Select Times
                   </Text>
-                  <View className="flex-row gap-4">
-                    <CustomDateTimePickerWithDisplay
-                      label="Start Time"
-                      value={startDateTime}
-                      onChange={handleStartTimeChange}
-                      mode="time"
-                    />
-                    <CustomDateTimePickerWithDisplay
-                      label="End Time"
-                      value={endDateTime}
-                      onChange={handleEndTimeChange}
-                      mode="time"
-                    />
+                  
+                  {/* Enhanced time selection with better visual hierarchy */}
+                  <View className="bg-white/90 dark:bg-white/5 rounded-2xl p-5 border border-white/20 shadow-lg">
+                    <View className="flex-row gap-4 mb-4">
+                      <CustomPastTimeSelector
+                        label="Match Started"
+                        value={startDateTime}
+                        onChange={handleStartTimeChange}
+                      />
+                      <CustomPastTimeSelector
+                        label="Match Ended"
+                        value={endDateTime}
+                        onChange={handleEndTimeChange}
+                        isEndTime={true}
+                        startTime={startDateTime}
+                      />
+                    </View>
+                    
+                                         {/* Duration indicator */}
+                     <View className="flex-row items-center justify-center p-2 bg-primary/10 rounded-lg">
+                       <Ionicons name="stopwatch-outline" size={14} color="#2148ce" />
+                       <Text className="ml-1 text-xs font-medium text-primary">
+                         {Math.round((endDateTime.getTime() - startDateTime.getTime()) / 60000)} minutes
+                       </Text>
+                     </View>
                   </View>
                 </View>
 
@@ -2417,23 +2584,7 @@ export default function CreateMatchWizard() {
                   </View>
                 </View>
 
-                <View className="mb-6 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-                  <View className="flex-row items-center mb-2">
-                    <Ionicons
-                      name={isPastMatch ? "time-outline" : "calendar-outline"}
-                      size={20}
-                      color="#2148ce"
-                    />
-                    <Text className="ml-2 font-semibold text-blue-700 dark:text-blue-300">
-                      {isPastMatch ? "Past Match Mode" : "Future Match Mode"}
-                    </Text>
-                  </View>
-                  <Text className="text-sm text-blue-600 dark:text-blue-400">
-                    {isPastMatch
-                      ? "Recording a completed match. Scores will enter validation period."
-                      : "Scheduling a future match. Players can join before match time."}
-                  </Text>
-                </View>
+
               </View>
 
               {isPastMatch && (
@@ -2530,6 +2681,8 @@ export default function CreateMatchWizard() {
                           player={player}
                           team={1}
                           showRating={isPastMatch}
+                          onRemove={!player.isCurrentUser ? () => removePlayer(player.id) : undefined}
+                          onSwapTeam={!player.isCurrentUser ? () => swapPlayerTeam(player.id) : undefined}
                         />
                       ))}
 
@@ -2538,19 +2691,19 @@ export default function CreateMatchWizard() {
                         .map((_, i) => (
                           <TouchableOpacity
                             key={`team1-empty-${i}`}
-                            className="flex-row items-center mb-2 p-2 w-32 rounded-lg border-2 border-dashed border-primary/30 bg-primary/5 active:bg-primary/10"
+                            className="flex-row items-center mb-2 p-2 rounded-lg border-2 border-dashed border-primary/30 bg-primary/5 active:bg-primary/10"
                             onPress={() => setShowPlayerModal(true)}
                             activeOpacity={0.7}
                           >
                             <MatchPlayerAvatar
                               player={null}
                               team={1}
-                              size="md"
+                              size="sm"
                               isPlaceholder={true}
                               onPress={() => setShowPlayerModal(true)}
                             />
-                            <View className="flex-1 ml-3">
-                              <Text className="text-sm text-primary/70 font-medium">
+                            <View className="flex-1 ml-2">
+                              <Text className="text-xs text-primary/70 font-medium">
                                 Tap to add
                               </Text>
                             </View>
@@ -2589,6 +2742,8 @@ export default function CreateMatchWizard() {
                           player={player}
                           team={2}
                           showRating={isPastMatch}
+                          onRemove={!player.isCurrentUser ? () => removePlayer(player.id) : undefined}
+                          onSwapTeam={!player.isCurrentUser ? () => swapPlayerTeam(player.id) : undefined}
                         />
                       ))}
 
@@ -2597,19 +2752,19 @@ export default function CreateMatchWizard() {
                         .map((_, i) => (
                           <TouchableOpacity
                             key={`team2-empty-${i}`}
-                            className="flex-row items-center mb-2 p-2 w-32 rounded-lg border-2 border-dashed border-indigo-500/30 bg-indigo-500/5 active:bg-indigo-500/10"
+                            className="flex-row items-center mb-2 p-2 rounded-lg border-2 border-dashed border-indigo-500/30 bg-indigo-500/5 active:bg-indigo-500/10"
                             onPress={() => setShowPlayerModal(true)}
                             activeOpacity={0.7}
                           >
                             <MatchPlayerAvatar
                               player={null}
                               team={2}
-                              size="md"
+                              size="sm"
                               isPlaceholder={true}
                               onPress={() => setShowPlayerModal(true)}
                             />
-                            <View className="flex-1 ml-3">
-                              <Text className="text-sm text-indigo-500/70 font-medium">
+                            <View className="flex-1 ml-2">
+                              <Text className="text-xs text-indigo-500/70 font-medium">
                                 Tap to add
                               </Text>
                             </View>
@@ -2679,31 +2834,119 @@ export default function CreateMatchWizard() {
     </SlideContainer>
   );
 
-  const renderStep3LocationSettings = () => (
-    <SlideContainer
-      isActive={currentStep === WizardStep.LOCATION_SETTINGS}
-      direction={slideDirection}
-    >
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ paddingBottom: 40, paddingTop: 100 }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#2148ce"
-            colors={["#2148ce"]}
-          />
-        }
+  const renderStep3LocationSettings = () => {
+    const [isCalendarVisible, setCalendarVisible] = useState(false);
+
+    const handleDateCardSelect = (d: Date) => {
+      const current = new Date(startDateTime);
+      const newDT = new Date(d);
+      newDT.setHours(
+        current.getHours(),
+        current.getMinutes(),
+        current.getSeconds(),
+        0,
+      );
+      handleDateChange(newDT);
+    };
+
+    const handleStartTimeChange = (t: Date) => {
+      const newStartDateTime = new Date(startDateTime);
+      newStartDateTime.setHours(t.getHours(), t.getMinutes(), 0, 0);
+      setStartDateTime(newStartDateTime);
+
+      if (endDateTime) {
+        const dur = endDateTime.getTime() - startDateTime.getTime();
+        const newEnd = new Date(newStartDateTime.getTime() + dur);
+        setEndDateTime(newEnd);
+      }
+    };
+
+    const handleEndTimeChange = (t: Date) => {
+      const newEnd = new Date(startDateTime);
+      newEnd.setHours(t.getHours(), t.getMinutes(), 0, 0);
+      if (newEnd <= startDateTime) newEnd.setDate(newEnd.getDate() + 1);
+      setEndDateTime(newEnd);
+    };
+
+    return (
+      <SlideContainer
+        isActive={currentStep === WizardStep.LOCATION_SETTINGS}
+        direction={slideDirection}
       >
-        <View className="px-6 bg-background rounded-t-3xl relative z-10 -mt-6">
-          <View className="mb-6 mt-6">
-            <H2 className="mb-2">Location & Settings</H2>
-            <Text className="text-muted-foreground mb-6">
-              Specify where the match {isPastMatch ? "was" : "will be"} played
-              and match settings
-            </Text>
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{ paddingBottom: 40, paddingTop: 100 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#2148ce"
+              colors={["#2148ce"]}
+            />
+          }
+        >
+          <View className="px-6 bg-background rounded-t-3xl relative z-10 -mt-6">
+            <View className="mb-6 mt-6">
+              <H2 className="mb-2">Match Details</H2>
+              <Text className="text-muted-foreground mb-6">
+                When and where did you play this match?
+              </Text>
+
+              {/* Date & Time Section */}
+              <View className="bg-card rounded-xl p-6 border border-border/30 shadow-sm mb-6">
+                <SwipeableDateCards
+                  selectedDate={startDateTime}
+                  onDateSelect={handleDateCardSelect}
+                  onCalendarPress={() => setCalendarVisible(true)}
+                  pastDays={VALIDATION_CONFIG?.MIN_MATCH_AGE_DAYS || 3}
+                  futureDays={0}
+                />
+
+                <DateTimePickerModal
+                  isVisible={isCalendarVisible}
+                  mode="datetime"
+                  date={startDateTime}
+                  onConfirm={(d) => {
+                    handleDateCardSelect(d);
+                    setCalendarVisible(false);
+                  }}
+                  onCancel={() => setCalendarVisible(false)}
+                  maximumDate={new Date()}
+                />
+
+                <View className="mb-6">
+                  <Text className="text-lg font-semibold text-foreground mb-4">
+                    Select Times
+                  </Text>
+                  
+                  {/* Enhanced time selection with better visual hierarchy */}
+                  <View className="bg-white/90 dark:bg-white/5 rounded-2xl p-5 border border-white/20 shadow-lg">
+                    <View className="flex-row gap-4 mb-4">
+                      <CustomPastTimeSelector
+                        label="Match Started"
+                        value={startDateTime}
+                        onChange={handleStartTimeChange}
+                      />
+                      <CustomPastTimeSelector
+                        label="Match Ended"
+                        value={endDateTime}
+                        onChange={handleEndTimeChange}
+                        isEndTime={true}
+                        startTime={startDateTime}
+                      />
+                    </View>
+                    
+                    {/* Duration indicator */}
+                    <View className="flex-row items-center justify-center p-2 bg-primary/10 rounded-lg">
+                      <Ionicons name="stopwatch-outline" size={14} color="#2148ce" />
+                      <Text className="ml-1 text-xs font-medium text-primary">
+                        {Math.round((endDateTime.getTime() - startDateTime.getTime()) / 60000)} minutes
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
 
             <View className="bg-card rounded-xl p-5 border border-border/30">
               {/* Location details */}
@@ -2833,51 +3076,14 @@ export default function CreateMatchWizard() {
                 </View>
               )}
 
-              {/* Demo mode toggle for past matches */}
-              {isPastMatch && (
-                <View className="border-t border-border/30 pt-6">
-                  <Text className="text-lg font-semibold mb-4">
-                    Validation Settings
-                  </Text>
 
-                  <View className="mb-4">
-                    <View className="flex-row items-center justify-between mb-2">
-                      <Text className="text-sm font-medium text-muted-foreground">
-                        Demo Mode (1-hour validation)
-                      </Text>
-                      <View className="flex-row items-center">
-                        <TouchableOpacity
-                          className={`w-12 h-6 rounded-full ${
-                            useQuickValidation ? "bg-primary" : "bg-muted"
-                          }`}
-                          onPress={() =>
-                            setUseQuickValidation(!useQuickValidation)
-                          }
-                        >
-                          <View
-                            className={`w-5 h-5 rounded-full bg-white m-0.5 transition-transform ${
-                              useQuickValidation
-                                ? "translate-x-6"
-                                : "translate-x-0"
-                            }`}
-                          />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                    <Text className="text-xs text-muted-foreground">
-                      {useQuickValidation
-                        ? "Using 1-hour validation period for testing"
-                        : "Standard 24-hour validation period"}
-                    </Text>
-                  </View>
-                </View>
-              )}
             </View>
           </View>
         </View>
       </ScrollView>
     </SlideContainer>
-  );
+    );
+  };
 
   const renderStep4ScoreEntry = () => {
     if (!isPastMatch) return null;

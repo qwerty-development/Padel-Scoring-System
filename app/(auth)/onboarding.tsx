@@ -1,10 +1,15 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from "@/components/safe-area-view";
+import { router } from 'expo-router';
+import { SafeAreaView } from '@/components/safe-area-view';
+import { Button } from '@/components/ui/button';
+import { Text } from '@/components/ui/text';
+import { H1, H2 } from '@/components/ui/typography';
 import { useAuth } from '@/context/supabase-provider';
 
-interface ProfileData {
+// 1. Add 'number' to the FormData interface
+interface FormData {
   full_name: string;
   age: string;
   nickname: string;
@@ -12,11 +17,14 @@ interface ProfileData {
   preferred_hand: string;
   preferred_area: string;
   court_playing_side: string;
+  number: string; // Field for phone number
 }
 
-const ProfileOnboarding = () => {
-  const [step, setStep] = useState(1);
-  const [profileData, setProfileData] = useState<ProfileData>({
+export default function EditProfile() {
+  const { profile, saveProfile } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formData, setFormData] = useState<FormData>({
     full_name: '',
     age: '',
     nickname: '',
@@ -24,273 +32,211 @@ const ProfileOnboarding = () => {
     preferred_hand: '',
     preferred_area: '',
     court_playing_side: '',
+    number: '', // 2. Initialize 'number' in the state
   });
 
-  const { saveProfile } = useAuth();
-
-  const updateProfile = (field: keyof ProfileData, value: string) => {
-    setProfileData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const handleNext = () => {
-    if (step < 3) {
-      setStep(step + 1);
-    } else {
-      handleSubmit();
-    }
-  };
-
-  const handleBack = () => {
-    if (step > 1) {
-      setStep(step - 1);
-    }
-  };
-
-  const handleSubmit = async () => {
-    try {
-      await saveProfile({
-        full_name: profileData.full_name,
-        age: profileData.age,
-        nickname: profileData.nickname,
-        sex: profileData.sex,
-        preferred_hand: profileData.preferred_hand,
-        preferred_area: profileData.preferred_area,
-        court_playing_side: profileData.court_playing_side,
+  useEffect(() => {
+    if (profile) {
+      setFormData({
+        full_name: profile.full_name || '',
+        age: profile.age || '',
+        nickname: profile.nickname || '',
+        sex: profile.sex || '',
+        preferred_hand: profile.preferred_hand || '',
+        preferred_area: profile.preferred_area || '',
+        court_playing_side: profile.court_playing_side || '',
+        number: profile.number || '', // 3. Populate 'number' from the profile
       });
-      
-      // Navigation will be handled automatically by AuthProvider
-      alert('Your padel profile has been created successfully!');
+    }
+  }, [profile]);
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      // The entire formData object, including the number, will be saved
+      await saveProfile(formData);
+      router.back();
     } catch (error) {
       console.error('Error saving profile:', error);
+      // In a real app, you might want a more user-friendly error display
       alert('Error saving profile. Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
 
-  const renderStep = () => {
-    switch (step) {
-      case 1:
-        return (
-          <View className="space-y-6">
-            <View>
-              <Text className="text-2xl font-bold mb-6 text-foreground">
-                Personal Information
-              </Text>
-              
-              <View className="mb-6">
-                <Text className="text-sm font-medium mb-2 text-foreground">
-                  Full Name
-                </Text>
-                <TextInput
-                  className="block w-full px-4 py-3 rounded-xl border-2 border-border bg-card text-foreground font-medium placeholder:text-muted-foreground"
-                  value={profileData.full_name}
-                  onChangeText={(text) => updateProfile('full_name', text)}
-                  placeholder="Enter your full name"
-                  placeholderTextColor="#888"
-                />
-              </View>
+  const renderAvatar = () => (
+    <View className="w-24 h-24 rounded-full bg-primary items-center justify-center mb-6">
+      <Text className="text-4xl font-bold text-primary-foreground">
+        {formData.full_name?.charAt(0)?.toUpperCase() || '?'}
+      </Text>
+    </View>
+  );
 
-              <View className="mb-6">
-                <Text className="text-sm font-medium mb-2 text-foreground">
-                  Age
-                </Text>
-                <TextInput
-                  className="block w-full px-4 py-3 rounded-xl border-2 border-border bg-card text-foreground font-medium placeholder:text-muted-foreground"
-                  value={profileData.age}
-                  onChangeText={(text) => updateProfile('age', text)}
-                  placeholder="Enter your age"
-                  placeholderTextColor="#888"
-                  keyboardType="numeric"
-                />
-              </View>
+  const renderInput = (
+    label: string, 
+    value: string, 
+    onChangeText: (text: string) => void,
+    placeholder: string = "",
+    keyboardType: any = "default",
+    icon: keyof typeof Ionicons.glyphMap
+  ) => (
+    <View className="mb-6">
+      <Text className="text-sm font-medium mb-2 text-muted-foreground">{label}</Text>
+      <View className="flex-row items-center bg-card border-2 border-border rounded-xl px-4 py-3">
+        <Ionicons name={icon} size={20} color="#888" className="mr-3" />
+        <TextInput
+          className="flex-1 text-foreground text-base ml-3"
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor="#888"
+          keyboardType={keyboardType}
+        />
+      </View>
+    </View>
+  );
 
-              <View className="mb-6">
-                <Text className="text-sm font-medium mb-2 text-foreground">
-                  Nickname (optional)
-                </Text>
-                <TextInput
-                  className="block w-full px-4 py-3 rounded-xl border-2 border-border bg-card text-foreground font-medium placeholder:text-muted-foreground"
-                  value={profileData.nickname}
-                  onChangeText={(text) => updateProfile('nickname', text)}
-                  placeholder="Enter your nickname"
-                  placeholderTextColor="#888"
-                />
-              </View>
-            </View>
-          </View>
-        );
-
-      case 2:
-        return (
-          <View className="space-y-6">
-            <Text className="text-2xl font-bold mb-6 text-foreground">
-              Player Details
+  const renderSelect = (
+    label: string,
+    value: string,
+    options: string[],
+    onSelect: (value: string) => void,
+    icon: keyof typeof Ionicons.glyphMap // Icon is not used here but kept for consistency
+  ) => (
+    <View className="mb-6">
+      <Text className="text-sm font-medium mb-2 text-muted-foreground">{label}</Text>
+      <View className="flex-row gap-3">
+        {options.map((option) => (
+          <TouchableOpacity
+            key={option}
+            className={`flex-1 px-4 py-3 rounded-xl border-2 ${
+              value === option 
+                ? 'bg-primary border-primary' 
+                : 'bg-card border-border'
+            }`}
+            onPress={() => onSelect(option)}
+          >
+            <Text className={`text-center font-medium ${
+              value === option ? 'text-primary-foreground' : 'text-foreground'
+            }`}>
+              {option}
             </Text>
-            
-            <View className="mb-6">
-              <Text className="text-sm font-medium mb-3 text-foreground">
-                Sex
-              </Text>
-              <View className="grid grid-cols-2 gap-4">
-                {(['Male', 'Female'] as const).map((option) => (
-                  <TouchableOpacity
-                    key={option}
-                    className={`px-6 py-4 rounded-xl font-bold transition-colors border-2 ${
-                      profileData.sex === option 
-                        ? 'bg-primary text-primary-foreground border-primary' 
-                        : 'bg-card text-foreground border-border'
-                    }`}
-                    onPress={() => updateProfile('sex', option)}
-                  >
-                    <Text className={`text-center font-bold ${
-                      profileData.sex === option ? 'text-primary-foreground' : 'text-foreground'
-                    }`}>
-                      {option}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
 
-            <View className="mb-6">
-              <Text className="text-sm font-medium mb-3 text-foreground">
-                Preferred Hand
-              </Text>
-              <View className="grid grid-cols-2 gap-4">
-                {(['Left', 'Right'] as const).map((option) => (
-                  <TouchableOpacity
-                    key={option}
-                    className={`px-6 py-4 rounded-xl font-bold transition-colors border-2 ${
-                      profileData.preferred_hand === option 
-                        ? 'bg-primary text-primary-foreground border-primary' 
-                        : 'bg-card text-foreground border-border'
-                    }`}
-                    onPress={() => updateProfile('preferred_hand', option)}
-                  >
-                    <Text className={`text-center font-bold ${
-                      profileData.preferred_hand === option ? 'text-primary-foreground' : 'text-foreground'
-                    }`}>
-                      {option}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          </View>
-        );
-
-      case 3:
-        return (
-          <View className="space-y-6">
-            <Text className="text-2xl font-bold mb-6 text-foreground">
-              Playing Preferences
-            </Text>
-            
-            <View className="mb-6">
-              <Text className="text-sm font-medium mb-2 text-foreground">
-                Preferred Area
-              </Text>
-              <TextInput
-                className="block w-full px-4 py-3 rounded-xl border-2 border-border bg-card text-foreground font-medium placeholder:text-muted-foreground"
-                value={profileData.preferred_area}
-                onChangeText={(text) => updateProfile('preferred_area', text)}
-                placeholder="e.g., Manhattan, Brooklyn"
-                placeholderTextColor="#888"
-              />
-            </View>
-
-            <View className="mb-6">
-              <Text className="text-sm font-medium mb-3 text-foreground">
-                Court Playing Side
-              </Text>
-              <View className="grid grid-cols-2 gap-4">
-                {(['Left', 'Right'] as const).map((option) => (
-                  <TouchableOpacity
-                    key={option}
-                    className={`px-6 py-4 rounded-xl font-bold transition-colors border-2 ${
-                      profileData.court_playing_side === option 
-                        ? 'bg-primary text-primary-foreground border-primary' 
-                        : 'bg-card text-foreground border-border'
-                    }`}
-                    onPress={() => updateProfile('court_playing_side', option)}
-                  >
-                    <Text className={`text-center font-bold ${
-                      profileData.court_playing_side === option ? 'text-primary-foreground' : 'text-foreground'
-                    }`}>
-                      {option}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          </View>
-        );
-
-      default:
-        return null;
-    }
-  };
+  if (!profile) {
+    return (
+      <View className="flex-1 bg-background items-center justify-center">
+        <ActivityIndicator size="large" color="#2148ce" />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <ScrollView className="flex-1">
-        <View className="px-6 py-12">
-          {/* Progress Bar */}
-          <View className="mb-12">
-            <Text className="text-3xl font-bold mb-8 text-foreground">
-              Complete Your Profile
-            </Text>
-            <View className="flex-row gap-2 mb-3">
-              {[1, 2, 3].map((n) => (
-                <View
-                  key={n}
-                  className={`h-1 rounded-full flex-1 ${
-                    step >= n ? 'bg-primary' : 'bg-muted'
-                  }`}
-                />
-              ))}
-            </View>
-            <Text className="text-sm text-center text-muted-foreground">
-              Step {step} of 3
-            </Text>
-          </View>
-
-          {/* Form Content */}
-          <View className="mb-12">
-            {renderStep()}
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* Navigation Buttons */}
-      <View className="flex-row gap-4 px-6 pb-6">
-        {step > 1 && (
-          <TouchableOpacity
-            className="flex-1 flex-row items-center justify-center gap-2 px-6 py-4 rounded-xl font-bold bg-secondary transition-colors"
-            onPress={handleBack}
-          >
-            <Ionicons name="chevron-back" size={20} color="#333" />
-            <Text className="text-foreground font-bold">Back</Text>
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity
-          className={`px-6 py-4 rounded-xl font-bold flex-row items-center justify-center gap-2 bg-primary transition-colors ${
-            step === 1 ? 'flex-1' : 'flex-1'
-          }`}
-          onPress={handleNext}
-        >
-          <Text className="text-primary-foreground font-bold">
-            {step === 3 ? 'Complete' : 'Next'}
-          </Text>
-          {step < 3 && (
-            <Ionicons name="chevron-forward" size={20} color="#333" />
-          )}
+      <View className="flex-row items-center p-4 border-b border-border">
+        <TouchableOpacity onPress={() => router.back()} className="p-2">
+          <Ionicons name="arrow-back" size={24} color="#2148ce" />
         </TouchableOpacity>
+        <H2 className="flex-1 text-center">Edit Profile</H2>
+        <View style={{ width: 40 }} />
       </View>
+      <ScrollView className="flex-1 p-6">
+        <View className="items-center mb-8">
+          {renderAvatar()}
+        </View>
+
+        {/* Personal Information Section */}
+        <View className="mb-8">
+          <H1 className="mb-6">Personal Information</H1>
+          {renderInput(
+            "Full Name",
+            formData.full_name,
+            (text) => setFormData(prev => ({ ...prev, full_name: text })),
+            "Enter your full name",
+            "default",
+            "person-outline"
+          )}
+          {renderInput(
+            "Age",
+            formData.age,
+            (text) => setFormData(prev => ({ ...prev, age: text })),
+            "Enter your age",
+            "numeric",
+            "calendar-outline"
+          )}
+          {renderInput(
+            "Nickname",
+            formData.nickname,
+            (text) => setFormData(prev => ({ ...prev, nickname: text })),
+            "Enter your nickname (optional)",
+            "default",
+            "star-outline"
+          )}
+          {/* 4. Add the phone number input field */}
+          {renderInput(
+            "Phone Number",
+            formData.number,
+            (text) => setFormData(prev => ({ ...prev, number: text })),
+            "Enter your phone number",
+            "phone-pad",
+            "call-outline"
+          )}
+          {renderSelect(
+            "Gender",
+            formData.sex,
+            ["Male", "Female"],
+            (value) => setFormData(prev => ({ ...prev, sex: value })),
+            "body-outline"
+          )}
+        </View>
+
+        {/* Playing Preferences Section */}
+        <View className="mb-8">
+          <H1 className="mb-6">Playing Preferences</H1>
+          {renderSelect(
+            "Preferred Hand",
+            formData.preferred_hand,
+            ["Left", "Right"],
+            (value) => setFormData(prev => ({ ...prev, preferred_hand: value })),
+            "hand-left-outline"
+          )}
+          {renderSelect(
+            "Court Position",
+            formData.court_playing_side,
+            ["Left", "Right"],
+            (value) => setFormData(prev => ({ ...prev, court_playing_side: value })),
+            "tennisball-outline"
+          )}
+          {renderInput(
+            "Preferred Area",
+            formData.preferred_area,
+            (text) => setFormData(prev => ({ ...prev, preferred_area: text })),
+            "Enter your preferred area",
+            "default",
+            "location-outline"
+          )}
+        </View>
+
+        {/* Save Button */}
+        <Button
+          className="w-full mb-8"
+          size="default"
+          variant="default"
+          onPress={handleSave}
+          disabled={saving}
+        >
+          {saving ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text>Save Changes</Text>
+          )}
+        </Button>
+      </ScrollView>
     </SafeAreaView>
   );
-};
-
-export default ProfileOnboarding;
+}
