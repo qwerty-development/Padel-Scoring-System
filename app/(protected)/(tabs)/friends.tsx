@@ -666,10 +666,10 @@ const handleFriendRequest = async (
 >
   <View className="relative">
     <Ionicons name="mail-outline" size={24} color="#555" />
-    {friendRequests.length > 0 && (
+    {(friendRequests.length + sentRequests.length) > 0 && (
       <View className="absolute -top-1 -right-1 bg-red-500 rounded-full w-5 h-5 items-center justify-center">
         <Text className="text-white text-xs font-bold">
-          {friendRequests.length}
+          {friendRequests.length + sentRequests.length}
         </Text>
       </View>
     )}
@@ -734,12 +734,14 @@ const handleFriendRequest = async (
         }}
       />
 
-      {/* Friend Requests Modal */}
+      {/* Friend Requests Modal - Updated with sent requests support */}
       <FriendRequestsModal
         visible={showRequestsModal}
         onClose={() => setShowRequestsModal(false)}
         friendRequests={friendRequests}
+        sentRequests={sentRequests}
         onHandleRequest={handleFriendRequest}
+        onCancelRequest={handleCancelRequest}
       />
     </SafeAreaView>
   );

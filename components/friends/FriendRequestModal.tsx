@@ -10,7 +10,9 @@ interface FriendRequestsModalProps {
   visible: boolean;
   onClose: () => void;
   friendRequests: FriendRequest[];
+  sentRequests: FriendRequest[];
   onHandleRequest: (requestId: string, action: 'accept' | 'deny') => void;
+  onCancelRequest: (requestId: string) => void;
 }
 
 interface RequestUserAvatarProps {
@@ -137,8 +139,11 @@ export function FriendRequestsModal({
   visible,
   onClose,
   friendRequests,
+  sentRequests,
   onHandleRequest,
+  onCancelRequest,
 }: FriendRequestsModalProps) {
+  const [activeTab, setActiveTab] = useState<'incoming' | 'sent'>('incoming');
   
   // Format timestamp with comprehensive time calculation
   const formatTimestamp = (dateString: string): string => {
@@ -175,8 +180,37 @@ export function FriendRequestsModal({
     }
   };
 
-  // Render individual friend request card with comprehensive styling
-  const renderFriendRequestCard = (request: FriendRequest) => {
+  // Render tab button
+  const renderTabButton = (tab: 'incoming' | 'sent', label: string, count: number) => (
+    <TouchableOpacity
+      className={`flex-1 py-3 ${
+        activeTab === tab
+          ? "border-b-2 border-primary"
+          : "border-b border-border"
+      }`}
+      onPress={() => setActiveTab(tab)}
+    >
+      <View className="flex-row justify-center items-center">
+        <Text
+          className={`text-center font-medium ${
+            activeTab === tab ? "text-primary" : "text-muted-foreground"
+          }`}
+        >
+          {label}
+        </Text>
+        {count > 0 && (
+          <View className="ml-2 bg-red-500 rounded-full w-5 h-5 items-center justify-center">
+            <Text className="text-white text-xs font-bold">
+              {count}
+            </Text>
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+
+  // Render individual incoming friend request card
+  const renderIncomingRequestCard = (request: FriendRequest) => {
     // Validate request structure to prevent runtime errors
     if (!request?.from_user) {
       console.error('Invalid friend request structure:', request);
@@ -240,8 +274,65 @@ export function FriendRequestsModal({
     );
   };
 
-  // Render empty state with comprehensive styling and user guidance
-  const renderEmptyState = () => (
+  // Render individual sent friend request card
+  const renderSentRequestCard = (request: FriendRequest) => {
+    // Validate request structure to prevent runtime errors
+    if (!request?.to_user) {
+      console.error('Invalid sent request structure:', request);
+      return null;
+    }
+
+    return (
+      <View 
+        key={request.id} 
+        className="bg-card rounded-lg mb-3 p-4 border border-border/30" 
+        style={{
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.1,
+          shadowRadius: 2,
+          elevation: 2,
+        }}
+      >
+        {/* User information section */}
+        <View className="flex-row items-center">
+          <RequestUserAvatar user={request.to_user} size="md" />
+          
+          <View className="flex-1">
+            <Text className="font-medium text-foreground">
+              {request.to_user.full_name || request.to_user.email}
+            </Text>
+            <Text className="text-sm text-muted-foreground">
+              {request.to_user.email}
+            </Text>
+            <Text className="text-xs text-muted-foreground mt-1">
+              Sent {formatTimestamp(request.created_at)}
+            </Text>
+          </View>
+          
+          {/* Pending status indicator */}
+          <View className="bg-yellow-100 px-2 py-1 rounded-full">
+            <Text className="text-xs text-yellow-800 font-medium">Pending</Text>
+          </View>
+        </View>
+
+        {/* Cancel button */}
+        <Button
+          className="mt-4"
+          variant="outline"
+          onPress={() => onCancelRequest(request.id)}
+        >
+          <View className="flex-row items-center">
+            <Ionicons name="close-circle-outline" size={16} color="#dc2626" style={{ marginRight: 4 }} />
+            <Text className="text-red-600 font-medium">Cancel Request</Text>
+          </View>
+        </Button>
+      </View>
+    );
+  };
+
+  // Render empty state for incoming requests
+  const renderIncomingEmptyState = () => (
     <View 
       className="bg-card rounded-lg p-6 items-center border border-border/40 my-6" 
       style={{
@@ -256,7 +347,7 @@ export function FriendRequestsModal({
         <Ionicons name="mail-outline" size={48} color="#888" />
       </View>
       <Text className="text-lg font-medium mt-2 mb-2 text-foreground">
-        No pending requests
+        No incoming requests
       </Text>
       <Text className="text-muted-foreground text-center leading-5">
         You don't have any friend requests at the moment.{'\n'}
@@ -264,6 +355,33 @@ export function FriendRequestsModal({
       </Text>
     </View>
   );
+
+  // Render empty state for sent requests
+  const renderSentEmptyState = () => (
+    <View 
+      className="bg-card rounded-lg p-6 items-center border border-border/40 my-6" 
+      style={{
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 2,
+      }}
+    >
+      <View className="bg-muted/30 p-4 rounded-full mb-4">
+        <Ionicons name="paper-plane-outline" size={48} color="#888" />
+      </View>
+      <Text className="text-lg font-medium mt-2 mb-2 text-foreground">
+        No sent requests
+      </Text>
+      <Text className="text-muted-foreground text-center leading-5">
+        You haven't sent any friend requests yet.{'\n'}
+        Sent requests will appear here.
+      </Text>
+    </View>
+  );
+
+  const totalRequests = friendRequests.length + sentRequests.length;
 
   return (
     <Modal
@@ -288,9 +406,9 @@ export function FriendRequestsModal({
           <View className="flex-row justify-between items-center">
             <View>
               <Text className="text-xl font-bold text-foreground">Friend Requests</Text>
-              {friendRequests.length > 0 && (
+              {totalRequests > 0 && (
                 <Text className="text-sm text-muted-foreground mt-1">
-                  {friendRequests.length} pending request{friendRequests.length !== 1 ? 's' : ''}
+                  {totalRequests} total request{totalRequests !== 1 ? 's' : ''}
                 </Text>
               )}
             </View>
@@ -311,16 +429,27 @@ export function FriendRequestsModal({
           </View>
         </View>
 
+        {/* Tab navigation */}
+        <View className="flex-row bg-background border-b border-border">
+          {renderTabButton('incoming', 'Incoming', friendRequests.length)}
+          {renderTabButton('sent', 'Sent', sentRequests.length)}
+        </View>
+
         {/* Content section with scroll functionality */}
         <ScrollView 
           className="flex-1 px-6 pt-4"
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 20 }}
         >
-          {friendRequests.length > 0 
-            ? friendRequests.map(renderFriendRequestCard)
-            : renderEmptyState()
-          }
+          {activeTab === 'incoming' ? (
+            friendRequests.length > 0 
+              ? friendRequests.map(renderIncomingRequestCard)
+              : renderIncomingEmptyState()
+          ) : (
+            sentRequests.length > 0 
+              ? sentRequests.map(renderSentRequestCard)
+              : renderSentEmptyState()
+          )}
         </ScrollView>
       </View>
     </Modal>

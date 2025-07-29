@@ -1,25 +1,23 @@
-// hooks/useMatchConfirmation.ts
-// CREATE THIS NEW FILE
+// hooks/useMatchConfirmationV2.ts
+// FIXED version with proper cleanup and performance optimizations
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@/context/supabase-provider';
 import { 
-  MatchConfirmationService,
-  ConfirmationSummary,
-  MatchConfirmation,
+  MatchConfirmationServiceV2,
+  MatchConfirmationStatus,
   ActionResult
 } from '@/services/match-confirmation.service';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 export interface UseMatchConfirmationReturn {
   // Data
-  summary: ConfirmationSummary | null;
-  confirmations: MatchConfirmation[];
-  playerConfirmation: MatchConfirmation | null;
+  status: MatchConfirmationStatus | null;
   
-  // State
+  // States
   loading: boolean;
-  approving: boolean;
-  reporting: boolean;
+  processing: boolean;
+  error: string | null;
   
   // Actions
   approveMatch: () => Promise<ActionResult>;
@@ -31,54 +29,61 @@ export interface UseMatchConfirmationReturn {
   hasApproved: boolean;
   hasReported: boolean;
   isPending: boolean;
-  timeRemainingText: string;
-  statusText: string;
+  timeRemaining: string;
+  userConfirmation: any | null;
   isParticipant: boolean;
 }
 
-export function useMatchConfirmation(matchId: string): UseMatchConfirmationReturn {
+export function useMatchConfirmationV2(matchId: string): UseMatchConfirmationReturn {
   const { profile } = useAuth();
-  const [summary, setSummary] = useState<ConfirmationSummary | null>(null);
-  const [confirmations, setConfirmations] = useState<MatchConfirmation[]>([]);
-  const [playerConfirmation, setPlayerConfirmation] = useState<MatchConfirmation | null>(null);
+  const [status, setStatus] = useState<MatchConfirmationStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [approving, setApproving] = useState(false);
-  const [reporting, setReporting] = useState(false);
-  const [isParticipant, setIsParticipant] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Refs to prevent memory leaks
+  const subscriptionRef = useRef<RealtimeChannel | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isMountedRef = useRef(true);
+  const lastLoadTimeRef = useRef<Date | null>(null);
 
-  // Load all confirmation data
-  const loadConfirmationData = useCallback(async () => {
-    if (!matchId || !profile?.id) return;
+  // Debounced refresh to prevent spam
+  const loadStatus = useCallback(async () => {
+    if (!matchId || !isMountedRef.current) return;
+
+    // Prevent loading too frequently (min 1 second between loads)
+    const now = new Date();
+    if (lastLoadTimeRef.current) {
+      const timeSinceLastLoad = now.getTime() - lastLoadTimeRef.current.getTime();
+      if (timeSinceLastLoad < 1000) {
+        console.log('⏳ [HOOK] Skipping load - too frequent');
+        return;
+      }
+    }
+    lastLoadTimeRef.current = now;
 
     try {
-      setLoading(true);
+      setError(null);
+      const statusData = await MatchConfirmationServiceV2.getMatchConfirmationStatus(matchId);
       
-      // Check if user is participant
-      const participant = await MatchConfirmationService.isUserParticipant(matchId, profile.id);
-      setIsParticipant(participant);
-      
-      // Get summary
-      const summaryData = await MatchConfirmationService.getMatchConfirmationSummary(matchId);
-      setSummary(summaryData);
-
-      // Get all confirmations
-      const confirmationsData = await MatchConfirmationService.getMatchConfirmations(matchId);
-      setConfirmations(confirmationsData);
-
-      // Get player's confirmation
-      if (participant) {
-        const playerData = await MatchConfirmationService.getPlayerConfirmation(
-          matchId, 
-          profile.id
-        );
-        setPlayerConfirmation(playerData);
+      if (isMountedRef.current) {
+        setStatus(statusData);
+        if (!statusData) {
+          setError('Failed to load confirmation status');
+        }
       }
-    } catch (error) {
-      console.error('Error loading confirmation data:', error);
+    } catch (err) {
+      console.error('Error loading confirmation status:', err);
+      if (isMountedRef.current) {
+        setError(err instanceof Error ? err.message : 'Unknown error');
+        setStatus(null);
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
-  }, [matchId, profile?.id]);
+  }, [matchId]);
 
   // Approve match
   const approveMatch = useCallback(async (): Promise<ActionResult> => {
@@ -89,19 +94,39 @@ export function useMatchConfirmation(matchId: string): UseMatchConfirmationRetur
       };
     }
 
+    if (processing) {
+      return {
+        success: false,
+        message: 'Another action is in progress'
+      };
+    }
+
     try {
-      setApproving(true);
-      const result = await MatchConfirmationService.approveMatch(matchId, profile.id);
+      setProcessing(true);
+      setError(null);
       
-      if (result.success) {
-        await loadConfirmationData();
+      const result = await MatchConfirmationServiceV2.approveMatch(matchId, profile.id);
+      
+      if (result.success && isMountedRef.current) {
+        // Wait a bit for database to update
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await loadStatus();
       }
       
       return result;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(errorMessage);
+      return {
+        success: false,
+        message: errorMessage
+      };
     } finally {
-      setApproving(false);
+      if (isMountedRef.current) {
+        setProcessing(false);
+      }
     }
-  }, [matchId, profile?.id, loadConfirmationData]);
+  }, [matchId, profile?.id, processing, loadStatus]);
 
   // Report match
   const reportMatch = useCallback(async (reason?: string): Promise<ActionResult> => {
@@ -112,115 +137,162 @@ export function useMatchConfirmation(matchId: string): UseMatchConfirmationRetur
       };
     }
 
+    if (processing) {
+      return {
+        success: false,
+        message: 'Another action is in progress'
+      };
+    }
+
     try {
-      setReporting(true);
-      const result = await MatchConfirmationService.reportMatch(
-        matchId, 
-        profile.id, 
-        reason
-      );
+      setProcessing(true);
+      setError(null);
       
-      if (result.success) {
-        await loadConfirmationData();
+      const result = await MatchConfirmationServiceV2.reportMatch(matchId, profile.id, reason);
+      
+      if (result.success && isMountedRef.current) {
+        // Wait a bit for database to update
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await loadStatus();
       }
       
       return result;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(errorMessage);
+      return {
+        success: false,
+        message: errorMessage
+      };
     } finally {
-      setReporting(false);
+      if (isMountedRef.current) {
+        setProcessing(false);
+      }
     }
-  }, [matchId, profile?.id, loadConfirmationData]);
+  }, [matchId, profile?.id, processing, loadStatus]);
 
-  // Subscribe to real-time updates
+  // Setup subscriptions and timers
   useEffect(() => {
     if (!matchId) return;
 
+    isMountedRef.current = true;
+    setLoading(true);
+    
     // Initial load
-    loadConfirmationData();
+    loadStatus();
 
-    // Subscribe to updates
-    const subscription = MatchConfirmationService.subscribeToConfirmationUpdates(
+    // Subscribe to updates with error handling
+    subscriptionRef.current = MatchConfirmationServiceV2.subscribeToMatchConfirmations(
       matchId,
-      () => {
-        loadConfirmationData();
+      (payload: any) => {
+        console.log('📡 [HOOK] Received real-time update');
+        if (isMountedRef.current) {
+          loadStatus();
+        }
+      },
+      (error: { message: any; }) => {
+        console.error('📡 [HOOK] Subscription error:', error);
+        if (isMountedRef.current) {
+          setError(`Real-time updates unavailable: ${error.message}`);
+        }
       }
     );
 
-    // Refresh every minute to update countdown
-    const interval = setInterval(() => {
-      if (summary?.confirmation_status === 'pending') {
-        loadConfirmationData();
+    // Refresh every minute for countdown (only if pending)
+    intervalRef.current = setInterval(() => {
+      if (isMountedRef.current && status?.confirmation_status === 'pending') {
+        loadStatus();
       }
     }, 60000);
 
+    // Cleanup function
     return () => {
-      subscription.unsubscribe();
-      clearInterval(interval);
+      isMountedRef.current = false;
+      
+      // Unsubscribe from real-time updates
+      if (subscriptionRef.current) {
+        subscriptionRef.current.unsubscribe();
+        subscriptionRef.current = null;
+      }
+      
+      // Clear interval
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
-  }, [matchId, loadConfirmationData]);
+  }, [matchId]); // Only depend on matchId, not loadStatus
 
-  // Computed values
-  const canTakeAction = isParticipant && 
-    summary?.confirmation_status === 'pending' &&
-    playerConfirmation?.action === 'pending' &&
-    summary?.hours_remaining > 0;
-  
-  const hasApproved = playerConfirmation?.action === 'approved';
-  const hasReported = playerConfirmation?.action === 'reported';
-  const isPending = playerConfirmation?.action === 'pending';
+  // Update interval when status changes
+  useEffect(() => {
+    if (status?.confirmation_status !== 'pending' && intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }, [status?.confirmation_status]);
 
-  const timeRemainingText = (() => {
-    if (!summary || summary.confirmation_status !== 'pending') return '';
+  // Memoized computed values
+  const userConfirmation = useMemo(() => 
+    status?.player_confirmations.find((c: { player_id: string | undefined; }) => c.player_id === profile?.id),
+    [status?.player_confirmations, profile?.id]
+  );
+
+  const isParticipant = useMemo(() => {
+    if (!status || !profile?.id) return false;
+    return status.player_confirmations.some((c: { player_id: string; }) => c.player_id === profile.id);
+  }, [status?.player_confirmations, profile?.id]);
+
+  const canTakeAction = useMemo(() => 
+    status?.confirmation_status === 'pending' &&
+    userConfirmation?.action === 'pending' &&
+    (status?.hours_remaining || 0) > 0 &&
+    !processing,
+    [status, userConfirmation, processing]
+  );
+
+  const hasApproved = userConfirmation?.action === 'approved';
+  const hasReported = userConfirmation?.action === 'reported';
+  const isPending = status?.confirmation_status === 'pending';
+
+  const timeRemaining = useMemo(() => {
+    if (!status || status.confirmation_status !== 'pending') return '';
     
-    const hours = Math.floor(summary.hours_remaining);
-    const minutes = Math.floor((summary.hours_remaining % 1) * 60);
+    const hours = Math.floor(Math.max(0, status.hours_remaining));
+    const minutes = Math.floor(Math.max(0, (status.hours_remaining % 1) * 60));
     
-    if (hours === 0 && minutes === 0) return 'Expired';
+    if (hours <= 0 && minutes <= 0) return 'Expired';
     if (hours === 0) return `${minutes}m remaining`;
     if (minutes === 0) return `${hours}h remaining`;
     return `${hours}h ${minutes}m remaining`;
-  })();
+  }, [status]);
 
-  const statusText = (() => {
-    if (!summary) return '';
-    
-    if (summary.confirmation_status === 'approved') {
-      return 'Match Approved';
-    }
-    
-    if (summary.confirmation_status === 'cancelled') {
-      return 'Match Cancelled';
-    }
-    
-    if (summary.hours_remaining <= 0) {
-      return 'Awaiting Auto-Approval';
-    }
-    
-    return `${summary.approved_count}/4 approved, ${summary.reported_count} reported`;
-  })();
+  // Debounced refresh function
+  const refresh = useCallback(() => {
+    // Use debouncing to prevent rapid refreshes
+    return loadStatus();
+  }, [loadStatus]);
 
   return {
     // Data
-    summary,
-    confirmations,
-    playerConfirmation,
+    status,
     
-    // State
+    // States
     loading,
-    approving,
-    reporting,
+    processing,
+    error,
     
     // Actions
     approveMatch,
     reportMatch,
-    refresh: loadConfirmationData,
+    refresh,
     
     // Computed values
     canTakeAction,
     hasApproved,
     hasReported,
     isPending,
-    timeRemainingText,
-    statusText,
+    timeRemaining,
+    userConfirmation,
     isParticipant
   };
 }

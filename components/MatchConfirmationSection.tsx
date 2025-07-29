@@ -1,5 +1,5 @@
-// components/MatchConfirmationSection.tsx
-// REPLACE YOUR ENTIRE FILE WITH THIS
+// components/MatchConfirmationSectionV2.tsx
+// FIXED version with proper imports and error handling
 
 import React, { useState } from 'react';
 import {
@@ -9,13 +9,16 @@ import {
   Alert,
   TextInput,
   Modal,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { H3 } from '@/components/ui/typography';
 import { useAuth } from '@/context/supabase-provider';
-import { useMatchConfirmation } from '@/hooks/useMatchConfirmation';
+import { useMatchConfirmationV2 } from '@/hooks/useMatchConfirmation';
 
 interface Player {
   id: string;
@@ -23,13 +26,13 @@ interface Player {
   email: string;
 }
 
-interface MatchConfirmationSectionProps {
+interface MatchConfirmationSectionV2Props {
   matchId: string;
   players: Player[];
   onUpdate?: () => void;
 }
 
-export const MatchConfirmationSection: React.FC<MatchConfirmationSectionProps> = ({
+export const MatchConfirmationSectionV2: React.FC<MatchConfirmationSectionV2Props> = ({
   matchId,
   players,
   onUpdate
@@ -39,37 +42,40 @@ export const MatchConfirmationSection: React.FC<MatchConfirmationSectionProps> =
   const [reportReason, setReportReason] = useState('');
   
   const {
-    summary,
-    confirmations,
-    playerConfirmation,
+    status,
     loading,
-    approving,
-    reporting,
+    processing,
     approveMatch,
     reportMatch,
     canTakeAction,
     hasApproved,
     hasReported,
-    timeRemainingText,
-    statusText,
-    isParticipant
-  } = useMatchConfirmation(matchId);
+    isPending,
+    timeRemaining,
+    refresh
+  } = useMatchConfirmationV2(matchId);
 
   const handleApprove = async () => {
-    const result = await approveMatch();
-    
-    if (result.success) {
-      if (result.newStatus === 'approved') {
-        Alert.alert(
-          '🎉 Match Approved!',
-          'All players have confirmed. Ratings will be updated shortly.',
-          [{ text: 'OK' }]
-        );
-      }
-      onUpdate?.();
-    } else {
-      Alert.alert('Error', result.message);
-    }
+    Alert.alert(
+      'Confirm Match',
+      'Are you sure you want to confirm these match scores?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm',
+          onPress: async () => {
+            const result = await approveMatch();
+            
+            if (result.success) {
+              Alert.alert('Success', result.message);
+              onUpdate?.();
+            } else {
+              Alert.alert('Error', result.message);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleReport = async () => {
@@ -78,14 +84,7 @@ export const MatchConfirmationSection: React.FC<MatchConfirmationSectionProps> =
     if (result.success) {
       setShowReportModal(false);
       setReportReason('');
-      
-      if (result.newStatus === 'cancelled') {
-        Alert.alert(
-          '🚫 Match Cancelled',
-          'Multiple players reported issues. No ratings will be applied.',
-          [{ text: 'OK' }]
-        );
-      }
+      Alert.alert('Success', result.message);
       onUpdate?.();
     } else {
       Alert.alert('Error', result.message);
@@ -100,16 +99,20 @@ export const MatchConfirmationSection: React.FC<MatchConfirmationSectionProps> =
     );
   }
 
-  if (!summary || !isParticipant) return null;
+  if (!status || !profile) return null;
 
-  // Helper to get player confirmation status
+  // Check if user is a participant
+  const isParticipant = players.some(p => p.id === profile.id);
+  if (!isParticipant) return null;
+
+  // Helper to get player confirmation
   const getPlayerConfirmation = (playerId: string) => {
-    const conf = confirmations.find(c => c.player_id === playerId);
+    const conf = status.player_confirmations.find(c => c.player_id === playerId);
     return conf?.action || 'pending';
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
+  const getStatusIcon = (action: string) => {
+    switch (action) {
       case 'approved':
         return <Ionicons name="checkmark-circle" size={20} color="#10b981" />;
       case 'reported':
@@ -119,8 +122,8 @@ export const MatchConfirmationSection: React.FC<MatchConfirmationSectionProps> =
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
+  const getStatusColor = (action: string) => {
+    switch (action) {
       case 'approved':
         return 'text-green-600';
       case 'reported':
@@ -141,15 +144,15 @@ export const MatchConfirmationSection: React.FC<MatchConfirmationSectionProps> =
           </View>
           
           {/* Status Badge */}
-          {summary.confirmation_status === 'approved' && (
+          {status.confirmation_status === 'confirmed' && (
             <View className="bg-green-100 dark:bg-green-900/30 px-3 py-1 rounded-full">
               <Text className="text-xs font-semibold text-green-700 dark:text-green-300">
-                Approved
+                Confirmed
               </Text>
             </View>
           )}
           
-          {summary.confirmation_status === 'cancelled' && (
+          {status.confirmation_status === 'cancelled' && (
             <View className="bg-red-100 dark:bg-red-900/30 px-3 py-1 rounded-full">
               <Text className="text-xs font-semibold text-red-700 dark:text-red-300">
                 Cancelled
@@ -157,56 +160,61 @@ export const MatchConfirmationSection: React.FC<MatchConfirmationSectionProps> =
             </View>
           )}
           
-          {summary.confirmation_status === 'pending' && (
-            <View className="bg-blue-100 dark:bg-blue-900/30 px-3 py-1 rounded-full">
+          {isPending && (
+            <TouchableOpacity
+              onPress={refresh}
+              className="bg-blue-100 dark:bg-blue-900/30 px-3 py-1 rounded-full"
+            >
               <Text className="text-xs font-semibold text-blue-700 dark:text-blue-300">
-                {timeRemainingText}
+                {timeRemaining}
               </Text>
-            </View>
+            </TouchableOpacity>
           )}
         </View>
 
         {/* Status Summary */}
         <View className="mb-4 p-3 bg-muted/30 rounded-lg">
-          <Text className="text-sm font-medium mb-1">{statusText}</Text>
-          {summary.confirmation_status === 'pending' && (
-            <Text className="text-xs text-muted-foreground">
-              Players can optionally confirm or report issues. Auto-approves in {timeRemainingText}.
+          <View className="flex-row justify-between items-center">
+            <Text className="text-sm font-medium">
+              {status.approved_count}/4 approved
+            </Text>
+            {status.reported_count > 0 && (
+              <Text className="text-sm text-red-600">
+                {status.reported_count} reported
+              </Text>
+            )}
+          </View>
+          
+          {/* Progress Bar */}
+          <View className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
+            <View className="flex-row h-full">
+              <View 
+                className="bg-green-500" 
+                style={{ width: `${(status.approved_count / 4) * 100}%` }}
+              />
+              {status.reported_count > 0 && (
+                <View 
+                  className="bg-red-500" 
+                  style={{ width: `${(status.reported_count / 4) * 100}%` }}
+                />
+              )}
+            </View>
+          </View>
+          
+          {isPending && (
+            <Text className="text-xs text-muted-foreground mt-2">
+              {status.hours_remaining > 0 
+                ? `Auto-confirms in ${timeRemaining} if no issues reported`
+                : 'Processing soon...'}
             </Text>
           )}
         </View>
-
-        {/* Progress Bar for Pending */}
-        {summary.confirmation_status === 'pending' && (
-          <View className="mb-4">
-            <View className="flex-row justify-between mb-1">
-              <Text className="text-xs text-muted-foreground">
-                {summary.approved_count} approved
-              </Text>
-              <Text className="text-xs text-muted-foreground">
-                {summary.reported_count} reported
-              </Text>
-            </View>
-            <View className="h-2 bg-muted rounded-full overflow-hidden">
-              <View className="flex-row h-full">
-                <View 
-                  className="bg-green-500" 
-                  style={{ width: `${(summary.approved_count / 4) * 100}%` }}
-                />
-                <View 
-                  className="bg-red-500" 
-                  style={{ width: `${(summary.reported_count / 4) * 100}%` }}
-                />
-              </View>
-            </View>
-          </View>
-        )}
 
         {/* Player List */}
         <View className="mb-4">
           <Text className="text-sm font-medium mb-2">Player Confirmations</Text>
           {players.map((player) => {
-            const status = getPlayerConfirmation(player.id);
+            const action = getPlayerConfirmation(player.id);
             const isCurrentUser = player.id === profile?.id;
             
             return (
@@ -230,9 +238,9 @@ export const MatchConfirmationSection: React.FC<MatchConfirmationSectionProps> =
                   </Text>
                 </View>
                 <View className="flex-row items-center">
-                  {getStatusIcon(status)}
-                  <Text className={`ml-2 text-sm capitalize ${getStatusColor(status)}`}>
-                    {status}
+                  {getStatusIcon(action)}
+                  <Text className={`ml-2 text-sm capitalize ${getStatusColor(action)}`}>
+                    {action}
                   </Text>
                 </View>
               </View>
@@ -240,35 +248,27 @@ export const MatchConfirmationSection: React.FC<MatchConfirmationSectionProps> =
           })}
         </View>
 
-        {/* Action Buttons - Only show if user can take action */}
+        {/* Action Buttons */}
         {canTakeAction && (
           <View className="space-y-3">
             <View className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
-              <View className="flex-row items-start">
-                <Ionicons name="information-circle" size={16} color="#2563eb" style={{ marginTop: 2, marginRight: 6 }} />
-                <View className="flex-1">
-                  <Text className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-1">
-                    Optional Action Available
-                  </Text>
-                  <Text className="text-xs text-blue-700 dark:text-blue-400">
-                    You can confirm scores or report an issue. No action required - match auto-approves in {timeRemainingText}.
-                  </Text>
-                </View>
-              </View>
+              <Text className="text-sm text-blue-700 dark:text-blue-300">
+                ℹ️ You have {timeRemaining} to confirm or report this match.
+              </Text>
             </View>
 
             <View className="flex-row gap-3">
               <Button
                 className="flex-1"
                 onPress={handleApprove}
-                disabled={approving}
+                disabled={processing}
               >
-                {approving ? (
+                {processing ? (
                   <ActivityIndicator size="small" color="white" />
                 ) : (
                   <View className="flex-row items-center">
                     <Ionicons name="checkmark-circle-outline" size={18} color="white" />
-                    <Text className="ml-2 text-white font-medium">Approve</Text>
+                    <Text className="ml-2 text-white font-medium">Confirm</Text>
                   </View>
                 )}
               </Button>
@@ -277,11 +277,11 @@ export const MatchConfirmationSection: React.FC<MatchConfirmationSectionProps> =
                 variant="outline"
                 className="flex-1"
                 onPress={() => setShowReportModal(true)}
-                disabled={reporting}
+                disabled={processing}
               >
                 <View className="flex-row items-center">
                   <Ionicons name="alert-circle-outline" size={18} color="#ef4444" />
-                  <Text className="ml-2 text-red-600 font-medium">Report Issue</Text>
+                  <Text className="ml-2 text-red-600 font-medium">Report</Text>
                 </View>
               </Button>
             </View>
@@ -289,7 +289,7 @@ export const MatchConfirmationSection: React.FC<MatchConfirmationSectionProps> =
         )}
 
         {/* User Already Acted */}
-        {isParticipant && !canTakeAction && playerConfirmation && playerConfirmation.action !== 'pending' && (
+        {!canTakeAction && (hasApproved || hasReported) && (
           <View className={`p-3 rounded-lg ${
             hasApproved ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'
           }`}>
@@ -298,7 +298,7 @@ export const MatchConfirmationSection: React.FC<MatchConfirmationSectionProps> =
                 <>
                   <Ionicons name="checkmark-circle" size={20} color="#10b981" />
                   <Text className="ml-2 text-sm font-medium text-green-700 dark:text-green-300">
-                    You approved this match
+                    You confirmed this match
                   </Text>
                 </>
               ) : (
@@ -313,37 +313,25 @@ export const MatchConfirmationSection: React.FC<MatchConfirmationSectionProps> =
           </View>
         )}
 
-        {/* Final Status Messages */}
-        {summary.confirmation_status === 'approved' && (
+        {/* Final Status */}
+        {status.confirmation_status === 'confirmed' && (
           <View className="mt-3 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-            <View className="flex-row items-start">
-              <Ionicons name="checkmark-circle" size={20} color="#10b981" style={{ marginTop: 2, marginRight: 8 }} />
-              <View className="flex-1">
-                <Text className="text-sm font-medium text-green-800 dark:text-green-300 mb-1">
-                  Match Approved
-                </Text>
-                <Text className="text-xs text-green-700 dark:text-green-400">
-                  {summary.approved_count === 4 
-                    ? 'All players confirmed. Ratings updated.'
-                    : 'Auto-approved after 24 hours. Ratings updated.'}
-                </Text>
-              </View>
+            <View className="flex-row items-center">
+              <Ionicons name="checkmark-circle" size={20} color="#10b981" />
+              <Text className="ml-2 text-sm font-medium text-green-800 dark:text-green-300">
+                Match Confirmed - Ratings Applied
+              </Text>
             </View>
           </View>
         )}
 
-        {summary.confirmation_status === 'cancelled' && (
+        {status.confirmation_status === 'cancelled' && (
           <View className="mt-3 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-            <View className="flex-row items-start">
-              <Ionicons name="close-circle" size={20} color="#ef4444" style={{ marginTop: 2, marginRight: 8 }} />
-              <View className="flex-1">
-                <Text className="text-sm font-medium text-red-800 dark:text-red-300 mb-1">
-                  Match Cancelled
-                </Text>
-                <Text className="text-xs text-red-700 dark:text-red-400">
-                  Multiple players reported issues. No ratings applied.
-                </Text>
-              </View>
+            <View className="flex-row items-center">
+              <Ionicons name="close-circle" size={20} color="#ef4444" />
+              <Text className="ml-2 text-sm font-medium text-red-800 dark:text-red-300">
+                Match Cancelled - No Ratings Applied
+              </Text>
             </View>
           </View>
         )}
@@ -366,12 +354,9 @@ export const MatchConfirmationSection: React.FC<MatchConfirmationSectionProps> =
             </View>
             
             <View className="bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg mb-4">
-              <View className="flex-row items-start">
-                <Ionicons name="warning" size={16} color="#d97706" style={{ marginTop: 2, marginRight: 6 }} />
-                <Text className="text-sm text-amber-800 dark:text-amber-300 flex-1">
-                  If 2 or more players report, the match will be cancelled with no ratings.
-                </Text>
-              </View>
+              <Text className="text-sm text-amber-800 dark:text-amber-300">
+                ⚠️ If 2 or more players report, the match will be cancelled.
+              </Text>
             </View>
             
             <Text className="text-sm text-muted-foreground mb-3">
@@ -406,9 +391,9 @@ export const MatchConfirmationSection: React.FC<MatchConfirmationSectionProps> =
                 variant="destructive"
                 className="flex-1"
                 onPress={handleReport}
-                disabled={reporting}
+                disabled={processing}
               >
-                {reporting ? (
+                {processing ? (
                   <ActivityIndicator size="small" color="white" />
                 ) : (
                   <Text className="text-white">Report Issue</Text>
