@@ -4,4 +4,4 @@ export const FEATURE_FLAGS = {
 
   // Toggle ability for users to schedule matches in the future (more than ~15 minutes ahead)
   FUTURE_MATCH_SCHEDULING_ENABLED: false,
-} as const; 
+} as const;

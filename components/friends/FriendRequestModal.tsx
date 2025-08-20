@@ -1,17 +1,17 @@
-import React, { useState } from 'react';
-import { View, Modal, ScrollView, TouchableOpacity, Image } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useState } from "react";
+import { View, Modal, ScrollView, TouchableOpacity, Image } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
-import { FriendRequest } from '@/types';
+import { Text } from "@/components/ui/text";
+import { Button } from "@/components/ui/button";
+import { FriendRequest } from "@/types";
 
 interface FriendRequestsModalProps {
   visible: boolean;
   onClose: () => void;
   friendRequests: FriendRequest[];
   sentRequests: FriendRequest[];
-  onHandleRequest: (requestId: string, action: 'accept' | 'deny') => void;
+  onHandleRequest: (requestId: string, action: "accept" | "deny") => void;
   onCancelRequest: (requestId: string) => void;
 }
 
@@ -22,30 +22,30 @@ interface RequestUserAvatarProps {
     email: string;
     avatar_url: string | null;
   };
-  size?: 'sm' | 'md' | 'lg';
+  size?: "sm" | "md" | "lg";
 }
 
-function RequestUserAvatar({ user, size = 'md' }: RequestUserAvatarProps) {
+function RequestUserAvatar({ user, size = "md" }: RequestUserAvatarProps) {
   const [imageLoadError, setImageLoadError] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
 
   // Define size configurations with explicit dimensions
   const sizeConfigurations = {
     sm: {
-      containerClass: 'w-8 h-8',
+      containerClass: "w-8 h-8",
       style: { width: 32, height: 32, borderRadius: 16 },
-      textClass: 'text-sm'
+      textClass: "text-sm",
     },
     md: {
-      containerClass: 'w-12 h-12',
+      containerClass: "w-12 h-12",
       style: { width: 48, height: 48, borderRadius: 24 },
-      textClass: 'text-lg'
+      textClass: "text-lg",
     },
     lg: {
-      containerClass: 'w-16 h-16',
+      containerClass: "w-16 h-16",
       style: { width: 64, height: 64, borderRadius: 32 },
-      textClass: 'text-xl'
-    }
+      textClass: "text-xl",
+    },
   };
 
   const config = sizeConfigurations[size];
@@ -57,19 +57,17 @@ function RequestUserAvatar({ user, size = 'md' }: RequestUserAvatarProps) {
       const trimmedName = user.full_name.trim();
       return trimmedName.charAt(0).toUpperCase();
     }
-    
+
     if (user.email?.trim()) {
       return user.email.charAt(0).toUpperCase();
     }
-    
-    return '?';
+
+    return "?";
   };
 
   // Determine if avatar image should be displayed
   const shouldDisplayAvatarImage = Boolean(
-    user.avatar_url && 
-    user.avatar_url.trim() && 
-    !imageLoadError
+    user.avatar_url && user.avatar_url.trim() && !imageLoadError,
   );
 
   // Handle image loading completion
@@ -83,9 +81,9 @@ function RequestUserAvatar({ user, size = 'md' }: RequestUserAvatarProps) {
       userId: user.id,
       avatarUrl: user.avatar_url,
       userName: user.full_name || user.email,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-    
+
     setImageLoadError(true);
     setImageLoading(false);
   };
@@ -98,7 +96,9 @@ function RequestUserAvatar({ user, size = 'md' }: RequestUserAvatarProps) {
   // Render avatar image with loading states
   if (shouldDisplayAvatarImage) {
     return (
-      <View className={`${config.containerClass} rounded-full bg-primary items-center justify-center overflow-hidden mr-4`}>
+      <View
+        className={`${config.containerClass} rounded-full bg-primary items-center justify-center overflow-hidden mr-4`}
+      >
         <Image
           source={{ uri: user.avatar_url }}
           style={config.style}
@@ -107,16 +107,18 @@ function RequestUserAvatar({ user, size = 'md' }: RequestUserAvatarProps) {
           onError={handleImageError}
           onLoadStart={handleImageLoadStart}
         />
-        
+
         {/* Loading state overlay with matching background */}
         {imageLoading && (
-          <View 
+          <View
             className="absolute inset-0 bg-primary items-center justify-center"
             style={{
-              backgroundColor: 'rgba(26, 126, 189, 0.8)',
+              backgroundColor: "rgba(26, 126, 189, 0.8)",
             }}
           >
-            <Text className={`${config.textClass} font-bold text-primary-foreground`}>
+            <Text
+              className={`${config.textClass} font-bold text-primary-foreground`}
+            >
               {getFallbackInitial()}
             </Text>
           </View>
@@ -127,7 +129,9 @@ function RequestUserAvatar({ user, size = 'md' }: RequestUserAvatarProps) {
 
   // Render fallback text initial avatar
   return (
-    <View className={`${config.containerClass} rounded-full bg-primary items-center justify-center mr-4`}>
+    <View
+      className={`${config.containerClass} rounded-full bg-primary items-center justify-center mr-4`}
+    >
       <Text className={`${config.textClass} font-bold text-primary-foreground`}>
         {getFallbackInitial()}
       </Text>
@@ -143,8 +147,8 @@ export function FriendRequestsModal({
   onHandleRequest,
   onCancelRequest,
 }: FriendRequestsModalProps) {
-  const [activeTab, setActiveTab] = useState<'incoming' | 'sent'>('incoming');
-  
+  const [activeTab, setActiveTab] = useState<"incoming" | "sent">("incoming");
+
   // Format timestamp with comprehensive time calculation
   const formatTimestamp = (dateString: string): string => {
     try {
@@ -154,8 +158,8 @@ export function FriendRequestsModal({
 
       // Validate date parsing
       if (isNaN(requestDate.getTime())) {
-        console.warn('Invalid date string provided:', dateString);
-        return 'Unknown time';
+        console.warn("Invalid date string provided:", dateString);
+        return "Unknown time";
       }
 
       // Calculate time units with precise mathematics
@@ -173,15 +177,23 @@ export function FriendRequestsModal({
       if (hoursDiff > 0) return `${hoursDiff}h ago`;
       if (minutesDiff > 0) return `${minutesDiff}m ago`;
       return "just now";
-      
     } catch (error) {
-      console.error('Error formatting timestamp:', error, 'Original value:', dateString);
-      return 'Unknown time';
+      console.error(
+        "Error formatting timestamp:",
+        error,
+        "Original value:",
+        dateString,
+      );
+      return "Unknown time";
     }
   };
 
   // Render tab button
-  const renderTabButton = (tab: 'incoming' | 'sent', label: string, count: number) => (
+  const renderTabButton = (
+    tab: "incoming" | "sent",
+    label: string,
+    count: number,
+  ) => (
     <TouchableOpacity
       className={`flex-1 py-3 ${
         activeTab === tab
@@ -200,9 +212,7 @@ export function FriendRequestsModal({
         </Text>
         {count > 0 && (
           <View className="ml-2 bg-red-500 rounded-full w-5 h-5 items-center justify-center">
-            <Text className="text-white text-xs font-bold">
-              {count}
-            </Text>
+            <Text className="text-white text-xs font-bold">{count}</Text>
           </View>
         )}
       </View>
@@ -213,14 +223,14 @@ export function FriendRequestsModal({
   const renderIncomingRequestCard = (request: FriendRequest) => {
     // Validate request structure to prevent runtime errors
     if (!request?.from_user) {
-      console.error('Invalid friend request structure:', request);
+      console.error("Invalid friend request structure:", request);
       return null;
     }
 
     return (
-      <View 
-        key={request.id} 
-        className="bg-card rounded-lg mb-3 p-4 border border-border/30" 
+      <View
+        key={request.id}
+        className="bg-card rounded-lg mb-3 p-4 border border-border/30"
         style={{
           shadowColor: "#000",
           shadowOffset: { width: 0, height: 1 },
@@ -232,7 +242,7 @@ export function FriendRequestsModal({
         {/* User information section */}
         <View className="flex-row items-center">
           <RequestUserAvatar user={request.from_user} size="md" />
-          
+
           <View className="flex-1">
             <Text className="font-medium text-foreground">
               {request.from_user.full_name || request.from_user.email}
@@ -254,18 +264,30 @@ export function FriendRequestsModal({
             onPress={() => onHandleRequest(request.id, "accept")}
           >
             <View className="flex-row items-center">
-              <Ionicons name="checkmark-circle" size={16} color="#ffffff" style={{ marginRight: 4 }} />
-              <Text className="text-primary-foreground font-medium">Accept</Text>
+              <Ionicons
+                name="checkmark-circle"
+                size={16}
+                color="#ffffff"
+                style={{ marginRight: 4 }}
+              />
+              <Text className="text-primary-foreground font-medium">
+                Accept
+              </Text>
             </View>
           </Button>
-          
+
           <Button
             className="flex-1"
             variant="outline"
             onPress={() => onHandleRequest(request.id, "deny")}
           >
             <View className="flex-row items-center">
-              <Ionicons name="close-circle-outline" size={16} color="#2148ce" style={{ marginRight: 4 }} />
+              <Ionicons
+                name="close-circle-outline"
+                size={16}
+                color="#2148ce"
+                style={{ marginRight: 4 }}
+              />
               <Text className="text-foreground font-medium">Decline</Text>
             </View>
           </Button>
@@ -278,14 +300,14 @@ export function FriendRequestsModal({
   const renderSentRequestCard = (request: FriendRequest) => {
     // Validate request structure to prevent runtime errors
     if (!request?.to_user) {
-      console.error('Invalid sent request structure:', request);
+      console.error("Invalid sent request structure:", request);
       return null;
     }
 
     return (
-      <View 
-        key={request.id} 
-        className="bg-card rounded-lg mb-3 p-4 border border-border/30" 
+      <View
+        key={request.id}
+        className="bg-card rounded-lg mb-3 p-4 border border-border/30"
         style={{
           shadowColor: "#000",
           shadowOffset: { width: 0, height: 1 },
@@ -297,7 +319,7 @@ export function FriendRequestsModal({
         {/* User information section */}
         <View className="flex-row items-center">
           <RequestUserAvatar user={request.to_user} size="md" />
-          
+
           <View className="flex-1">
             <Text className="font-medium text-foreground">
               {request.to_user.full_name || request.to_user.email}
@@ -309,7 +331,7 @@ export function FriendRequestsModal({
               Sent {formatTimestamp(request.created_at)}
             </Text>
           </View>
-          
+
           {/* Pending status indicator */}
           <View className="bg-yellow-100 px-2 py-1 rounded-full">
             <Text className="text-xs text-yellow-800 font-medium">Pending</Text>
@@ -323,7 +345,12 @@ export function FriendRequestsModal({
           onPress={() => onCancelRequest(request.id)}
         >
           <View className="flex-row items-center">
-            <Ionicons name="close-circle-outline" size={16} color="#dc2626" style={{ marginRight: 4 }} />
+            <Ionicons
+              name="close-circle-outline"
+              size={16}
+              color="#dc2626"
+              style={{ marginRight: 4 }}
+            />
             <Text className="text-red-600 font-medium">Cancel Request</Text>
           </View>
         </Button>
@@ -333,8 +360,8 @@ export function FriendRequestsModal({
 
   // Render empty state for incoming requests
   const renderIncomingEmptyState = () => (
-    <View 
-      className="bg-card rounded-lg p-6 items-center border border-border/40 my-6" 
+    <View
+      className="bg-card rounded-lg p-6 items-center border border-border/40 my-6"
       style={{
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 1 },
@@ -350,7 +377,7 @@ export function FriendRequestsModal({
         No incoming requests
       </Text>
       <Text className="text-muted-foreground text-center leading-5">
-        You don't have any friend requests at the moment.{'\n'}
+        You don't have any friend requests at the moment.{"\n"}
         New requests will appear here when received.
       </Text>
     </View>
@@ -358,8 +385,8 @@ export function FriendRequestsModal({
 
   // Render empty state for sent requests
   const renderSentEmptyState = () => (
-    <View 
-      className="bg-card rounded-lg p-6 items-center border border-border/40 my-6" 
+    <View
+      className="bg-card rounded-lg p-6 items-center border border-border/40 my-6"
       style={{
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 1 },
@@ -375,7 +402,7 @@ export function FriendRequestsModal({
         No sent requests
       </Text>
       <Text className="text-muted-foreground text-center leading-5">
-        You haven't sent any friend requests yet.{'\n'}
+        You haven't sent any friend requests yet.{"\n"}
         Sent requests will appear here.
       </Text>
     </View>
@@ -393,7 +420,7 @@ export function FriendRequestsModal({
     >
       <View className="flex-1 bg-background">
         {/* Header section with enhanced styling */}
-        <View 
+        <View
           className="px-6 pt-12 pb-4 border-b border-border bg-background"
           style={{
             shadowColor: "#000",
@@ -405,16 +432,18 @@ export function FriendRequestsModal({
         >
           <View className="flex-row justify-between items-center">
             <View>
-              <Text className="text-xl font-bold text-foreground">Friend Requests</Text>
+              <Text className="text-xl font-bold text-foreground">
+                Friend Requests
+              </Text>
               {totalRequests > 0 && (
                 <Text className="text-sm text-muted-foreground mt-1">
-                  {totalRequests} total request{totalRequests !== 1 ? 's' : ''}
+                  {totalRequests} total request{totalRequests !== 1 ? "s" : ""}
                 </Text>
               )}
             </View>
-            
-            <TouchableOpacity 
-              onPress={onClose} 
+
+            <TouchableOpacity
+              onPress={onClose}
               className="p-2 rounded-full bg-muted/20"
               style={{
                 shadowColor: "#000",
@@ -431,25 +460,23 @@ export function FriendRequestsModal({
 
         {/* Tab navigation */}
         <View className="flex-row bg-background border-b border-border">
-          {renderTabButton('incoming', 'Incoming', friendRequests.length)}
-          {renderTabButton('sent', 'Sent', sentRequests.length)}
+          {renderTabButton("incoming", "Incoming", friendRequests.length)}
+          {renderTabButton("sent", "Sent", sentRequests.length)}
         </View>
 
         {/* Content section with scroll functionality */}
-        <ScrollView 
+        <ScrollView
           className="flex-1 px-6 pt-4"
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 20 }}
         >
-          {activeTab === 'incoming' ? (
-            friendRequests.length > 0 
+          {activeTab === "incoming"
+            ? friendRequests.length > 0
               ? friendRequests.map(renderIncomingRequestCard)
               : renderIncomingEmptyState()
-          ) : (
-            sentRequests.length > 0 
+            : sentRequests.length > 0
               ? sentRequests.map(renderSentRequestCard)
-              : renderSentEmptyState()
-          )}
+              : renderSentEmptyState()}
         </ScrollView>
       </View>
     </Modal>

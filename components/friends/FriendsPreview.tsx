@@ -1,19 +1,22 @@
-import React, { useState } from 'react';
-import { View, TouchableOpacity } from 'react-native';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useState } from "react";
+import { View, TouchableOpacity } from "react-native";
+import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 
-import { Text } from '@/components/ui/text';
-import { H3 } from '@/components/ui/typography';
-import { FriendCard } from './FriendCard';
-import { Friend } from '@/types';
+import { Text } from "@/components/ui/text";
+import { H3 } from "@/components/ui/typography";
+import { FriendCard } from "./FriendCard";
+import { Friend } from "@/types";
 
 interface FriendsPreviewProps {
   friends: Friend[];
   title?: string;
 }
 
-export function FriendsPreview({ friends, title = "Friends" }: FriendsPreviewProps) {
+export function FriendsPreview({
+  friends,
+  title = "Friends",
+}: FriendsPreviewProps) {
   const [expandedFriend, setExpandedFriend] = useState<string | null>(null);
 
   const handleToggleExpand = (id: string) => {
@@ -38,16 +41,16 @@ export function FriendsPreview({ friends, title = "Friends" }: FriendsPreviewPro
       <View className="flex-row justify-between items-center mb-4">
         <H3></H3>
         {friends.length > 0 && (
-          <TouchableOpacity 
-            onPress={() => router.push('/(protected)/(screens)/friends')}
+          <TouchableOpacity
+            onPress={() => router.push("/(protected)/(screens)/friends")}
           >
             <Text className="text-primary">See All</Text>
           </TouchableOpacity>
         )}
       </View>
-      
-      {previewFriends.length > 0 
-        ? previewFriends.map(friend => (
+
+      {previewFriends.length > 0
+        ? previewFriends.map((friend) => (
             <FriendCard
               key={friend.id}
               friend={friend}
@@ -55,8 +58,7 @@ export function FriendsPreview({ friends, title = "Friends" }: FriendsPreviewPro
               onToggleExpand={handleToggleExpand}
             />
           ))
-        : renderEmptyState()
-      }
+        : renderEmptyState()}
     </View>
   );
 }

@@ -1,12 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { SafeAreaView } from '@/components/safe-area-view';
-import { Button } from '@/components/ui/button';
-import { Text } from '@/components/ui/text';
-import { H1, H2 } from '@/components/ui/typography';
-import { useAuth } from '@/context/supabase-provider';
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  ActivityIndicator,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import { SafeAreaView } from "@/components/safe-area-view";
+import { Button } from "@/components/ui/button";
+import { Text } from "@/components/ui/text";
+import { H1, H2 } from "@/components/ui/typography";
+import { useAuth } from "@/context/supabase-provider";
 
 // 1. Add 'number' to the FormData interface
 interface FormData {
@@ -25,27 +31,27 @@ export default function EditProfile() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState<FormData>({
-    full_name: '',
-    age: '',
-    nickname: '',
-    sex: '',
-    preferred_hand: '',
-    preferred_area: '',
-    court_playing_side: '',
-    number: '', // 2. Initialize 'number' in the state
+    full_name: "",
+    age: "",
+    nickname: "",
+    sex: "",
+    preferred_hand: "",
+    preferred_area: "",
+    court_playing_side: "",
+    number: "", // 2. Initialize 'number' in the state
   });
 
   useEffect(() => {
     if (profile) {
       setFormData({
-        full_name: profile.full_name || '',
-        age: profile.age || '',
-        nickname: profile.nickname || '',
-        sex: profile.sex || '',
-        preferred_hand: profile.preferred_hand || '',
-        preferred_area: profile.preferred_area || '',
-        court_playing_side: profile.court_playing_side || '',
-        number: profile.number || '', // 3. Populate 'number' from the profile
+        full_name: profile.full_name || "",
+        age: profile.age || "",
+        nickname: profile.nickname || "",
+        sex: profile.sex || "",
+        preferred_hand: profile.preferred_hand || "",
+        preferred_area: profile.preferred_area || "",
+        court_playing_side: profile.court_playing_side || "",
+        number: profile.number || "", // 3. Populate 'number' from the profile
       });
     }
   }, [profile]);
@@ -57,9 +63,9 @@ export default function EditProfile() {
       await saveProfile(formData);
       router.back();
     } catch (error) {
-      console.error('Error saving profile:', error);
+      console.error("Error saving profile:", error);
       // In a real app, you might want a more user-friendly error display
-      alert('Error saving profile. Please try again.');
+      alert("Error saving profile. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -68,21 +74,23 @@ export default function EditProfile() {
   const renderAvatar = () => (
     <View className="w-24 h-24 rounded-full bg-primary items-center justify-center mb-6">
       <Text className="text-4xl font-bold text-primary-foreground">
-        {formData.full_name?.charAt(0)?.toUpperCase() || '?'}
+        {formData.full_name?.charAt(0)?.toUpperCase() || "?"}
       </Text>
     </View>
   );
 
   const renderInput = (
-    label: string, 
-    value: string, 
+    label: string,
+    value: string,
     onChangeText: (text: string) => void,
     placeholder: string = "",
     keyboardType: any = "default",
-    icon: keyof typeof Ionicons.glyphMap
+    icon: keyof typeof Ionicons.glyphMap,
   ) => (
     <View className="mb-6">
-      <Text className="text-sm font-medium mb-2 text-muted-foreground">{label}</Text>
+      <Text className="text-sm font-medium mb-2 text-muted-foreground">
+        {label}
+      </Text>
       <View className="flex-row items-center bg-card border-2 border-border rounded-xl px-4 py-3">
         <Ionicons name={icon} size={20} color="#888" className="mr-3" />
         <TextInput
@@ -102,24 +110,28 @@ export default function EditProfile() {
     value: string,
     options: string[],
     onSelect: (value: string) => void,
-    icon: keyof typeof Ionicons.glyphMap // Icon is not used here but kept for consistency
+    icon: keyof typeof Ionicons.glyphMap, // Icon is not used here but kept for consistency
   ) => (
     <View className="mb-6">
-      <Text className="text-sm font-medium mb-2 text-muted-foreground">{label}</Text>
+      <Text className="text-sm font-medium mb-2 text-muted-foreground">
+        {label}
+      </Text>
       <View className="flex-row gap-3">
         {options.map((option) => (
           <TouchableOpacity
             key={option}
             className={`flex-1 px-4 py-3 rounded-xl border-2 ${
-              value === option 
-                ? 'bg-primary border-primary' 
-                : 'bg-card border-border'
+              value === option
+                ? "bg-primary border-primary"
+                : "bg-card border-border"
             }`}
             onPress={() => onSelect(option)}
           >
-            <Text className={`text-center font-medium ${
-              value === option ? 'text-primary-foreground' : 'text-foreground'
-            }`}>
+            <Text
+              className={`text-center font-medium ${
+                value === option ? "text-primary-foreground" : "text-foreground"
+              }`}
+            >
               {option}
             </Text>
           </TouchableOpacity>
@@ -146,9 +158,7 @@ export default function EditProfile() {
         <View style={{ width: 40 }} />
       </View>
       <ScrollView className="flex-1 p-6">
-        <View className="items-center mb-8">
-          {renderAvatar()}
-        </View>
+        <View className="items-center mb-8">{renderAvatar()}</View>
 
         {/* Personal Information Section */}
         <View className="mb-8">
@@ -156,42 +166,42 @@ export default function EditProfile() {
           {renderInput(
             "Full Name",
             formData.full_name,
-            (text) => setFormData(prev => ({ ...prev, full_name: text })),
+            (text) => setFormData((prev) => ({ ...prev, full_name: text })),
             "Enter your full name",
             "default",
-            "person-outline"
+            "person-outline",
           )}
           {renderInput(
             "Age",
             formData.age,
-            (text) => setFormData(prev => ({ ...prev, age: text })),
+            (text) => setFormData((prev) => ({ ...prev, age: text })),
             "Enter your age",
             "numeric",
-            "calendar-outline"
+            "calendar-outline",
           )}
           {renderInput(
             "Nickname",
             formData.nickname,
-            (text) => setFormData(prev => ({ ...prev, nickname: text })),
+            (text) => setFormData((prev) => ({ ...prev, nickname: text })),
             "Enter your nickname (optional)",
             "default",
-            "star-outline"
+            "star-outline",
           )}
           {/* 4. Add the phone number input field */}
           {renderInput(
             "Phone Number",
             formData.number,
-            (text) => setFormData(prev => ({ ...prev, number: text })),
+            (text) => setFormData((prev) => ({ ...prev, number: text })),
             "Enter your phone number",
             "phone-pad",
-            "call-outline"
+            "call-outline",
           )}
           {renderSelect(
             "Gender",
             formData.sex,
             ["Male", "Female"],
-            (value) => setFormData(prev => ({ ...prev, sex: value })),
-            "body-outline"
+            (value) => setFormData((prev) => ({ ...prev, sex: value })),
+            "body-outline",
           )}
         </View>
 
@@ -202,23 +212,26 @@ export default function EditProfile() {
             "Preferred Hand",
             formData.preferred_hand,
             ["Left", "Right"],
-            (value) => setFormData(prev => ({ ...prev, preferred_hand: value })),
-            "hand-left-outline"
+            (value) =>
+              setFormData((prev) => ({ ...prev, preferred_hand: value })),
+            "hand-left-outline",
           )}
           {renderSelect(
             "Court Position",
             formData.court_playing_side,
             ["Left", "Right"],
-            (value) => setFormData(prev => ({ ...prev, court_playing_side: value })),
-            "tennisball-outline"
+            (value) =>
+              setFormData((prev) => ({ ...prev, court_playing_side: value })),
+            "tennisball-outline",
           )}
           {renderInput(
             "Preferred Area",
             formData.preferred_area,
-            (text) => setFormData(prev => ({ ...prev, preferred_area: text })),
+            (text) =>
+              setFormData((prev) => ({ ...prev, preferred_area: text })),
             "Enter your preferred area",
             "default",
-            "location-outline"
+            "location-outline",
           )}
         </View>
 

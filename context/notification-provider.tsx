@@ -1,9 +1,18 @@
-import React, { createContext, useContext, useEffect, useState, PropsWithChildren } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
-import { NotificationService, NotificationData } from '@/services/notificationService';
-import { useAuth } from '@/context/supabase-provider';
-import { supabase } from '@/config/supabase';
-import { RealtimeChannel } from '@supabase/supabase-js';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  PropsWithChildren,
+} from "react";
+import { AppState, AppStateStatus } from "react-native";
+import {
+  NotificationService,
+  NotificationData,
+} from "@/services/notificationService";
+import { useAuth } from "@/context/supabase-provider";
+import { supabase } from "@/config/supabase";
+import { RealtimeChannel } from "@supabase/supabase-js";
 
 interface NotificationContextType {
   notificationService: NotificationService;
@@ -15,15 +24,20 @@ interface NotificationContextType {
   sendTestNotification: () => Promise<void>;
 }
 
-const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
+const NotificationContext = createContext<NotificationContextType | undefined>(
+  undefined,
+);
 
 export function NotificationProvider({ children }: PropsWithChildren) {
   const { session, profile } = useAuth();
-  const [notificationService] = useState(() => NotificationService.getInstance());
+  const [notificationService] = useState(() =>
+    NotificationService.getInstance(),
+  );
   const [hasPermission, setHasPermission] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [appState, setAppState] = useState(AppState.currentState);
-  const [notificationChannel, setNotificationChannel] = useState<RealtimeChannel | null>(null);
+  const [notificationChannel, setNotificationChannel] =
+    useState<RealtimeChannel | null>(null);
 
   // Initialize notifications when user logs in
   useEffect(() => {
@@ -44,7 +58,10 @@ export function NotificationProvider({ children }: PropsWithChildren) {
 
   // Handle app state changes
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    const subscription = AppState.addEventListener(
+      "change",
+      handleAppStateChange,
+    );
     return () => subscription.remove();
   }, []);
 
@@ -52,7 +69,7 @@ export function NotificationProvider({ children }: PropsWithChildren) {
    * Handle app state changes to refresh data when app comes to foreground
    */
   const handleAppStateChange = (nextAppState: AppStateStatus) => {
-    if (appState.match(/inactive|background/) && nextAppState === 'active') {
+    if (appState.match(/inactive|background/) && nextAppState === "active") {
       // App has come to the foreground
       if (session?.user?.id) {
         fetchUnreadCount();
@@ -71,7 +88,10 @@ export function NotificationProvider({ children }: PropsWithChildren) {
     setHasPermission(permission);
 
     // Listen for notification events
-    window.addEventListener('notification:received', handleNotificationReceived);
+    window.addEventListener(
+      "notification:received",
+      handleNotificationReceived,
+    );
   };
 
   /**
@@ -83,14 +103,14 @@ export function NotificationProvider({ children }: PropsWithChildren) {
     const channel = supabase
       .channel(`notifications:${session.user.id}`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
           filter: `user_id=eq.${session.user.id}`,
         },
-        handleNewNotification
+        handleNewNotification,
       )
       .subscribe();
 
@@ -111,17 +131,17 @@ export function NotificationProvider({ children }: PropsWithChildren) {
    * Handle new notification from real-time subscription
    */
   const handleNewNotification = (payload: any) => {
-    console.log('New notification received:', payload);
-    
+    console.log("New notification received:", payload);
+
     // Increment unread count
-    setUnreadCount(prev => prev + 1);
+    setUnreadCount((prev) => prev + 1);
 
     // Show local notification if app is in background
-    if (AppState.currentState !== 'active' && payload.new) {
+    if (AppState.currentState !== "active" && payload.new) {
       notificationService.sendLocalNotification(
         payload.new.title,
         payload.new.body,
-        payload.new.data
+        payload.new.data,
       );
     }
   };
@@ -131,8 +151,8 @@ export function NotificationProvider({ children }: PropsWithChildren) {
    */
   const handleNotificationReceived = (event: CustomEvent) => {
     const data = event.detail as NotificationData;
-    console.log('Notification event received:', data);
-    
+    console.log("Notification event received:", data);
+
     // Refresh unread count
     fetchUnreadCount();
   };
@@ -171,16 +191,15 @@ export function NotificationProvider({ children }: PropsWithChildren) {
    */
   const sendTestNotification = async () => {
     await notificationService.sendLocalNotification(
-      'Test Notification',
-      'This is a test notification from Padel Scoring App',
-      { type: 'match_invitation' as const }
+      "Test Notification",
+      "This is a test notification from Padel Scoring App",
+      { type: "match_invitation" as const },
     );
   };
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
- 
       notificationService.cleanup();
       cleanupRealtimeSubscription();
     };
@@ -206,7 +225,9 @@ export function NotificationProvider({ children }: PropsWithChildren) {
 export function useNotifications() {
   const context = useContext(NotificationContext);
   if (!context) {
-    throw new Error('useNotifications must be used within NotificationProvider');
+    throw new Error(
+      "useNotifications must be used within NotificationProvider",
+    );
   }
   return context;
 }

@@ -1,25 +1,23 @@
 import "../global.css";
-import {decode, encode} from 'base-64';
-import { LogBox } from "react-native";
+import { decode, encode } from "base-64";
+import { LogBox, AppState } from "react-native";
 import * as Updates from "expo-updates";
 import { useEffect, useRef } from "react";
 import { Stack } from "expo-router";
-import { AppState } from "react-native";
 import { AuthProvider } from "@/context/supabase-provider";
 import { NotificationProvider } from "@/context/notification-provider";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { colors } from "@/constants/colors";
 import { runConfirmationProcessor } from "@/services/confirmation-processor.service";
 
-
 LogBox.ignoreAllLogs();
 
 if (!global.btoa) {
-    global.btoa = encode;
+  global.btoa = encode;
 }
 
 if (!global.atob) {
-    global.atob = decode;
+  global.atob = decode;
 }
 
 export default function AppLayout() {
@@ -87,7 +85,7 @@ export default function AppLayout() {
     };
   }, []);
 
-runConfirmationProcessor();
+  runConfirmationProcessor();
 
   return (
     <AuthProvider>
@@ -102,9 +100,7 @@ runConfirmationProcessor();
               headerTitle: "Sign Up",
               headerStyle: {
                 backgroundColor:
-                  colorScheme === "dark"
-                    ? colors.dark.card
-                    : colors.light.card,
+                  colorScheme === "dark" ? colors.dark.card : colors.light.card,
               },
               headerTintColor:
                 colorScheme === "dark"
@@ -119,9 +115,7 @@ runConfirmationProcessor();
               headerTitle: "Sign In",
               headerStyle: {
                 backgroundColor:
-                  colorScheme === "dark"
-                    ? colors.dark.card
-                    : colors.light.card,
+                  colorScheme === "dark" ? colors.dark.card : colors.light.card,
               },
               headerTintColor:
                 colorScheme === "dark"
@@ -136,9 +130,7 @@ runConfirmationProcessor();
               headerTitle: "Profile Setup",
               headerStyle: {
                 backgroundColor:
-                  colorScheme === "dark"
-                    ? colors.dark.card
-                    : colors.light.card,
+                  colorScheme === "dark" ? colors.dark.card : colors.light.card,
               },
               headerTintColor:
                 colorScheme === "dark"

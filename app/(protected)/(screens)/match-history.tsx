@@ -1,13 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput, Image } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+  TextInput,
+  Image,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { router, useLocalSearchParams } from "expo-router";
 
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
-import { useAuth } from '@/context/supabase-provider';
-import { supabase } from '@/config/supabase';
-import { SafeAreaView } from '@/components/safe-area-view';
+import { Text } from "@/components/ui/text";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/supabase-provider";
+import { supabase } from "@/config/supabase";
+import { SafeAreaView } from "@/components/safe-area-view";
 
 // Simplified match status
 export enum MatchStatus {
@@ -38,11 +46,31 @@ interface MatchData {
   court: string | null;
   is_public: boolean;
   description: string | null;
-  player1: { id: string; full_name: string | null; email: string; avatar_url: string | null; } | null;
-  player2: { id: string; full_name: string | null; email: string; avatar_url: string | null; } | null;
-  player3: { id: string; full_name: string | null; email: string; avatar_url: string | null; } | null;
-  player4: { id: string; full_name: string | null; email: string; avatar_url: string | null; } | null;
-  
+  player1: {
+    id: string;
+    full_name: string | null;
+    email: string;
+    avatar_url: string | null;
+  } | null;
+  player2: {
+    id: string;
+    full_name: string | null;
+    email: string;
+    avatar_url: string | null;
+  } | null;
+  player3: {
+    id: string;
+    full_name: string | null;
+    email: string;
+    avatar_url: string | null;
+  } | null;
+  player4: {
+    id: string;
+    full_name: string | null;
+    email: string;
+    avatar_url: string | null;
+  } | null;
+
   // Computed properties
   isTeam1?: boolean;
   isFuture?: boolean;
@@ -53,7 +81,7 @@ interface MatchData {
   opponents?: any[];
 }
 
-type FilterType = 'all' | 'upcoming' | 'completed' | 'attention';
+type FilterType = "all" | "upcoming" | "completed" | "attention";
 
 // Clean Avatar Component
 interface AvatarProps {
@@ -63,23 +91,27 @@ interface AvatarProps {
     email: string;
     avatar_url: string | null;
   };
-  size?: 'sm' | 'md' | 'lg';
+  size?: "sm" | "md" | "lg";
   isCurrentUser?: boolean;
 }
 
-const Avatar: React.FC<AvatarProps> = ({ user, size = 'md', isCurrentUser = false }) => {
+const Avatar: React.FC<AvatarProps> = ({
+  user,
+  size = "md",
+  isCurrentUser = false,
+}) => {
   const [imageError, setImageError] = useState(false);
 
   const sizeStyle = {
     sm: { width: 32, height: 32, borderRadius: 16 },
     md: { width: 40, height: 40, borderRadius: 20 },
-    lg: { width: 48, height: 48, borderRadius: 24 }
+    lg: { width: 48, height: 48, borderRadius: 24 },
   }[size];
 
   const textSize = {
-    sm: 'text-sm',
-    md: 'text-base',
-    lg: 'text-lg'
+    sm: "text-sm",
+    md: "text-base",
+    lg: "text-lg",
   }[size];
 
   const getInitial = () => {
@@ -89,7 +121,7 @@ const Avatar: React.FC<AvatarProps> = ({ user, size = 'md', isCurrentUser = fals
     return user.email.charAt(0).toUpperCase();
   };
 
-  const bgColor = isCurrentUser ? 'bg-blue-500' : 'bg-background';
+  const bgColor = isCurrentUser ? "bg-blue-500" : "bg-background";
 
   if (user.avatar_url && !imageError) {
     return (
@@ -110,10 +142,11 @@ const Avatar: React.FC<AvatarProps> = ({ user, size = 'md', isCurrentUser = fals
   }
 
   return (
-    <View className={`${bgColor} items-center justify-center relative`} style={sizeStyle}>
-      <Text className={`${textSize} font-bold text-white`}>
-        {getInitial()}
-      </Text>
+    <View
+      className={`${bgColor} items-center justify-center relative`}
+      style={sizeStyle}
+    >
+      <Text className={`${textSize} font-bold text-white`}>{getInitial()}</Text>
       {isCurrentUser && (
         <View className="absolute -top-1 -right-1 bg-blue-500 rounded-full w-4 h-4 items-center justify-center border-2 border-white">
           <Ionicons name="person" size={8} color="white" />
@@ -128,8 +161,8 @@ export default function CleanMatchHistory() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [matches, setMatches] = useState<MatchData[]>([]);
-  const [filter, setFilter] = useState<FilterType>('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [filter, setFilter] = useState<FilterType>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const { session } = useAuth();
 
   useEffect(() => {
@@ -145,97 +178,128 @@ export default function CleanMatchHistory() {
       } else {
         setLoading(true);
       }
-      
-      let query = supabase
-        .from('matches')
-        .select(`
+
+      let query = supabase.from("matches").select(`
           *,
           player1:profiles!player1_id(id, full_name, email, avatar_url),
           player2:profiles!player2_id(id, full_name, email, avatar_url),
           player3:profiles!player3_id(id, full_name, email, avatar_url),
           player4:profiles!player4_id(id, full_name, email, avatar_url)
         `);
-      
+
       if (friendId) {
         query = query.or(
           `and(player1_id.eq.${session?.user?.id},or(player2_id.eq.${friendId},player3_id.eq.${friendId},player4_id.eq.${friendId})),` +
-          `and(player2_id.eq.${session?.user?.id},or(player1_id.eq.${friendId},player3_id.eq.${friendId},player4_id.eq.${friendId})),` +
-          `and(player3_id.eq.${session?.user?.id},or(player1_id.eq.${friendId},player2_id.eq.${friendId},player4_id.eq.${friendId})),` +
-          `and(player4_id.eq.${session?.user?.id},or(player1_id.eq.${friendId},player2_id.eq.${friendId},player3_id.eq.${friendId}))`
+            `and(player2_id.eq.${session?.user?.id},or(player1_id.eq.${friendId},player3_id.eq.${friendId},player4_id.eq.${friendId})),` +
+            `and(player3_id.eq.${session?.user?.id},or(player1_id.eq.${friendId},player2_id.eq.${friendId},player4_id.eq.${friendId})),` +
+            `and(player4_id.eq.${session?.user?.id},or(player1_id.eq.${friendId},player2_id.eq.${friendId},player3_id.eq.${friendId}))`,
         );
       } else {
         query = query.or(
           `player1_id.eq.${session?.user?.id},` +
-          `player2_id.eq.${session?.user?.id},` +
-          `player3_id.eq.${session?.user?.id},` +
-          `player4_id.eq.${session?.user?.id}`
+            `player2_id.eq.${session?.user?.id},` +
+            `player3_id.eq.${session?.user?.id},` +
+            `player4_id.eq.${session?.user?.id}`,
         );
       }
-      
-      query = query.order('start_time', { ascending: false });
+
+      query = query.order("start_time", { ascending: false });
 
       const { data, error } = await query;
 
       if (error) throw error;
 
-      const processedData: MatchData[] = (data || []).map(match => {
+      const processedData: MatchData[] = (data || []).map((match) => {
         const userId = session?.user?.id;
         const startTime = new Date(match.start_time);
         const endTime = match.end_time ? new Date(match.end_time) : null;
         const now = new Date();
-        
-        const isTeam1 = match.player1_id === userId || match.player2_id === userId;
+
+        const isTeam1 =
+          match.player1_id === userId || match.player2_id === userId;
         const isFuture = startTime > now;
         const isPast = endTime ? endTime < now : startTime < now;
-        const hasScores = match.team1_score_set1 !== null && match.team2_score_set1 !== null;
+        const hasScores =
+          match.team1_score_set1 !== null && match.team2_score_set1 !== null;
         const isCompleted = hasScores && isPast;
-        const needsScores = isPast && !hasScores && match.status !== MatchStatus.CANCELLED;
-        
+        const needsScores =
+          isPast && !hasScores && match.status !== MatchStatus.CANCELLED;
+
         let opponents: any[] = [];
         if (isTeam1) {
           opponents = [match.player3, match.player4].filter(Boolean);
         } else {
           opponents = [match.player1, match.player2].filter(Boolean);
         }
-        
+
         let userWon = false;
-        let setScores = '';
-        
+        let setScores = "";
+
         if (hasScores) {
           let team1Sets = 0;
           let team2Sets = 0;
-          
+
           if (match.team1_score_set1 > match.team2_score_set1) team1Sets++;
           else if (match.team2_score_set1 > match.team1_score_set1) team2Sets++;
-          
-          if (match.team1_score_set2 !== null && match.team2_score_set2 !== null) {
+
+          if (
+            match.team1_score_set2 !== null &&
+            match.team2_score_set2 !== null
+          ) {
             if (match.team1_score_set2 > match.team2_score_set2) team1Sets++;
-            else if (match.team2_score_set2 > match.team1_score_set2) team2Sets++;
+            else if (match.team2_score_set2 > match.team1_score_set2)
+              team2Sets++;
           }
-          
-          if (match.team1_score_set3 !== null && match.team2_score_set3 !== null) {
+
+          if (
+            match.team1_score_set3 !== null &&
+            match.team2_score_set3 !== null
+          ) {
             if (match.team1_score_set3 > match.team2_score_set3) team1Sets++;
-            else if (match.team2_score_set3 > match.team1_score_set3) team2Sets++;
+            else if (match.team2_score_set3 > match.team1_score_set3)
+              team2Sets++;
           }
-          
+
           if (match.winner_team) {
-            userWon = (isTeam1 && match.winner_team === 1) || (!isTeam1 && match.winner_team === 2);
+            userWon =
+              (isTeam1 && match.winner_team === 1) ||
+              (!isTeam1 && match.winner_team === 2);
           } else {
-            userWon = (isTeam1 && team1Sets > team2Sets) || (!isTeam1 && team2Sets > team1Sets);
+            userWon =
+              (isTeam1 && team1Sets > team2Sets) ||
+              (!isTeam1 && team2Sets > team1Sets);
           }
-          
-          const userSet1 = isTeam1 ? match.team1_score_set1 : match.team2_score_set1;
-          const oppSet1 = isTeam1 ? match.team2_score_set1 : match.team1_score_set1;
+
+          const userSet1 = isTeam1
+            ? match.team1_score_set1
+            : match.team2_score_set1;
+          const oppSet1 = isTeam1
+            ? match.team2_score_set1
+            : match.team1_score_set1;
           setScores = `${userSet1}-${oppSet1}`;
-          
-          if (match.team1_score_set2 !== null && match.team2_score_set2 !== null) {
-            const userSet2 = isTeam1 ? match.team1_score_set2 : match.team2_score_set2;
-            const oppSet2 = isTeam1 ? match.team2_score_set2 : match.team1_score_set2;
+
+          if (
+            match.team1_score_set2 !== null &&
+            match.team2_score_set2 !== null
+          ) {
+            const userSet2 = isTeam1
+              ? match.team1_score_set2
+              : match.team2_score_set2;
+            const oppSet2 = isTeam1
+              ? match.team2_score_set2
+              : match.team1_score_set2;
             setScores += `, ${userSet2}-${oppSet2}`;
-            
-            if (match.team1_score_set3 !== null && match.team2_score_set3 !== null) {
-              const userSet3 = isTeam1 ? match.team1_score_set3 : match.team2_score_set3;
-              const oppSet3 = isTeam1 ? match.team2_score_set3 : match.team1_score_set3;
+
+            if (
+              match.team1_score_set3 !== null &&
+              match.team2_score_set3 !== null
+            ) {
+              const userSet3 = isTeam1
+                ? match.team1_score_set3
+                : match.team2_score_set3;
+              const oppSet3 = isTeam1
+                ? match.team2_score_set3
+                : match.team1_score_set3;
               setScores += `, ${userSet3}-${oppSet3}`;
             }
           }
@@ -249,14 +313,13 @@ export default function CleanMatchHistory() {
           needsScores,
           userWon,
           setScores,
-          opponents
+          opponents,
         };
       });
 
       setMatches(processedData);
-      
     } catch (error) {
-      console.error('Error fetching matches:', error);
+      console.error("Error fetching matches:", error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -268,14 +331,14 @@ export default function CleanMatchHistory() {
 
     // Apply filter
     switch (filter) {
-      case 'upcoming':
-        filtered = matches.filter(match => match.isFuture);
+      case "upcoming":
+        filtered = matches.filter((match) => match.isFuture);
         break;
-      case 'completed':
-        filtered = matches.filter(match => match.isCompleted);
+      case "completed":
+        filtered = matches.filter((match) => match.isCompleted);
         break;
-      case 'attention':
-        filtered = matches.filter(match => match.needsScores);
+      case "attention":
+        filtered = matches.filter((match) => match.needsScores);
         break;
       default:
         filtered = matches;
@@ -284,7 +347,7 @@ export default function CleanMatchHistory() {
     // Apply search
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(match => {
+      filtered = filtered.filter((match) => {
         const searchableText = [
           match.region,
           match.court,
@@ -292,8 +355,11 @@ export default function CleanMatchHistory() {
           match.player2?.full_name,
           match.player3?.full_name,
           match.player4?.full_name,
-        ].filter(Boolean).join(' ').toLowerCase();
-        
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
         return searchableText.includes(query);
       });
     }
@@ -309,14 +375,17 @@ export default function CleanMatchHistory() {
     const matchDate = new Date(match.start_time);
     const now = new Date();
     const isToday = matchDate.toDateString() === now.toDateString();
-    
-    const formattedDate = isToday 
-      ? 'Today' 
-      : matchDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    
-    const formattedTime = matchDate.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit'
+
+    const formattedDate = isToday
+      ? "Today"
+      : matchDate.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        });
+
+    const formattedTime = matchDate.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
     });
 
     return (
@@ -332,22 +401,28 @@ export default function CleanMatchHistory() {
         }}
         onPress={() => {
           router.push({
-            pathname: '/(protected)/(screens)/match-details',
-            params: { 
+            pathname: "/(protected)/(screens)/match-details",
+            params: {
               matchId: match.id,
-              mode: match.needsScores ? 'score-entry' : undefined
-            }
+              mode: match.needsScores ? "score-entry" : undefined,
+            },
           });
         }}
       >
         {/* Header */}
         <View className="flex-row  items-center justify-between mb-4">
           <View className="flex-row items-center">
-            <View className={`w-3 h-3 rounded-full mr-3 ${
-              match.isFuture ? 'bg-blue-500' : 
-              match.isCompleted ? (match.userWon ? 'bg-green-500' : 'bg-red-500') :
-              'bg-orange-500'
-            }`} />
+            <View
+              className={`w-3 h-3 rounded-full mr-3 ${
+                match.isFuture
+                  ? "bg-blue-500"
+                  : match.isCompleted
+                    ? match.userWon
+                      ? "bg-green-500"
+                      : "bg-red-500"
+                    : "bg-orange-500"
+              }`}
+            />
             <View>
               <Text className="text-sm font-medium text-gray-900 dark:text-gray-100">
                 {formattedDate} • {formattedTime}
@@ -359,7 +434,7 @@ export default function CleanMatchHistory() {
               )}
             </View>
           </View>
-          
+
           <View className="flex-row items-center">
             {match.is_public && (
               <View className="bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded-full mr-2">
@@ -378,14 +453,14 @@ export default function CleanMatchHistory() {
           <View className="flex-1">
             <View className="flex-row items-center mb-2">
               {match.player1 && (
-                <Avatar 
+                <Avatar
                   user={match.player1}
                   size="sm"
                   isCurrentUser={match.player1_id === session?.user?.id}
                 />
               )}
               {match.player2 && (
-                <Avatar 
+                <Avatar
                   user={match.player2}
                   size="sm"
                   isCurrentUser={match.player2_id === session?.user?.id}
@@ -395,10 +470,11 @@ export default function CleanMatchHistory() {
             </View>
             <View>
               <Text className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                {match.isTeam1 ? 'Your Team' : 'Opponents'}
+                {match.isTeam1 ? "Your Team" : "Opponents"}
               </Text>
               <Text className="text-xs text-gray-500 dark:text-gray-400">
-                {match.player1?.full_name || 'Player 1'} & {match.player2?.full_name || 'Player 2'}
+                {match.player1?.full_name || "Player 1"} &{" "}
+                {match.player2?.full_name || "Player 2"}
               </Text>
             </View>
           </View>
@@ -407,10 +483,12 @@ export default function CleanMatchHistory() {
           <View className="items-center px-4">
             {match.setScores ? (
               <View className="items-center">
-                <Text className={`text-lg font-bold ${
-                  match.userWon ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {match.userWon ? 'W' : 'L'}
+                <Text
+                  className={`text-lg font-bold ${
+                    match.userWon ? "text-green-600" : "text-red-600"
+                  }`}
+                >
+                  {match.userWon ? "W" : "L"}
                 </Text>
                 <Text className="text-xs text-gray-500 dark:text-gray-400">
                   {match.setScores}
@@ -425,7 +503,7 @@ export default function CleanMatchHistory() {
           <View className="flex-1 items-end">
             <View className="flex-row items-center mb-2 justify-end">
               {match.player4 && (
-                <Avatar 
+                <Avatar
                   user={match.player4}
                   size="sm"
                   isCurrentUser={match.player4_id === session?.user?.id}
@@ -433,7 +511,7 @@ export default function CleanMatchHistory() {
                 />
               )}
               {match.player3 && (
-                <Avatar 
+                <Avatar
                   user={match.player3}
                   size="sm"
                   isCurrentUser={match.player3_id === session?.user?.id}
@@ -442,10 +520,11 @@ export default function CleanMatchHistory() {
             </View>
             <View className="items-end">
               <Text className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                {!match.isTeam1 ? 'Your Team' : 'Opponents'}
+                {!match.isTeam1 ? "Your Team" : "Opponents"}
               </Text>
               <Text className="text-xs text-gray-500 dark:text-gray-400 text-right">
-                {match.player3?.full_name || 'Player 3'} & {match.player4?.full_name || 'Player 4'}
+                {match.player3?.full_name || "Player 3"} &{" "}
+                {match.player4?.full_name || "Player 4"}
               </Text>
             </View>
           </View>
@@ -453,13 +532,21 @@ export default function CleanMatchHistory() {
 
         {/* Status */}
         {(match.needsScores || match.isFuture) && (
-          <View className={`mt-3 p-2 rounded-lg ${
-            match.needsScores ? 'bg-orange-50 dark:bg-orange-900/20' : 'bg-blue-50 dark:bg-blue-900/20'
-          }`}>
-            <Text className={`text-xs font-medium ${
-              match.needsScores ? 'text-orange-700 dark:text-orange-300' : 'text-blue-700 dark:text-blue-300'
-            }`}>
-              {match.needsScores ? 'Needs scores' : 'Upcoming match'}
+          <View
+            className={`mt-3 p-2 rounded-lg ${
+              match.needsScores
+                ? "bg-orange-50 dark:bg-orange-900/20"
+                : "bg-blue-50 dark:bg-blue-900/20"
+            }`}
+          >
+            <Text
+              className={`text-xs font-medium ${
+                match.needsScores
+                  ? "text-orange-700 dark:text-orange-300"
+                  : "text-blue-700 dark:text-blue-300"
+              }`}
+            >
+              {match.needsScores ? "Needs scores" : "Upcoming match"}
             </Text>
           </View>
         )}
@@ -476,13 +563,16 @@ export default function CleanMatchHistory() {
         No matches found
       </Text>
       <Text className="text-gray-500 dark:text-gray-400 text-center mb-6">
-        {filter === 'upcoming' ? 'No upcoming matches scheduled' :
-         filter === 'completed' ? 'No completed matches yet' :
-         filter === 'attention' ? 'All matches are up to date' :
-         'Start playing to see your match history'}
+        {filter === "upcoming"
+          ? "No upcoming matches scheduled"
+          : filter === "completed"
+            ? "No completed matches yet"
+            : filter === "attention"
+              ? "All matches are up to date"
+              : "Start playing to see your match history"}
       </Text>
       <Button
-        onPress={() => router.push('/(protected)/(screens)/create-match')}
+        onPress={() => router.push("/(protected)/(screens)/create-match")}
         className="bg-blue-500 hover:bg-blue-600"
       >
         <Text className="text-white font-medium">Create Match</Text>
@@ -495,7 +585,9 @@ export default function CleanMatchHistory() {
       <SafeAreaView className="flex-1 bg-backround dark:bg-gray-900">
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#3B82F6" />
-          <Text className="mt-4 text-gray-500 dark:text-gray-400">Loading matches...</Text>
+          <Text className="mt-4 text-gray-500 dark:text-gray-400">
+            Loading matches...
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -504,9 +596,9 @@ export default function CleanMatchHistory() {
   const filteredMatches = getFilteredMatches();
   const stats = {
     all: matches.length,
-    upcoming: matches.filter(m => m.isFuture).length,
-    completed: matches.filter(m => m.isCompleted).length,
-    attention: matches.filter(m => m.needsScores).length,
+    upcoming: matches.filter((m) => m.isFuture).length,
+    completed: matches.filter((m) => m.isCompleted).length,
+    attention: matches.filter((m) => m.needsScores).length,
   };
 
   return (
@@ -521,73 +613,77 @@ export default function CleanMatchHistory() {
             Match History
           </Text>
         </View>
-        
 
         {/* Filters */}
-        <ScrollView 
-          horizontal 
+        <ScrollView
+          horizontal
           showsHorizontalScrollIndicator={false}
           className="flex-row"
         >
-          {(['all', 'upcoming', 'completed', 'attention'] as FilterType[]).map((filterType) => {
-            const count = stats[filterType];
-            const isActive = filter === filterType;
-            
-            return (
-              <TouchableOpacity
-                key={filterType}
-                className={`mr-3 px-4 py-2 rounded-xl ${
-                  isActive 
-                    ? 'bg-blue-500' 
-                    : 'bg-gray-100 dark:bg-gray-700'
-                }`}
-                onPress={() => setFilter(filterType)}
-              >
-                <View className="flex-row items-center">
-                  <Text className={`font-medium capitalize ${
-                    isActive 
-                      ? 'text-white' 
-                      : 'text-gray-700 dark:text-gray-300'
-                  }`}>
-                    {filterType === 'attention' ? 'Needs Attention' : filterType}
-                  </Text>
-                  {count > 0 && (
-                    <View className={`ml-2 px-2 py-0.5 rounded-full ${
-                      isActive 
-                        ? 'bg-card' 
-                        : 'bg-blue-500'
-                    }`}>
-                      <Text className={`text-xs font-bold ${
-                        isActive ? 'text-white' : 'text-white'
-                      }`}>
-                        {count}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
+          {(["all", "upcoming", "completed", "attention"] as FilterType[]).map(
+            (filterType) => {
+              const count = stats[filterType];
+              const isActive = filter === filterType;
+
+              return (
+                <TouchableOpacity
+                  key={filterType}
+                  className={`mr-3 px-4 py-2 rounded-xl ${
+                    isActive ? "bg-blue-500" : "bg-gray-100 dark:bg-gray-700"
+                  }`}
+                  onPress={() => setFilter(filterType)}
+                >
+                  <View className="flex-row items-center">
+                    <Text
+                      className={`font-medium capitalize ${
+                        isActive
+                          ? "text-white"
+                          : "text-gray-700 dark:text-gray-300"
+                      }`}
+                    >
+                      {filterType === "attention"
+                        ? "Needs Attention"
+                        : filterType}
+                    </Text>
+                    {count > 0 && (
+                      <View
+                        className={`ml-2 px-2 py-0.5 rounded-full ${
+                          isActive ? "bg-card" : "bg-blue-500"
+                        }`}
+                      >
+                        <Text
+                          className={`text-xs font-bold ${
+                            isActive ? "text-white" : "text-white"
+                          }`}
+                        >
+                          {count}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            },
+          )}
         </ScrollView>
       </View>
-      
+
       {/* Content */}
-      <ScrollView 
+      <ScrollView
         className="flex-1"
         contentContainerStyle={{ padding: 16 }}
         refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
+          <RefreshControl
+            refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor="#3B82F6"
           />
         }
         showsVerticalScrollIndicator={false}
       >
-        {filteredMatches.length > 0 
+        {filteredMatches.length > 0
           ? filteredMatches.map(renderMatchCard)
-          : renderEmptyState()
-        }
+          : renderEmptyState()}
       </ScrollView>
     </SafeAreaView>
   );

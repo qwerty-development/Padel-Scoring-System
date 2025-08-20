@@ -25,10 +25,10 @@ import { FriendRequestsModal } from "@/components/friends/FriendRequestModal";
 import { Friend, FriendRequest } from "@/types";
 
 // NOTIFICATION INTEGRATION: Import notification helpers
-import { NotificationHelpers } from '@/services/notificationHelpers';
+import { NotificationHelpers } from "@/services/notificationHelpers";
 
 // Get screen dimensions for layout calculations
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // Match status enum for consistency with the rest of the app
 export enum MatchStatus {
@@ -41,9 +41,9 @@ export enum MatchStatus {
 
 export default function FriendsScreen() {
   const { tab } = useLocalSearchParams<{ tab?: string }>();
-const [activeTab, setActiveTab] = useState<"friends" | "leaderboard">(
-  tab === "leaderboard" ? "leaderboard" : "friends"
-);
+  const [activeTab, setActiveTab] = useState<"friends" | "leaderboard">(
+    tab === "leaderboard" ? "leaderboard" : "friends",
+  );
 
   const [friends, setFriends] = useState<Friend[]>([]);
   const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
@@ -53,15 +53,17 @@ const [activeTab, setActiveTab] = useState<"friends" | "leaderboard">(
   const [expandedFriend, setExpandedFriend] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   // Make sure to initialize this to false (it's already there)
-const [showRequestsModal, setShowRequestsModal] = useState(false);
+  const [showRequestsModal, setShowRequestsModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   // Make sure to initialize this to false (it's already there)
-  const [friendActivity, setFriendActivity] = useState<{[key: string]: {
-    lastMatch: string | null;
-    scheduledMatch: string | null;
-    matchCount: number;
-  }}>({});
+  const [friendActivity, setFriendActivity] = useState<{
+    [key: string]: {
+      lastMatch: string | null;
+      scheduledMatch: string | null;
+      matchCount: number;
+    };
+  }>({});
   const scrollViewRef = useRef<ScrollView>(null);
   const sectionRefs = useRef<{ [key: string]: any }>({});
 
@@ -81,7 +83,7 @@ const [showRequestsModal, setShowRequestsModal] = useState(false);
       acc[firstLetter].push(friend);
       return acc;
     },
-    {}
+    {},
   );
 
   // Get all available letters for the alphabet navigation
@@ -107,8 +109,8 @@ const [showRequestsModal, setShowRequestsModal] = useState(false);
       const filtered = letterFriends.filter(
         (friend) =>
           (friend.full_name?.toLowerCase() || "").includes(
-            searchQuery.toLowerCase()
-          ) || friend.email.toLowerCase().includes(searchQuery.toLowerCase())
+            searchQuery.toLowerCase(),
+          ) || friend.email.toLowerCase().includes(searchQuery.toLowerCase()),
       );
 
       if (filtered.length > 0) {
@@ -117,7 +119,7 @@ const [showRequestsModal, setShowRequestsModal] = useState(false);
 
       return acc;
     },
-    {}
+    {},
   );
 
   useEffect(() => {
@@ -145,7 +147,7 @@ const [showRequestsModal, setShowRequestsModal] = useState(false);
       const { data, error } = await supabase
         .from("profiles")
         .select(
-          "id, email, full_name, age, preferred_hand, court_playing_side, glicko_rating, avatar_url"
+          "id, email, full_name, age, preferred_hand, court_playing_side, glicko_rating, avatar_url",
         )
         .in("id", profile.friends_list);
 
@@ -167,7 +169,7 @@ const [showRequestsModal, setShowRequestsModal] = useState(false);
           *,
           from_user:profiles!from_user_id(id, full_name, email, avatar_url),
           to_user:profiles!to_user_id(id, full_name, email, avatar_url)
-        `
+        `,
         )
         .eq("to_user_id", session?.user?.id)
         .eq("status", "pending")
@@ -183,7 +185,7 @@ const [showRequestsModal, setShowRequestsModal] = useState(false);
   const fetchSentRequests = async () => {
     try {
       if (!session?.user?.id) return;
-      
+
       const { data, error } = await supabase
         .from("friend_requests")
         .select(
@@ -191,7 +193,7 @@ const [showRequestsModal, setShowRequestsModal] = useState(false);
           *,
           from_user:profiles!from_user_id(id, full_name, email, avatar_url),
           to_user:profiles!to_user_id(id, full_name, email, avatar_url)
-        `
+        `,
         )
         .eq("from_user_id", session?.user?.id)
         .eq("status", "pending")
@@ -207,64 +209,70 @@ const [showRequestsModal, setShowRequestsModal] = useState(false);
   const fetchFriendActivity = async () => {
     try {
       if (!session?.user?.id) return;
-      
+
       // Get all friend IDs
-      const friendIds = friends.map(friend => friend.id);
+      const friendIds = friends.map((friend) => friend.id);
       if (friendIds.length === 0) return;
-      
+
       // Query matches where current user and any friend participated
       const { data, error } = await supabase
-        .from('matches')
-        .select('id, player1_id, player2_id, player3_id, player4_id, start_time, status')
-        .or(
-          `and(player1_id.eq.${session.user.id},or(${friendIds.map(id => `player2_id.eq.${id},player3_id.eq.${id},player4_id.eq.${id}`).join(',')})),` +
-          `and(player2_id.eq.${session.user.id},or(${friendIds.map(id => `player1_id.eq.${id},player3_id.eq.${id},player4_id.eq.${id}`).join(',')})),` +
-          `and(player3_id.eq.${session.user.id},or(${friendIds.map(id => `player1_id.eq.${id},player2_id.eq.${id},player4_id.eq.${id}`).join(',')})),` +
-          `and(player4_id.eq.${session.user.id},or(${friendIds.map(id => `player1_id.eq.${id},player2_id.eq.${id},player3_id.eq.${id}`).join(',')}))`
+        .from("matches")
+        .select(
+          "id, player1_id, player2_id, player3_id, player4_id, start_time, status",
         )
-        .order('start_time', { ascending: false });
-      
+        .or(
+          `and(player1_id.eq.${session.user.id},or(${friendIds.map((id) => `player2_id.eq.${id},player3_id.eq.${id},player4_id.eq.${id}`).join(",")})),` +
+            `and(player2_id.eq.${session.user.id},or(${friendIds.map((id) => `player1_id.eq.${id},player3_id.eq.${id},player4_id.eq.${id}`).join(",")})),` +
+            `and(player3_id.eq.${session.user.id},or(${friendIds.map((id) => `player1_id.eq.${id},player2_id.eq.${id},player4_id.eq.${id}`).join(",")})),` +
+            `and(player4_id.eq.${session.user.id},or(${friendIds.map((id) => `player1_id.eq.${id},player2_id.eq.${id},player3_id.eq.${id}`).join(",")}))`,
+        )
+        .order("start_time", { ascending: false });
+
       if (error) throw error;
 
       // Process match data to extract friend activity
-      const activityData: {[key: string]: any} = {};
+      const activityData: { [key: string]: any } = {};
       const now = new Date();
-      
+
       // Initialize activity data for all friends
-      friendIds.forEach(id => {
+      friendIds.forEach((id) => {
         activityData[id] = {
           lastMatch: null,
           scheduledMatch: null,
-          matchCount: 0
+          matchCount: 0,
         };
       });
-      
+
       // Process each match
-      data?.forEach(match => {
+      data?.forEach((match) => {
         // Find which friend was in this match
-        const matchFriendIds = [match.player1_id, match.player2_id, match.player3_id, match.player4_id]
-          .filter(id => id !== session.user.id && friendIds.includes(id));
-          
-        matchFriendIds.forEach(friendId => {
+        const matchFriendIds = [
+          match.player1_id,
+          match.player2_id,
+          match.player3_id,
+          match.player4_id,
+        ].filter((id) => id !== session.user.id && friendIds.includes(id));
+
+        matchFriendIds.forEach((friendId) => {
           if (!friendId) return;
-          
+
           // Increment match count
           activityData[friendId].matchCount++;
-          
+
           // Check if this is a scheduled match (in future)
           const matchDate = new Date(match.start_time);
           if (matchDate > now && match.status === MatchStatus.PENDING) {
             if (!activityData[friendId].scheduledMatch) {
               activityData[friendId].scheduledMatch = match.id;
             }
-          } 
+          }
           // Otherwise it's a past match
           else if (!activityData[friendId].lastMatch) {
             activityData[friendId].lastMatch = match.id;
           }
         });
       });
-      
+
       setFriendActivity(activityData);
     } catch (error) {
       console.error("Error fetching friend activity:", error);
@@ -274,7 +282,7 @@ const [showRequestsModal, setShowRequestsModal] = useState(false);
   const onRefresh = () => {
     setRefreshing(true);
     Promise.all([
-      fetchFriends(), 
+      fetchFriends(),
       fetchFriendRequests(),
       fetchSentRequests(),
     ]).finally(() => {
@@ -282,9 +290,9 @@ const [showRequestsModal, setShowRequestsModal] = useState(false);
     });
   };
 
-const handleFriendRequest = async (
+  const handleFriendRequest = async (
     requestId: string,
-    action: "accept" | "deny"
+    action: "accept" | "deny",
   ) => {
     try {
       // Remove the request from the UI immediately
@@ -296,7 +304,9 @@ const handleFriendRequest = async (
           .from("friend_requests")
           .update({ status: "accepted" })
           .eq("id", requestId)
-          .select("*, from_user:profiles!from_user_id(id, full_name, email, avatar_url)")
+          .select(
+            "*, from_user:profiles!from_user_id(id, full_name, email, avatar_url)",
+          )
           .single();
 
         if (error) throw error;
@@ -306,15 +316,15 @@ const handleFriendRequest = async (
           // Get both users' current friends lists
           const [receiverProfile, senderProfile] = await Promise.all([
             supabase
-              .from('profiles')
-              .select('friends_list')
-              .eq('id', profile.id)
+              .from("profiles")
+              .select("friends_list")
+              .eq("id", profile.id)
               .single(),
             supabase
-              .from('profiles')
-              .select('friends_list')
-              .eq('id', data.from_user.id)
-              .single()
+              .from("profiles")
+              .select("friends_list")
+              .eq("id", data.from_user.id)
+              .single(),
           ]);
 
           if (receiverProfile.error || senderProfile.error) {
@@ -327,27 +337,29 @@ const handleFriendRequest = async (
           // Update both users' friends lists in parallel
           await Promise.all([
             // Add sender to receiver's friends list (if not already there)
-            !receiverFriendsList.includes(data.from_user.id) && supabase
-              .from('profiles')
-              .update({
-                friends_list: [...receiverFriendsList, data.from_user.id]
-              })
-              .eq('id', profile.id),
-            
+            !receiverFriendsList.includes(data.from_user.id) &&
+              supabase
+                .from("profiles")
+                .update({
+                  friends_list: [...receiverFriendsList, data.from_user.id],
+                })
+                .eq("id", profile.id),
+
             // Add receiver to sender's friends list (if not already there)
-            !senderFriendsList.includes(profile.id) && supabase
-              .from('profiles')
-              .update({
-                friends_list: [...senderFriendsList, profile.id]
-              })
-              .eq('id', data.from_user.id)
+            !senderFriendsList.includes(profile.id) &&
+              supabase
+                .from("profiles")
+                .update({
+                  friends_list: [...senderFriendsList, profile.id],
+                })
+                .eq("id", data.from_user.id),
           ]);
-          
+
           // Send notification to the original sender
           if (profile.full_name) {
             await NotificationHelpers.sendFriendAcceptedNotification(
               data.from_user.id,
-              profile.full_name
+              profile.full_name,
             );
           }
         }
@@ -381,8 +393,8 @@ const handleFriendRequest = async (
   const handleCancelRequest = async (requestId: string) => {
     try {
       // Remove from UI immediately
-      setSentRequests(prev => prev.filter(req => req.id !== requestId));
-      
+      setSentRequests((prev) => prev.filter((req) => req.id !== requestId));
+
       // Delete the request
       await supabase.from("friend_requests").delete().eq("id", requestId);
     } catch (error) {
@@ -401,18 +413,18 @@ const handleFriendRequest = async (
           width: number,
           height: number,
           px: number,
-          py: number
+          py: number,
         ) => {
           scrollViewRef.current?.scrollTo({ y: py, animated: true });
-        }
+        },
       );
     }
   };
 
   const renderTabButton = (
-    tab: "friends" | "leaderboard" | "requests", 
+    tab: "friends" | "leaderboard" | "requests",
     label: string,
-    badge?: number
+    badge?: number,
   ) => (
     <TouchableOpacity
       className={`flex-1 py-3 ${
@@ -432,9 +444,7 @@ const handleFriendRequest = async (
         </Text>
         {badge && badge > 0 && (
           <View className="ml-1 bg-red-500 rounded-full w-5 h-5 items-center justify-center">
-            <Text className="text-white text-xs font-bold">
-              {badge}
-            </Text>
+            <Text className="text-white text-xs font-bold">{badge}</Text>
           </View>
         )}
       </View>
@@ -486,14 +496,14 @@ const handleFriendRequest = async (
             activity={friendActivity[friend.id]}
             onCreateMatch={() => {
               router.push({
-                pathname: '/(protected)/(screens)/create-match',
-                params: { friendId: friend.id }
+                pathname: "/(protected)/(screens)/create-match",
+                params: { friendId: friend.id },
               });
             }}
             onViewHistory={() => {
               router.push({
-                pathname: '/(protected)/(screens)/match-history',
-                params: { friendId: friend.id }
+                pathname: "/(protected)/(screens)/match-history",
+                params: { friendId: friend.id },
               });
             }}
           />
@@ -504,16 +514,18 @@ const handleFriendRequest = async (
 
   const renderAlphabetSidebar = () => {
     if (availableLetters.length <= 1) return null;
-    
+
     return (
       <View className="absolute right-1 top-1/2 -translate-y-1/2 bg-card/80 rounded-lg py-1 px-0.5">
-        {availableLetters.map(letter => (
+        {availableLetters.map((letter) => (
           <TouchableOpacity
             key={letter}
             onPress={() => handleLetterSelect(letter)}
-            className={`py-0.5 px-2 ${activeLetter === letter ? 'bg-primary rounded-md' : ''}`}
+            className={`py-0.5 px-2 ${activeLetter === letter ? "bg-primary rounded-md" : ""}`}
           >
-            <Text className={`text-xs font-bold ${activeLetter === letter ? 'text-primary-foreground' : 'text-muted-foreground'}`}>
+            <Text
+              className={`text-xs font-bold ${activeLetter === letter ? "text-primary-foreground" : "text-muted-foreground"}`}
+            >
               {letter}
             </Text>
           </TouchableOpacity>
@@ -533,10 +545,7 @@ const handleFriendRequest = async (
           <Text className="text-muted-foreground text-center mb-4">
             You don't have any pending friend requests
           </Text>
-          <Button
-            variant="default"
-            onPress={() => setShowAddModal(true)}
-          >
+          <Button variant="default" onPress={() => setShowAddModal(true)}>
             <Ionicons name="person-add" size={18} style={{ marginRight: 8 }} />
             <Text>Add Friend</Text>
           </Button>
@@ -549,7 +558,7 @@ const handleFriendRequest = async (
         {friendRequests.length > 0 && (
           <>
             <H3 className="mb-3">Incoming Requests</H3>
-            {friendRequests.map(request => (
+            {friendRequests.map((request) => (
               <View key={request.id} className="bg-card rounded-lg mb-3 p-4">
                 <View className="flex-row items-center">
                   <View className="w-12 h-12 rounded-full bg-primary items-center justify-center mr-4">
@@ -593,7 +602,7 @@ const handleFriendRequest = async (
         {sentRequests.length > 0 && (
           <>
             <H3 className="mb-3 mt-6">Sent Requests</H3>
-            {sentRequests.map(request => (
+            {sentRequests.map((request) => (
               <View key={request.id} className="bg-card rounded-lg mb-3 p-4">
                 <View className="flex-row items-center">
                   <View className="w-12 h-12 rounded-full bg-gray-200 items-center justify-center mr-4">
@@ -608,7 +617,8 @@ const handleFriendRequest = async (
                       {request.to_user.full_name || request.to_user.email}
                     </Text>
                     <Text className="text-sm text-muted-foreground">
-                      Sent on {new Date(request.created_at).toLocaleDateString()}
+                      Sent on{" "}
+                      {new Date(request.created_at).toLocaleDateString()}
                     </Text>
                   </View>
                 </View>
@@ -618,7 +628,11 @@ const handleFriendRequest = async (
                   variant="outline"
                   onPress={() => handleCancelRequest(request.id)}
                 >
-                  <Ionicons name="close-circle-outline" size={18} style={{ marginRight: 8 }} />
+                  <Ionicons
+                    name="close-circle-outline"
+                    size={18}
+                    style={{ marginRight: 8 }}
+                  />
                   <Text>Cancel Request</Text>
                 </Button>
               </View>
@@ -641,10 +655,10 @@ const handleFriendRequest = async (
     <SafeAreaView className="flex-1 bg-background">
       <View className="flex-1">
         {/* Tab navigation */}
-<View className="flex-row">
-  {renderTabButton("friends", "Friends")}
-  {renderTabButton("leaderboard", "Leaderboard")}
-</View>
+        <View className="flex-row">
+          {renderTabButton("friends", "Friends")}
+          {renderTabButton("leaderboard", "Leaderboard")}
+        </View>
 
         {/* Search bar and action buttons - only show in Friends tab */}
         {activeTab === "friends" && (
@@ -659,22 +673,22 @@ const handleFriendRequest = async (
             <View className="w-1/4">
               <View className="flex-row px-4 gap-3">
                 {/* Friend Requests Button */}
-{/* Friend Requests Button */}
-<TouchableOpacity 
-  className="w-10 h-10 rounded-full items-center justify-center"
-  onPress={() => setShowRequestsModal(true)}
->
-  <View className="relative">
-    <Ionicons name="mail-outline" size={24} color="#555" />
-    {(friendRequests.length + sentRequests.length) > 0 && (
-      <View className="absolute -top-1 -right-1 bg-red-500 rounded-full w-5 h-5 items-center justify-center">
-        <Text className="text-white text-xs font-bold">
-          {friendRequests.length + sentRequests.length}
-        </Text>
-      </View>
-    )}
-  </View>
-</TouchableOpacity>
+                {/* Friend Requests Button */}
+                <TouchableOpacity
+                  className="w-10 h-10 rounded-full items-center justify-center"
+                  onPress={() => setShowRequestsModal(true)}
+                >
+                  <View className="relative">
+                    <Ionicons name="mail-outline" size={24} color="#555" />
+                    {friendRequests.length + sentRequests.length > 0 && (
+                      <View className="absolute -top-1 -right-1 bg-red-500 rounded-full w-5 h-5 items-center justify-center">
+                        <Text className="text-white text-xs font-bold">
+                          {friendRequests.length + sentRequests.length}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </TouchableOpacity>
 
                 {/* Add Friend Button */}
                 <AddFriendButton onPress={() => setShowAddModal(true)} />
@@ -711,7 +725,7 @@ const handleFriendRequest = async (
             {/* Add bottom padding */}
             <View className="h-6" />
           </ScrollView>
-          
+
           {/* Alphabet quick-scroll sidebar - only show in friends tab when we have multiple letter groups */}
           {activeTab === "friends" && renderAlphabetSidebar()}
         </View>
@@ -727,7 +741,7 @@ const handleFriendRequest = async (
           if (profile?.full_name) {
             await NotificationHelpers.sendFriendRequestNotification(
               toUserId,
-              profile.full_name
+              profile.full_name,
             );
           }
           fetchSentRequests();

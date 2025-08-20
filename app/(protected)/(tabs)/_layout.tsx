@@ -1,12 +1,13 @@
 import React from "react";
-import { Tabs } from "expo-router";
+import { Tabs, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { View, TouchableOpacity } from "react-native";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { colors } from "@/constants/colors";
-import { FEATURE_FLAGS } from "@/constants/features";
 
 export default function TabsLayout() {
   const { colorScheme } = useColorScheme();
+  const router = useRouter();
 
   return (
     <Tabs
@@ -17,6 +18,9 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: colors[colorScheme].card,
           borderTopColor: colors[colorScheme].border,
+          height: 90,
+          paddingBottom: 20,
+          paddingTop: 10,
         },
       }}
     >
@@ -29,25 +33,44 @@ export default function TabsLayout() {
           ),
         }}
       />
-      {FEATURE_FLAGS.PUBLIC_MATCHES_ENABLED ? (
-        <Tabs.Screen
-          name="browse"
-          options={{
-            title: "Browse",
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="search" size={size} color={color} />
-            ),
-          }}
-        />
-      ) : (
-        /* Override the auto-generated "browse" screen to remove it from the tab bar */
-        <Tabs.Screen
-          name="browse"
-          options={{
-            href: null, // disable deep-linking
-          }}
-        />
-      )}
+
+      {/* Create Match - Custom elevated button */}
+      <Tabs.Screen
+        name="create-match"
+        options={{
+          title: "",
+          tabBarIcon: ({ focused }) => (
+            <View
+              className="items-center justify-center -mt-6"
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 28,
+                backgroundColor: "#CCFF00", // tennis ball yellow
+                borderWidth: 3,
+                borderColor: "#ffffff",
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 6,
+                elevation: 8,
+              }}
+            >
+              <Ionicons name="add" size={28} color="#000000" />
+            </View>
+          ),
+          tabBarButton: (props) => (
+            <TouchableOpacity
+              onPress={() => router.push("/(protected)/(screens)/create-match")}
+              style={props.style}
+              activeOpacity={0.8}
+            >
+              {props.children}
+            </TouchableOpacity>
+          ),
+        }}
+      />
+
       <Tabs.Screen
         name="friends"
         options={{
@@ -57,13 +80,18 @@ export default function TabsLayout() {
           ),
         }}
       />
+
+      {/* Hide other tabs but keep files accessible via direct navigation */}
+      <Tabs.Screen
+        name="browse"
+        options={{
+          href: null, // disable deep-linking
+        }}
+      />
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Profile",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
-          ),
+          href: null, // disable deep-linking - accessible from header avatar
         }}
       />
     </Tabs>

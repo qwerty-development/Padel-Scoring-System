@@ -1,10 +1,16 @@
 import React, { useState, useEffect } from "react";
-import { ActivityIndicator, View, Alert, TouchableOpacity, Platform } from "react-native";
+import {
+  ActivityIndicator,
+  View,
+  Alert,
+  TouchableOpacity,
+  Platform,
+} from "react-native";
 import { router } from "expo-router";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import * as AppleAuthentication from 'expo-apple-authentication';
+import * as AppleAuthentication from "expo-apple-authentication";
 import { Ionicons } from "@expo/vector-icons";
 
 import { SafeAreaView } from "@/components/safe-area-view";
@@ -53,7 +59,7 @@ const verificationFormSchema = z.object({
 });
 
 export default function SignUp() {
-  const { signUp, verifyOtp, appleSignIn, googleSignIn } = useAuth(); 
+  const { signUp, verifyOtp, appleSignIn, googleSignIn } = useAuth();
   const [pendingVerification, setPendingVerification] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState("");
   const [generalError, setGeneralError] = useState("");
@@ -66,7 +72,7 @@ export default function SignUp() {
   // Check if Apple Authentication is available
   useEffect(() => {
     const checkAppleAuthAvailability = async () => {
-      if (Platform.OS === 'ios') {
+      if (Platform.OS === "ios") {
         try {
           const isAvailable = await AppleAuthentication.isAvailableAsync();
           setAppleAuthAvailable(isAvailable);
@@ -101,16 +107,16 @@ export default function SignUp() {
   const handleAppleSignIn = async () => {
     setGeneralError("");
     setIsAppleLoading(true);
-    
+
     try {
       const { error, needsProfileUpdate } = await appleSignIn();
-      
+
       if (error) {
-        if (error.message !== 'User canceled Apple sign-in') {
+        if (error.message !== "User canceled Apple sign-in") {
           setGeneralError(error.message || "Apple sign in failed.");
         }
       }
-      
+
       // Navigation and profile completion is handled by auth provider
     } catch (err: any) {
       console.error("Apple sign in error:", err);
@@ -124,16 +130,16 @@ export default function SignUp() {
   const handleGoogleSignIn = async () => {
     setGeneralError("");
     setIsGoogleLoading(true);
-    
+
     try {
       const { error, needsProfileUpdate } = await googleSignIn();
-      
+
       if (error) {
-        if (error.message !== 'User canceled Google sign-in') {
+        if (error.message !== "User canceled Google sign-in") {
           setGeneralError(error.message || "Google sign in failed.");
         }
       }
-      
+
       // Navigation and profile completion is handled by auth provider
     } catch (err: any) {
       console.error("Google sign in error:", err);
@@ -149,7 +155,7 @@ export default function SignUp() {
       setGeneralError("");
       const { error, needsEmailVerification, email } = await signUp(
         data.email,
-        data.password
+        data.password,
       );
 
       if (error) {
@@ -177,7 +183,7 @@ export default function SignUp() {
         Alert.alert(
           "Verification Code Sent",
           "Please check your email for a verification code to complete your registration.",
-          [{ text: "OK" }]
+          [{ text: "OK" }],
         );
       } else {
         // If email verification not required, registration is complete
@@ -191,7 +197,9 @@ export default function SignUp() {
   }
 
   // Handle verification form submission
-  async function onVerificationSubmit(data: z.infer<typeof verificationFormSchema>) {
+  async function onVerificationSubmit(
+    data: z.infer<typeof verificationFormSchema>,
+  ) {
     try {
       setGeneralError("");
       const { error } = await verifyOtp(verificationEmail, data.code);
@@ -199,24 +207,23 @@ export default function SignUp() {
       if (error) {
         verificationForm.setError("code", {
           type: "manual",
-          message: error.message || "Invalid verification code. Please try again.",
+          message:
+            error.message || "Invalid verification code. Please try again.",
         });
         return;
       }
 
-      Alert.alert(
-        "Success",
-        "Your account has been verified successfully.",
-        [
-          {
-            text: "OK",
-            onPress: () => router.replace("/(protected)/(tabs)"),
-          },
-        ]
-      );
+      Alert.alert("Success", "Your account has been verified successfully.", [
+        {
+          text: "OK",
+          onPress: () => router.replace("/(protected)/(tabs)"),
+        },
+      ]);
     } catch (error: any) {
       console.error(error.message);
-      setGeneralError(error.message || "Verification failed. Please try again.");
+      setGeneralError(
+        error.message || "Verification failed. Please try again.",
+      );
     }
   }
 
@@ -231,8 +238,8 @@ export default function SignUp() {
           // Verification Form
           <>
             <Text className="text-muted-foreground mb-4">
-              We've sent a verification code to {verificationEmail}.
-              Please enter it below to complete your registration.
+              We've sent a verification code to {verificationEmail}. Please
+              enter it below to complete your registration.
             </Text>
             <Form {...verificationForm}>
               <View className="gap-4">
@@ -332,7 +339,7 @@ export default function SignUp() {
             {generalError ? (
               <Text className="text-destructive">{generalError}</Text>
             ) : null}
-            
+
             <Button
               size="default"
               variant="default"
@@ -351,28 +358,41 @@ export default function SignUp() {
             <View className="items-center mt-6">
               <View className="flex-row items-center w-full mb-4">
                 <View className="flex-1 h-0.5 bg-muted" />
-                <Text className="mx-4 text-muted-foreground">or continue with</Text>
+                <Text className="mx-4 text-muted-foreground">
+                  or continue with
+                </Text>
                 <View className="flex-1 h-0.5 bg-muted" />
               </View>
-              
+
               <View className="flex-row gap-4">
                 {/* Apple Sign In Button */}
-                {(Platform.OS === 'ios' && appleAuthAvailable) ? (
-                  <View style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: 28,
-                    overflow: 'hidden',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    borderWidth: 1,
-                    borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-                  }}>
+                {Platform.OS === "ios" && appleAuthAvailable ? (
+                  <View
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: 28,
+                      overflow: "hidden",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      borderWidth: 1,
+                      borderColor: isDark
+                        ? "rgba(255,255,255,0.1)"
+                        : "rgba(0,0,0,0.1)",
+                    }}
+                  >
                     <AppleAuthentication.AppleAuthenticationButton
-                      buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP}
-                      buttonStyle={isDark 
-                        ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
-                        : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                      buttonType={
+                        AppleAuthentication.AppleAuthenticationButtonType
+                          .SIGN_UP
+                      }
+                      buttonStyle={
+                        isDark
+                          ? AppleAuthentication.AppleAuthenticationButtonStyle
+                              .WHITE
+                          : AppleAuthentication.AppleAuthenticationButtonStyle
+                              .BLACK
+                      }
                       cornerRadius={28}
                       style={{
                         width: 56,
@@ -381,15 +401,17 @@ export default function SignUp() {
                       onPress={handleAppleSignIn}
                     />
                     {isAppleLoading && (
-                      <View style={{
-                        position: 'absolute',
-                        width: '100%',
-                        height: '100%',
-                        backgroundColor: 'rgba(0,0,0,0.4)',
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        borderRadius: 28,
-                      }}>
+                      <View
+                        style={{
+                          position: "absolute",
+                          width: "100%",
+                          height: "100%",
+                          backgroundColor: "rgba(0,0,0,0.4)",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          borderRadius: 28,
+                        }}
+                      >
                         <ActivityIndicator size="small" color="#fff" />
                       </View>
                     )}
@@ -402,22 +424,31 @@ export default function SignUp() {
                       width: 56,
                       height: 56,
                       borderRadius: 28,
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      backgroundColor: isDark ? '#1F2937' : '#F3F4F6',
+                      justifyContent: "center",
+                      alignItems: "center",
+                      backgroundColor: isDark ? "#1F2937" : "#F3F4F6",
                       borderWidth: 1,
-                      borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+                      borderColor: isDark
+                        ? "rgba(255,255,255,0.1)"
+                        : "rgba(0,0,0,0.1)",
                       opacity: appleAuthAvailable ? 1 : 0.5,
                     }}
                   >
                     {isAppleLoading ? (
-                      <ActivityIndicator size="small" color={isDark ? '#fff' : '#000'} />
+                      <ActivityIndicator
+                        size="small"
+                        color={isDark ? "#fff" : "#000"}
+                      />
                     ) : (
-                      <Ionicons name="logo-apple" size={24} color={isDark ? '#fff' : '#000'} />
+                      <Ionicons
+                        name="logo-apple"
+                        size={24}
+                        color={isDark ? "#fff" : "#000"}
+                      />
                     )}
                   </TouchableOpacity>
                 )}
-                
+
                 {/* Google Sign In Button */}
                 <TouchableOpacity
                   onPress={handleGoogleSignIn}
@@ -426,24 +457,35 @@ export default function SignUp() {
                     width: 56,
                     height: 56,
                     borderRadius: 28,
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    backgroundColor: isDark ? '#1F2937' : '#F3F4F6',
+                    justifyContent: "center",
+                    alignItems: "center",
+                    backgroundColor: isDark ? "#1F2937" : "#F3F4F6",
                     borderWidth: 1,
-                    borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+                    borderColor: isDark
+                      ? "rgba(255,255,255,0.1)"
+                      : "rgba(0,0,0,0.1)",
                   }}
                 >
                   {isGoogleLoading ? (
-                    <ActivityIndicator size="small" color={isDark ? '#fff' : '#000'} />
+                    <ActivityIndicator
+                      size="small"
+                      color={isDark ? "#fff" : "#000"}
+                    />
                   ) : (
-                    <Ionicons name="logo-google" size={24} color={isDark ? '#fff' : '#000'} />
+                    <Ionicons
+                      name="logo-google"
+                      size={24}
+                      color={isDark ? "#fff" : "#000"}
+                    />
                   )}
                 </TouchableOpacity>
               </View>
             </View>
 
             <View className="flex-row justify-center mt-4">
-              <Text className="text-muted-foreground">Already have an account? </Text>
+              <Text className="text-muted-foreground">
+                Already have an account?{" "}
+              </Text>
               <TouchableOpacity onPress={() => router.push("/sign-in")}>
                 <Text className="text-primary font-semibold">Sign in</Text>
               </TouchableOpacity>

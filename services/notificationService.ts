@@ -1,8 +1,8 @@
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
-import { supabase } from '@/config/supabase';
+import * as Notifications from "expo-notifications";
+import * as Device from "expo-device";
+import Constants from "expo-constants";
+import { Platform } from "react-native";
+import { supabase } from "@/config/supabase";
 
 // Configure notification handler
 Notifications.setNotificationHandler({
@@ -10,34 +10,40 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
-    shouldShowBanner:true,
-    shouldShowList:true
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
 export interface NotificationData {
-  type: 'friend_request_received' | 'friend_request_accepted' | 
-        'match_invitation' | 'match_confirmation_required' | 
-        'match_score_confirmed' | 'match_score_disputed' | 
-        'match_cancelled' | 'match_starting_soon' | 
-        'public_match_joined' | 'match_edited';  // NEW: Add match_edited type
+  type:
+    | "friend_request_received"
+    | "friend_request_accepted"
+    | "match_invitation"
+    | "match_confirmation_required"
+    | "match_score_confirmed"
+    | "match_score_disputed"
+    | "match_cancelled"
+    | "match_starting_soon"
+    | "public_match_joined"
+    | "match_edited"; // NEW: Add match_edited type
   matchId?: string;
   userId?: string;
-  editedFields?: string[];  // NEW: For match edited notifications
-  editedBy?: string;        // NEW: For match edited notifications
+  editedFields?: string[]; // NEW: For match edited notifications
+  editedBy?: string; // NEW: For match edited notifications
   [key: string]: any;
 }
 
-export type NotificationType = 
-  | 'friend_request_received'
-  | 'friend_request_accepted'
-  | 'match_invitation'
-  | 'match_confirmation_required'
-  | 'match_score_confirmed'
-  | 'match_score_disputed'
-  | 'match_starting_soon'
-  | 'match_cancelled'
-  | 'public_match_joined';
+export type NotificationType =
+  | "friend_request_received"
+  | "friend_request_accepted"
+  | "match_invitation"
+  | "match_confirmation_required"
+  | "match_score_confirmed"
+  | "match_score_disputed"
+  | "match_starting_soon"
+  | "match_cancelled"
+  | "public_match_joined";
 
 export class NotificationService {
   private static instance: NotificationService;
@@ -61,28 +67,29 @@ export class NotificationService {
     try {
       // Check if physical device
       if (!Device.isDevice) {
-        console.log('Must use physical device for Push Notifications');
+        console.log("Must use physical device for Push Notifications");
         return false;
       }
 
       // Request permissions
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      const { status: existingStatus } =
+        await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
 
-      if (existingStatus !== 'granted') {
+      if (existingStatus !== "granted") {
         const { status } = await Notifications.requestPermissionsAsync();
         finalStatus = status;
       }
 
-      if (finalStatus !== 'granted') {
-        console.log('Failed to get push token for push notification!');
+      if (finalStatus !== "granted") {
+        console.log("Failed to get push token for push notification!");
         return false;
       }
 
       // Get Expo push token
       const token = await this.getExpoPushToken();
       if (!token) {
-        console.log('Failed to get Expo push token');
+        console.log("Failed to get Expo push token");
         return false;
       }
 
@@ -96,7 +103,7 @@ export class NotificationService {
 
       return true;
     } catch (error) {
-      console.error('Error initializing notifications:', error);
+      console.error("Error initializing notifications:", error);
       return false;
     }
   }
@@ -108,7 +115,7 @@ export class NotificationService {
     try {
       const projectId = Constants.expoConfig?.extra?.eas?.projectId;
       if (!projectId) {
-        console.error('Project ID not found');
+        console.error("Project ID not found");
         return null;
       }
 
@@ -118,7 +125,7 @@ export class NotificationService {
 
       return token.data;
     } catch (error) {
-      console.error('Error getting push token:', error);
+      console.error("Error getting push token:", error);
       return null;
     }
   }
@@ -126,24 +133,28 @@ export class NotificationService {
   /**
    * Save notification token to database
    */
-  private async saveTokenToDatabase(userId: string, token: string): Promise<void> {
+  private async saveTokenToDatabase(
+    userId: string,
+    token: string,
+  ): Promise<void> {
     try {
-      const deviceType = Platform.OS === 'ios' ? 'ios' : 'android';
+      const deviceType = Platform.OS === "ios" ? "ios" : "android";
 
-      const { error } = await supabase
-        .from('notification_tokens')
-        .upsert({
+      const { error } = await supabase.from("notification_tokens").upsert(
+        {
           user_id: userId,
           token,
           device_type: deviceType,
           updated_at: new Date().toISOString(),
-        }, {
-          onConflict: 'user_id,token',
-        });
+        },
+        {
+          onConflict: "user_id,token",
+        },
+      );
 
       if (error) throw error;
     } catch (error) {
-      console.error('Error saving notification token:', error);
+      console.error("Error saving notification token:", error);
     }
   }
 
@@ -153,38 +164,41 @@ export class NotificationService {
   private setupNotificationListeners(): void {
     // Handle notifications when app is in foreground
     this.notificationListener = Notifications.addNotificationReceivedListener(
-      this.handleNotificationReceived
+      this.handleNotificationReceived,
     );
 
     // Handle notification responses (when user taps on notification)
-    this.responseListener = Notifications.addNotificationResponseReceivedListener(
-      this.handleNotificationResponse
-    );
+    this.responseListener =
+      Notifications.addNotificationResponseReceivedListener(
+        this.handleNotificationResponse,
+      );
   }
 
   /**
    * Handle notification received in foreground
    */
-  private handleNotificationReceived = (notification: Notifications.Notification): void => {
-    console.log('Notification received:', notification);
-    
+  private handleNotificationReceived = (
+    notification: Notifications.Notification,
+  ): void => {
+    console.log("Notification received:", notification);
+
     // You can add custom handling here based on notification type
     const data = notification.request.content.data as NotificationData;
-    
+
     // Emit event or update app state as needed
-    this.emitNotificationEvent('received', data);
+    this.emitNotificationEvent("received", data);
   };
 
   /**
    * Handle notification response (user interaction)
    */
   private handleNotificationResponse = (
-    response: Notifications.NotificationResponse
+    response: Notifications.NotificationResponse,
   ): void => {
-    console.log('Notification response:', response);
-    
+    console.log("Notification response:", response);
+
     const data = response.notification.request.content.data as NotificationData;
-    
+
     // Navigate based on notification type
     this.handleNotificationNavigation(data);
   };
@@ -192,49 +206,49 @@ export class NotificationService {
   /**
    * Handle navigation based on notification type
    */
-private handleNotificationNavigation(data: NotificationData): void {
-  // Import router dynamically to avoid circular dependencies
-  const { router } = require('expo-router');
+  private handleNotificationNavigation(data: NotificationData): void {
+    // Import router dynamically to avoid circular dependencies
+    const { router } = require("expo-router");
 
-  switch (data.type) {
-    case 'friend_request_received':
-    case 'friend_request_accepted':
-      router.push('/(protected)/(tabs)/friends');
-      break;
-      
-    case 'match_invitation':
-    case 'match_confirmation_required':
-    case 'match_score_confirmed':
-    case 'match_score_disputed':
-    case 'match_cancelled':
-    case 'match_edited':  // NEW: Handle match edited notifications
-      if (data.matchId) {
-        router.push({
-          pathname: '/(protected)/(screens)/match-details',
-          params: { id: data.matchId }
-        });
-      }
-      break;
-      
-    case 'match_starting_soon':
-      if (data.matchId) {
-        router.push({
-          pathname: '/(protected)/(screens)/match-details',
-          params: { id: data.matchId }
-        });
-      }
-      break;
-      
-    case 'public_match_joined':
-      if (data.matchId) {
-        router.push({
-          pathname: '/(protected)/(screens)/match-details',
-          params: { id: data.matchId }
-        });
-      }
-      break;
+    switch (data.type) {
+      case "friend_request_received":
+      case "friend_request_accepted":
+        router.push("/(protected)/(tabs)/friends");
+        break;
+
+      case "match_invitation":
+      case "match_confirmation_required":
+      case "match_score_confirmed":
+      case "match_score_disputed":
+      case "match_cancelled":
+      case "match_edited": // NEW: Handle match edited notifications
+        if (data.matchId) {
+          router.push({
+            pathname: "/(protected)/(screens)/match-details",
+            params: { id: data.matchId },
+          });
+        }
+        break;
+
+      case "match_starting_soon":
+        if (data.matchId) {
+          router.push({
+            pathname: "/(protected)/(screens)/match-details",
+            params: { id: data.matchId },
+          });
+        }
+        break;
+
+      case "public_match_joined":
+        if (data.matchId) {
+          router.push({
+            pathname: "/(protected)/(screens)/match-details",
+            params: { id: data.matchId },
+          });
+        }
+        break;
+    }
   }
-}
 
   /**
    * Send local notification (for testing or immediate notifications)
@@ -242,7 +256,7 @@ private handleNotificationNavigation(data: NotificationData): void {
   async sendLocalNotification(
     title: string,
     body: string,
-    data?: NotificationData
+    data?: NotificationData,
   ): Promise<void> {
     await Notifications.scheduleNotificationAsync({
       content: {
@@ -262,7 +276,7 @@ private handleNotificationNavigation(data: NotificationData): void {
     title: string,
     body: string,
     triggerDate: Date,
-    data?: NotificationData
+    data?: NotificationData,
   ): Promise<string> {
     const identifier = await Notifications.scheduleNotificationAsync({
       content: {
@@ -292,16 +306,16 @@ private handleNotificationNavigation(data: NotificationData): void {
   async getNotificationPreferences(userId: string): Promise<any> {
     try {
       const { data, error } = await supabase
-        .from('profiles')
-        .select('notification_preferences')
-        .eq('id', userId)
+        .from("profiles")
+        .select("notification_preferences")
+        .eq("id", userId)
         .single();
 
       if (error) throw error;
 
       return data?.notification_preferences || {};
     } catch (error) {
-      console.error('Error getting notification preferences:', error);
+      console.error("Error getting notification preferences:", error);
       return {};
     }
   }
@@ -311,19 +325,19 @@ private handleNotificationNavigation(data: NotificationData): void {
    */
   async updateNotificationPreferences(
     userId: string,
-    preferences: any
+    preferences: any,
   ): Promise<boolean> {
     try {
       const { error } = await supabase
-        .from('profiles')
+        .from("profiles")
         .update({ notification_preferences: preferences })
-        .eq('id', userId);
+        .eq("id", userId);
 
       if (error) throw error;
 
       return true;
     } catch (error) {
-      console.error('Error updating notification preferences:', error);
+      console.error("Error updating notification preferences:", error);
       return false;
     }
   }
@@ -334,13 +348,13 @@ private handleNotificationNavigation(data: NotificationData): void {
   async markNotificationAsRead(notificationId: string): Promise<void> {
     try {
       const { error } = await supabase
-        .from('notifications')
+        .from("notifications")
         .update({ read: true })
-        .eq('id', notificationId);
+        .eq("id", notificationId);
 
       if (error) throw error;
     } catch (error) {
-      console.error('Error marking notification as read:', error);
+      console.error("Error marking notification as read:", error);
     }
   }
 
@@ -350,16 +364,16 @@ private handleNotificationNavigation(data: NotificationData): void {
   async getUnreadCount(userId: string): Promise<number> {
     try {
       const { count, error } = await supabase
-        .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .eq('read', false);
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("read", false);
 
       if (error) throw error;
 
       return count || 0;
     } catch (error) {
-      console.error('Error getting unread count:', error);
+      console.error("Error getting unread count:", error);
       return 0;
     }
   }
@@ -370,8 +384,10 @@ private handleNotificationNavigation(data: NotificationData): void {
   private emitNotificationEvent(event: string, data: any): void {
     // You can implement a custom event emitter or use a state management solution
     // For now, we'll use a simple approach with a global event
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent(`notification:${event}`, { detail: data }));
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent(`notification:${event}`, { detail: data }),
+      );
     }
   }
 
@@ -395,16 +411,16 @@ private handleNotificationNavigation(data: NotificationData): void {
       if (!this.expoPushToken) return;
 
       const { error } = await supabase
-        .from('notification_tokens')
+        .from("notification_tokens")
         .delete()
-        .eq('user_id', userId)
-        .eq('token', this.expoPushToken);
+        .eq("user_id", userId)
+        .eq("token", this.expoPushToken);
 
       if (error) throw error;
 
       this.expoPushToken = null;
     } catch (error) {
-      console.error('Error removing device token:', error);
+      console.error("Error removing device token:", error);
     }
   }
 }

@@ -1,20 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Modal, 
-  TouchableOpacity, 
-  ScrollView, 
-  TextInput, 
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Modal,
+  TouchableOpacity,
+  ScrollView,
+  TextInput,
   ActivityIndicator,
   Image,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
-import { Friend } from '@/types';
-import { useColorScheme } from '@/lib/useColorScheme';
-import { useAuth } from '@/context/supabase-provider';
+import { Text } from "@/components/ui/text";
+import { Button } from "@/components/ui/button";
+import { Friend } from "@/types";
+import { useColorScheme } from "@/lib/useColorScheme";
+import { useAuth } from "@/context/supabase-provider";
 
 interface PlayerSelectionModalProps {
   visible: boolean;
@@ -29,30 +29,30 @@ interface PlayerSelectionModalProps {
 
 interface UserAvatarProps {
   user: Friend;
-  size?: 'sm' | 'md' | 'lg';
+  size?: "sm" | "md" | "lg";
   teamIndex?: number;
 }
 
-function UserAvatar({ user, size = 'md', teamIndex }: UserAvatarProps) {
+function UserAvatar({ user, size = "md", teamIndex }: UserAvatarProps) {
   const [imageLoadError, setImageLoadError] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
 
   const sizeClasses = {
-    sm: 'w-8 h-8',
-    md: 'w-12 h-12',
-    lg: 'w-16 h-16'
+    sm: "w-8 h-8",
+    md: "w-12 h-12",
+    lg: "w-16 h-16",
   }[size];
 
   const sizeStyle = {
     sm: { width: 32, height: 32, borderRadius: 16 },
     md: { width: 48, height: 48, borderRadius: 24 },
-    lg: { width: 64, height: 64, borderRadius: 32 }
+    lg: { width: 64, height: 64, borderRadius: 32 },
   }[size];
 
   const textSize = {
-    sm: 'text-sm',
-    md: 'text-lg',
-    lg: 'text-xl'
+    sm: "text-sm",
+    md: "text-lg",
+    lg: "text-xl",
   }[size];
 
   // Get the fallback initial
@@ -63,21 +63,23 @@ function UserAvatar({ user, size = 'md', teamIndex }: UserAvatarProps) {
     if (user.email) {
       return user.email.charAt(0).toUpperCase();
     }
-    return '?';
+    return "?";
   };
 
   // Get background color based on team
   const getBgColor = () => {
-    if (teamIndex === 0) return 'bg-primary'; // Team 1 - Blue
-    if (teamIndex === 1 || teamIndex === 2) return 'bg-yellow-500'; // Team 2 - Yellow
-    return 'bg-primary'; // Default
+    if (teamIndex === 0) return "bg-primary"; // Team 1 - Blue
+    if (teamIndex === 1 || teamIndex === 2) return "bg-yellow-500"; // Team 2 - Yellow
+    return "bg-primary"; // Default
   };
 
   const shouldShowImage = user.avatar_url && !imageLoadError;
 
   if (shouldShowImage) {
     return (
-      <View className={`${sizeClasses} rounded-full ${getBgColor()} items-center justify-center overflow-hidden`}>
+      <View
+        className={`${sizeClasses} rounded-full ${getBgColor()} items-center justify-center overflow-hidden`}
+      >
         <Image
           source={{ uri: user.avatar_url }}
           style={sizeStyle}
@@ -91,7 +93,7 @@ function UserAvatar({ user, size = 'md', teamIndex }: UserAvatarProps) {
         />
         {/* Loading state overlay */}
         {imageLoading && (
-          <View 
+          <View
             className={`absolute inset-0 ${getBgColor()} items-center justify-center`}
           >
             <Text className={`${textSize} font-bold text-white`}>
@@ -105,10 +107,10 @@ function UserAvatar({ user, size = 'md', teamIndex }: UserAvatarProps) {
 
   // Fallback to text initial
   return (
-    <View className={`${sizeClasses} rounded-full ${getBgColor()} items-center justify-center`}>
-      <Text className={`${textSize} font-bold text-white`}>
-        {getInitial()}
-      </Text>
+    <View
+      className={`${sizeClasses} rounded-full ${getBgColor()} items-center justify-center`}
+    >
+      <Text className={`${textSize} font-bold text-white`}>{getInitial()}</Text>
     </View>
   );
 }
@@ -121,41 +123,44 @@ export function PlayerSelectionModal({
   onSelectFriends,
   loading,
   maxSelections = 3,
-  isPastMatch = false
+  isPastMatch = false,
 }: PlayerSelectionModalProps) {
   const { colorScheme } = useColorScheme();
   const { session } = useAuth(); // Get current user session
-  const isDark = colorScheme === 'dark';
-  const [searchQuery, setSearchQuery] = useState('');
-  const [localSelectedFriends, setLocalSelectedFriends] = useState<string[]>([]);
+  const isDark = colorScheme === "dark";
+  const [searchQuery, setSearchQuery] = useState("");
+  const [localSelectedFriends, setLocalSelectedFriends] = useState<string[]>(
+    [],
+  );
 
   // Reset local selection when modal opens with new props
   useEffect(() => {
     if (visible) {
       setLocalSelectedFriends([...selectedFriends]);
-      setSearchQuery('');
+      setSearchQuery("");
     }
   }, [visible, selectedFriends]);
 
   // Filter friends based on search query AND exclude current user
-  const filteredFriends = friends.filter(friend => {
+  const filteredFriends = friends.filter((friend) => {
     // CRITICAL FIX: Exclude current user from selection
     if (session?.user?.id && friend.id === session.user.id) {
       return false;
     }
 
-    const name = friend.full_name || '';
-    const email = friend.email || '';
+    const name = friend.full_name || "";
+    const email = friend.email || "";
     const query = searchQuery.toLowerCase();
-    
-    return name.toLowerCase().includes(query) || 
-           email.toLowerCase().includes(query);
+
+    return (
+      name.toLowerCase().includes(query) || email.toLowerCase().includes(query)
+    );
   });
 
   const toggleFriendSelection = (friendId: string) => {
-    setLocalSelectedFriends(prev => {
+    setLocalSelectedFriends((prev) => {
       if (prev.includes(friendId)) {
-        return prev.filter(id => id !== friendId);
+        return prev.filter((id) => id !== friendId);
       } else {
         if (prev.length < maxSelections) {
           return [...prev, friendId];
@@ -176,13 +181,13 @@ export function PlayerSelectionModal({
         <View className="absolute top-0 right-0 bg-primary rounded-full w-5 h-5 items-center justify-center border border-white dark:border-gray-800">
           <Text className="text-[10px] font-bold text-white">T1</Text>
         </View>
-      )
+      );
     } else {
       return (
         <View className="absolute top-0 right-0 bg-yellow-500 rounded-full w-5 h-5 items-center justify-center border border-white dark:border-gray-800">
           <Text className="text-[10px] font-bold text-white">T2</Text>
         </View>
-      )
+      );
     }
   };
 
@@ -192,21 +197,24 @@ export function PlayerSelectionModal({
       // Past matches require exactly 3 friends (4 total with user)
       return {
         isValid: localSelectedFriends.length === 3,
-        buttonText: localSelectedFriends.length === 0 
-          ? 'Select 3 Players' 
-          : localSelectedFriends.length === 3
-            ? 'Confirm Selection'
-            : `Select ${3 - localSelectedFriends.length} More`,
-        hintText: 'Select exactly 3 players: 1 for Team 1, 2 for Team 2'
+        buttonText:
+          localSelectedFriends.length === 0
+            ? "Select 3 Players"
+            : localSelectedFriends.length === 3
+              ? "Confirm Selection"
+              : `Select ${3 - localSelectedFriends.length} More`,
+        hintText: "Select exactly 3 players: 1 for Team 1, 2 for Team 2",
       };
     } else {
       // Future matches allow 0-3 friends (1-4 total with user)
       return {
         isValid: true, // Always valid for future matches (can be 0-3)
-        buttonText: localSelectedFriends.length === 0 
-          ? 'Continue Without Players' 
-          : 'Confirm Selection',
-        hintText: 'Select 0-3 players. You can add more later or make it public for others to join.'
+        buttonText:
+          localSelectedFriends.length === 0
+            ? "Continue Without Players"
+            : "Confirm Selection",
+        hintText:
+          "Select 0-3 players. You can add more later or make it public for others to join.",
       };
     }
   };
@@ -216,14 +224,15 @@ export function PlayerSelectionModal({
   const renderFriendItem = (friend: Friend) => {
     const isSelected = localSelectedFriends.includes(friend.id);
     const selectionIndex = localSelectedFriends.indexOf(friend.id);
-    
+
     // Determine team color based on selection order
     const getSelectionStyle = () => {
       if (!isSelected) return "";
-      if (selectionIndex === 0) return "bg-primary/10 dark:bg-primary/20 border border-primary"; // Team 1 (blue)
+      if (selectionIndex === 0)
+        return "bg-primary/10 dark:bg-primary/20 border border-primary"; // Team 1 (blue)
       return "bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-500"; // Team 2 (yellow)
     };
-    
+
     return (
       <TouchableOpacity
         key={friend.id}
@@ -238,20 +247,20 @@ export function PlayerSelectionModal({
         }}
       >
         <View className="relative mr-4">
-          <UserAvatar 
-            user={friend} 
-            size="md" 
+          <UserAvatar
+            user={friend}
+            size="md"
             teamIndex={isSelected ? selectionIndex : undefined}
           />
           {isSelected && getTeamIndicator(selectionIndex)}
         </View>
-        
+
         <View className="flex-1">
           <Text className="font-medium text-foreground">
-            {friend.full_name || friend.email.split('@')[0]}
+            {friend.full_name || friend.email.split("@")[0]}
           </Text>
           <Text className="text-sm text-muted-foreground">{friend.email}</Text>
-          
+
           {/* Additional player info */}
           <View className="flex-row items-center gap-3 mt-1">
             {friend.glicko_rating && (
@@ -272,9 +281,11 @@ export function PlayerSelectionModal({
             )}
           </View>
         </View>
-        
+
         {isSelected && (
-          <View className={`w-6 h-6 rounded-full items-center justify-center ${selectionIndex === 0 ? 'bg-primary' : 'bg-yellow-500'}`}>
+          <View
+            className={`w-6 h-6 rounded-full items-center justify-center ${selectionIndex === 0 ? "bg-primary" : "bg-yellow-500"}`}
+          >
             <Ionicons name="checkmark" size={16} color="#fff" />
           </View>
         )}
@@ -285,19 +296,21 @@ export function PlayerSelectionModal({
   // Display team composition at the top of modal
   const renderSelectedTeams = () => {
     if (localSelectedFriends.length === 0) return null;
-    
+
     return (
       <View className="px-6 pb-3 pt-1">
         <View className="flex-row justify-between items-center mb-2">
-          <Text className="text-sm font-medium text-muted-foreground">Current Selection</Text>
-          <TouchableOpacity 
+          <Text className="text-sm font-medium text-muted-foreground">
+            Current Selection
+          </Text>
+          <TouchableOpacity
             className="py-1 px-2"
             onPress={() => setLocalSelectedFriends([])}
           >
             <Text className="text-xs text-primary">Clear All</Text>
           </TouchableOpacity>
         </View>
-        
+
         <View className="flex-row justify-between bg-background dark:bg-gray-800/60 rounded-lg p-3 border border-border/30">
           {/* Team 1 */}
           <View className="flex-row items-center flex-1">
@@ -313,7 +326,10 @@ export function PlayerSelectionModal({
                       <>
                         <UserAvatar user={friend} size="sm" teamIndex={0} />
                         <View className="ml-2 flex-1">
-                          <Text className="text-xs font-medium" numberOfLines={1}>
+                          <Text
+                            className="text-xs font-medium"
+                            numberOfLines={1}
+                          >
                             {getFriendName(localSelectedFriends[0])}
                           </Text>
                         </View>
@@ -322,14 +338,16 @@ export function PlayerSelectionModal({
                   })()}
                 </View>
               ) : (
-                <Text className="text-xs text-muted-foreground">Not selected</Text>
+                <Text className="text-xs text-muted-foreground">
+                  Not selected
+                </Text>
               )}
             </View>
           </View>
-          
+
           {/* Divider */}
           <View className="w-px bg-border mx-3 self-stretch" />
-          
+
           {/* Team 2 */}
           <View className="flex-row items-center flex-1">
             <View className="w-8 h-8 rounded-full bg-yellow-500 items-center justify-center mr-3">
@@ -344,9 +362,14 @@ export function PlayerSelectionModal({
                       <>
                         <UserAvatar user={friend} size="sm" teamIndex={1} />
                         <View className="ml-2 flex-1">
-                          <Text className="text-xs font-medium" numberOfLines={1}>
+                          <Text
+                            className="text-xs font-medium"
+                            numberOfLines={1}
+                          >
                             {getFriendName(localSelectedFriends[1])}
-                            {localSelectedFriends.length > 2 ? ` + ${getFriendName(localSelectedFriends[2])}` : ''}
+                            {localSelectedFriends.length > 2
+                              ? ` + ${getFriendName(localSelectedFriends[2])}`
+                              : ""}
                           </Text>
                         </View>
                       </>
@@ -354,7 +377,9 @@ export function PlayerSelectionModal({
                   })()}
                 </View>
               ) : (
-                <Text className="text-xs text-muted-foreground">Not selected</Text>
+                <Text className="text-xs text-muted-foreground">
+                  Not selected
+                </Text>
               )}
             </View>
           </View>
@@ -362,35 +387,39 @@ export function PlayerSelectionModal({
       </View>
     );
   };
-  
+
   // Helper to get friend name
   const getFriendName = (friendId: string) => {
-    const friend = friends.find(f => f.id === friendId);
-    return friend ? (friend.full_name || friend.email.split('@')[0]) : '';
+    const friend = friends.find((f) => f.id === friendId);
+    return friend ? friend.full_name || friend.email.split("@")[0] : "";
   };
 
   // Helper to get friend object by ID
   const getFriendById = (friendId: string) => {
-    return friends.find(f => f.id === friendId);
+    return friends.find((f) => f.id === friendId);
   };
 
   const renderEmptyState = () => (
     <View className="items-center justify-center py-12">
       <View className="bg-muted/30 p-4 rounded-full mb-4">
-        <Ionicons name="people-outline" size={48} color={isDark ? '#777' : '#999'} />
+        <Ionicons
+          name="people-outline"
+          size={48}
+          color={isDark ? "#777" : "#999"}
+        />
       </View>
       <Text className="text-lg font-medium mt-4 mb-2">
         {searchQuery ? "No results found" : "No friends yet"}
       </Text>
       <Text className="text-muted-foreground text-center max-w-xs">
-        {searchQuery 
-          ? "Try a different search term or check spelling" 
+        {searchQuery
+          ? "Try a different search term or check spelling"
           : "Add friends to create matches with them"}
       </Text>
       {searchQuery && (
-        <TouchableOpacity 
+        <TouchableOpacity
           className="mt-3 px-4 py-2 bg-primary/10 rounded-lg"
-          onPress={() => setSearchQuery('')}
+          onPress={() => setSearchQuery("")}
         >
           <Text className="text-primary text-sm">Clear search</Text>
         </TouchableOpacity>
@@ -406,8 +435,8 @@ export function PlayerSelectionModal({
       onRequestClose={onClose}
     >
       <View className="flex-1 bg-black/50 justify-end">
-        <View 
-          className={`h-[90%] rounded-t-3xl ${isDark ? 'bg-card' : 'bg-white'} shadow-lg`}
+        <View
+          className={`h-[90%] rounded-t-3xl ${isDark ? "bg-card" : "bg-white"} shadow-lg`}
           style={{
             shadowColor: "#000",
             shadowOffset: { width: 0, height: -4 },
@@ -421,89 +450,126 @@ export function PlayerSelectionModal({
             <View>
               <Text className="text-xl font-bold">Select Players</Text>
               <Text className="text-sm text-muted-foreground">
-                {localSelectedFriends.length}/{maxSelections} selected • {filteredFriends.length} available
+                {localSelectedFriends.length}/{maxSelections} selected •{" "}
+                {filteredFriends.length} available
                 {isPastMatch && (
-                  <Text className="text-amber-600 dark:text-amber-400"> • Past Match</Text>
+                  <Text className="text-amber-600 dark:text-amber-400">
+                    {" "}
+                    • Past Match
+                  </Text>
                 )}
               </Text>
             </View>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               className="w-8 h-8 rounded-full items-center justify-center bg-gray-100 dark:bg-gray-800"
               onPress={onClose}
             >
-              <Ionicons name="close" size={18} color={isDark ? '#ddd' : '#555'} />
+              <Ionicons
+                name="close"
+                size={18}
+                color={isDark ? "#ddd" : "#555"}
+              />
             </TouchableOpacity>
           </View>
-          
+
           {/* Selected players summary */}
           {renderSelectedTeams()}
-          
+
           {/* Search bar */}
           <View className="px-6 py-3 mb-2">
             <View className="flex-row items-center bg-gray-100 dark:bg-gray-800 rounded-xl px-4 h-12 border border-border/50">
-              <Ionicons name="search" size={20} color={isDark ? '#aaa' : '#777'} />
+              <Ionicons
+                name="search"
+                size={20}
+                color={isDark ? "#aaa" : "#777"}
+              />
               <TextInput
                 className="flex-1 h-full text-foreground ml-3"
                 placeholder="Search friends..."
-                placeholderTextColor={isDark ? '#aaa' : '#888'}
+                placeholderTextColor={isDark ? "#aaa" : "#888"}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
               {searchQuery.length > 0 && (
-                <TouchableOpacity onPress={() => setSearchQuery('')} className="p-1">
-                  <Ionicons name="close-circle" size={20} color={isDark ? '#aaa' : '#777'} />
+                <TouchableOpacity
+                  onPress={() => setSearchQuery("")}
+                  className="p-1"
+                >
+                  <Ionicons
+                    name="close-circle"
+                    size={20}
+                    color={isDark ? "#aaa" : "#777"}
+                  />
                 </TouchableOpacity>
               )}
             </View>
           </View>
-          
+
           {/* Friends list */}
           {loading ? (
             <View className="flex-1 justify-center items-center">
               <ActivityIndicator size="large" color="#2148ce" />
-              <Text className="text-muted-foreground mt-3">Loading friends...</Text>
+              <Text className="text-muted-foreground mt-3">
+                Loading friends...
+              </Text>
             </View>
           ) : (
-            <ScrollView 
+            <ScrollView
               className="flex-1 px-6"
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ 
+              contentContainerStyle={{
                 paddingBottom: 100,
-                flexGrow: filteredFriends.length === 0 ? 1 : 0 
+                flexGrow: filteredFriends.length === 0 ? 1 : 0,
               }}
             >
               {filteredFriends.length > 0 ? (
                 <>
                   {/* Selection hint */}
                   {localSelectedFriends.length < maxSelections && (
-                    <View className={`mb-3 p-3 rounded-lg border-l-4 ${
-                      isPastMatch 
-                        ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-500' 
-                        : 'bg-blue-50 dark:bg-blue-950/30 border-primary'
-                    }`}>
+                    <View
+                      className={`mb-3 p-3 rounded-lg border-l-4 ${
+                        isPastMatch
+                          ? "bg-amber-50 dark:bg-amber-950/30 border-amber-500"
+                          : "bg-blue-50 dark:bg-blue-950/30 border-primary"
+                      }`}
+                    >
                       <View className="flex-row items-center mb-1">
-                        <Ionicons 
-                          name={isPastMatch ? "warning-outline" : "information-circle-outline"} 
-                          size={16} 
-                          color={isPastMatch ? "#d97706" : "#2148ce"} 
+                        <Ionicons
+                          name={
+                            isPastMatch
+                              ? "warning-outline"
+                              : "information-circle-outline"
+                          }
+                          size={16}
+                          color={isPastMatch ? "#d97706" : "#2148ce"}
                         />
-                        <Text className={`ml-2 text-sm font-medium ${
-                          isPastMatch ? 'text-amber-700 dark:text-amber-300' : 'text-blue-700 dark:text-blue-300'
-                        }`}>
-                          {isPastMatch ? 'Past Match Requirements' : 'Future Match'}
+                        <Text
+                          className={`ml-2 text-sm font-medium ${
+                            isPastMatch
+                              ? "text-amber-700 dark:text-amber-300"
+                              : "text-blue-700 dark:text-blue-300"
+                          }`}
+                        >
+                          {isPastMatch
+                            ? "Past Match Requirements"
+                            : "Future Match"}
                         </Text>
                       </View>
-                      <Text className={`text-xs ${
-                        isPastMatch ? 'text-amber-600 dark:text-amber-400' : 'text-blue-600 dark:text-blue-400'
-                      }`}>
+                      <Text
+                        className={`text-xs ${
+                          isPastMatch
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-blue-600 dark:text-blue-400"
+                        }`}
+                      >
                         {validation.hintText}
                       </Text>
                     </View>
                   )}
-                  
+
                   {filteredFriends.map(renderFriendItem)}
                 </>
               ) : (
@@ -511,9 +577,9 @@ export function PlayerSelectionModal({
               )}
             </ScrollView>
           )}
-          
+
           {/* Footer buttons */}
-          <View 
+          <View
             className="p-5 border-t border-border bg-background/95"
             style={{
               shadowColor: "#000",
@@ -524,22 +590,26 @@ export function PlayerSelectionModal({
             }}
           >
             <View className="flex-row gap-3">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onPress={onClose}
-              >
-                <Ionicons name="close-outline" size={16} style={{ marginRight: 4 }} />
+              <Button variant="outline" className="flex-1" onPress={onClose}>
+                <Ionicons
+                  name="close-outline"
+                  size={16}
+                  style={{ marginRight: 4 }}
+                />
                 <Text>Cancel</Text>
               </Button>
-              
+
               <Button
                 variant="default"
                 className="flex-1"
                 onPress={handleConfirm}
                 disabled={!validation.isValid}
               >
-                <Ionicons name="checkmark-circle" size={16} style={{ marginRight: 4 }} />
+                <Ionicons
+                  name="checkmark-circle"
+                  size={16}
+                  style={{ marginRight: 4 }}
+                />
                 <Text className="text-primary-foreground">
                   {validation.buttonText}
                 </Text>

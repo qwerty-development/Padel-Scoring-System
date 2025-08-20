@@ -1,12 +1,20 @@
-import React, { useState } from 'react';
-import { View, TouchableOpacity, TextInput, Modal, ActivityIndicator, ScrollView, Image } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useState } from "react";
+import {
+  View,
+  TouchableOpacity,
+  TextInput,
+  Modal,
+  ActivityIndicator,
+  ScrollView,
+  Image,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
-import { Text } from '@/components/ui/text';
-import { H1 } from '@/components/ui/typography';
-import { Button } from '@/components/ui/button';
-import { supabase } from '@/config/supabase';
-import { Profile } from '@/types';
+import { Text } from "@/components/ui/text";
+import { H1 } from "@/components/ui/typography";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/config/supabase";
+import { Profile } from "@/types";
 
 interface AddFriendModalProps {
   visible: boolean;
@@ -26,29 +34,29 @@ interface SearchUser {
 
 interface UserAvatarProps {
   user: SearchUser;
-  size?: 'sm' | 'md' | 'lg';
+  size?: "sm" | "md" | "lg";
 }
 
-function UserAvatar({ user, size = 'md' }: UserAvatarProps) {
+function UserAvatar({ user, size = "md" }: UserAvatarProps) {
   const [imageLoadError, setImageLoadError] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
 
   const sizeClasses = {
-    sm: 'w-8 h-8',
-    md: 'w-12 h-12',
-    lg: 'w-16 h-16'
+    sm: "w-8 h-8",
+    md: "w-12 h-12",
+    lg: "w-16 h-16",
   }[size];
 
   const sizeStyle = {
     sm: { width: 32, height: 32, borderRadius: 16 },
     md: { width: 48, height: 48, borderRadius: 24 },
-    lg: { width: 64, height: 64, borderRadius: 32 }
+    lg: { width: 64, height: 64, borderRadius: 32 },
   }[size];
 
   const textSize = {
-    sm: 'text-sm',
-    md: 'text-lg',
-    lg: 'text-xl'
+    sm: "text-sm",
+    md: "text-lg",
+    lg: "text-xl",
   }[size];
 
   // Get the fallback initial
@@ -62,14 +70,16 @@ function UserAvatar({ user, size = 'md' }: UserAvatarProps) {
     if (user.email) {
       return user.email.charAt(0).toUpperCase();
     }
-    return '?';
+    return "?";
   };
 
   const shouldShowImage = user.avatar_url && !imageLoadError;
 
   if (shouldShowImage) {
     return (
-      <View className={`${sizeClasses} rounded-full bg-primary items-center justify-center overflow-hidden`}>
+      <View
+        className={`${sizeClasses} rounded-full bg-primary items-center justify-center overflow-hidden`}
+      >
         <Image
           source={{ uri: user.avatar_url }}
           style={sizeStyle}
@@ -83,10 +93,10 @@ function UserAvatar({ user, size = 'md' }: UserAvatarProps) {
         />
         {/* Loading state overlay */}
         {imageLoading && (
-          <View 
+          <View
             className="absolute inset-0 bg-primary items-center justify-center"
             style={{
-              backgroundColor: 'rgba(26, 126, 189, 0.8)',
+              backgroundColor: "rgba(26, 126, 189, 0.8)",
             }}
           >
             <Text className={`${textSize} font-bold text-primary-foreground`}>
@@ -100,7 +110,9 @@ function UserAvatar({ user, size = 'md' }: UserAvatarProps) {
 
   // Fallback to text initial
   return (
-    <View className={`${sizeClasses} rounded-full bg-primary items-center justify-center`}>
+    <View
+      className={`${sizeClasses} rounded-full bg-primary items-center justify-center`}
+    >
       <Text className={`${textSize} font-bold text-primary-foreground`}>
         {getInitial()}
       </Text>
@@ -108,14 +120,14 @@ function UserAvatar({ user, size = 'md' }: UserAvatarProps) {
   );
 }
 
-export function AddFriendModal({ 
-  visible, 
-  onClose, 
-  userId, 
-  userProfile, 
-  onRequestSent 
+export function AddFriendModal({
+  visible,
+  onClose,
+  userId,
+  userProfile,
+  onRequestSent,
 }: AddFriendModalProps) {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
@@ -129,17 +141,17 @@ export function AddFriendModal({
     setSearchLoading(true);
     try {
       const { data, error } = await supabase
-        .from('profiles')
-        .select('id, email, full_name, nickname, avatar_url') // Include avatar_url in select
+        .from("profiles")
+        .select("id, email, full_name, nickname, avatar_url") // Include avatar_url in select
         .or(`full_name.ilike.%${query}%,nickname.ilike.%${query}%`) // Search by full_name or nickname (case-insensitive like)
-        .neq('id', userId) // Exclude current user
+        .neq("id", userId) // Exclude current user
         .limit(10);
 
       if (error) throw error;
-      
+
       setSearchResults(data || []); // Keep all results, including existing friends
     } catch (error) {
-      console.error('Error searching users:', error);
+      console.error("Error searching users:", error);
     } finally {
       setSearchLoading(false);
     }
@@ -147,28 +159,28 @@ export function AddFriendModal({
 
   const sendFriendRequest = async (targetUserId: string) => {
     try {
-      setSentRequests(prev => new Set(prev).add(targetUserId));
-      
-      const { error } = await supabase
-        .from('friend_requests')
-        .insert({
-          from_user_id: userId,
-          to_user_id: targetUserId,
-          status: 'pending'
-        });
+      setSentRequests((prev) => new Set(prev).add(targetUserId));
+
+      const { error } = await supabase.from("friend_requests").insert({
+        from_user_id: userId,
+        to_user_id: targetUserId,
+        status: "pending",
+      });
 
       if (error) throw error;
-      
+
       // Call the callback to refresh sent requests in parent component
       if (onRequestSent) {
         onRequestSent();
       }
-      
+
       // Remove from search results after successful request
-      setSearchResults(prev => prev.filter(user => user.id !== targetUserId));
+      setSearchResults((prev) =>
+        prev.filter((user) => user.id !== targetUserId),
+      );
     } catch (error) {
-      console.error('Error sending friend request:', error);
-      setSentRequests(prev => {
+      console.error("Error sending friend request:", error);
+      setSentRequests((prev) => {
         const newSet = new Set(prev);
         newSet.delete(targetUserId);
         return newSet;
@@ -179,29 +191,41 @@ export function AddFriendModal({
   const renderSearchResult = (user: SearchUser) => {
     const isSent = sentRequests.has(user.id);
     const isAlreadyFriend = userProfile?.friends_list?.includes(user.id);
-    
+
     return (
-      <View key={user.id} className="bg-card rounded-lg mb-3 p-4 border border-border/30" style={{
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-        elevation: 2,
-      }}>
+      <View
+        key={user.id}
+        className="bg-card rounded-lg mb-3 p-4 border border-border/30"
+        style={{
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.1,
+          shadowRadius: 2,
+          elevation: 2,
+        }}
+      >
         <View className="flex-row items-center">
           <View className="mr-4">
             <UserAvatar user={user} size="md" />
           </View>
           <View className="flex-1">
-            <Text className="font-medium">{user.full_name || user.nickname || user.email}</Text>
+            <Text className="font-medium">
+              {user.full_name || user.nickname || user.email}
+            </Text>
             <Text className="text-sm text-muted-foreground">{user.email}</Text>
             {user.nickname && user.full_name && (
-              <Text className="text-xs text-muted-foreground">Nickname: {user.nickname}</Text>
+              <Text className="text-xs text-muted-foreground">
+                Nickname: {user.nickname}
+              </Text>
             )}
           </View>
           {isAlreadyFriend ? (
             <Button variant="outline" disabled>
-              <Ionicons name="checkmark-circle" size={16} style={{ marginRight: 4 }} />
+              <Ionicons
+                name="checkmark-circle"
+                size={16}
+                style={{ marginRight: 4 }}
+              />
               <Text>Friends</Text>
             </Button>
           ) : (
@@ -212,12 +236,20 @@ export function AddFriendModal({
             >
               {isSent ? (
                 <>
-                  <Ionicons name="checkmark" size={16} style={{ marginRight: 4 }} />
+                  <Ionicons
+                    name="checkmark"
+                    size={16}
+                    style={{ marginRight: 4 }}
+                  />
                   <Text>Sent</Text>
                 </>
               ) : (
                 <>
-                  <Ionicons name="person-add" size={16} style={{ marginRight: 4 }} />
+                  <Ionicons
+                    name="person-add"
+                    size={16}
+                    style={{ marginRight: 4 }}
+                  />
                   <Text>Add Friend</Text>
                 </>
               )}
@@ -236,20 +268,23 @@ export function AddFriendModal({
       onRequestClose={onClose}
     >
       <View className="flex-1 bg-black/50 justify-center items-center">
-        <View className="bg-background rounded-2xl p-6 w-11/12 max-w-lg" style={{
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.25,
-          shadowRadius: 8,
-          elevation: 8,
-        }}>
+        <View
+          className="bg-background rounded-2xl p-6 w-11/12 max-w-lg"
+          style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.25,
+            shadowRadius: 8,
+            elevation: 8,
+          }}
+        >
           <View className="flex-row justify-between items-center mb-6">
             <H1>Add Friend</H1>
             <TouchableOpacity onPress={onClose} className="p-2">
               <Ionicons name="close" size={24} color="#333" />
             </TouchableOpacity>
           </View>
-          
+
           <View className="flex-row items-center mb-6">
             <View className="flex-1 mr-3">
               <TextInput
@@ -263,7 +298,7 @@ export function AddFriendModal({
                 keyboardType="default" // Changed keyboard type as it's no longer just email
               />
             </View>
-            <Button 
+            <Button
               variant="default"
               onPress={() => searchUsers(searchQuery)}
               disabled={searchLoading}
@@ -272,7 +307,11 @@ export function AddFriendModal({
                 <ActivityIndicator size="small" color="#ffffff" />
               ) : (
                 <>
-                  <Ionicons name="search" size={16} style={{ marginRight: 4 }} />
+                  <Ionicons
+                    name="search"
+                    size={16}
+                    style={{ marginRight: 4 }}
+                  />
                   <Text>Search</Text>
                 </>
               )}
@@ -282,10 +321,15 @@ export function AddFriendModal({
           {searchLoading ? (
             <View className="py-8 items-center">
               <ActivityIndicator size="large" color="#2148ce" />
-              <Text className="text-muted-foreground mt-2">Searching users...</Text>
+              <Text className="text-muted-foreground mt-2">
+                Searching users...
+              </Text>
             </View>
           ) : (
-            <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={{ maxHeight: 400 }}
+              showsVerticalScrollIndicator={false}
+            >
               {searchResults.map(renderSearchResult)}
               {searchResults.length === 0 && searchQuery && (
                 <View className="py-8 items-center">

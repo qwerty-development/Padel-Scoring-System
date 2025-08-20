@@ -1,15 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import { View, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity, Image, Alert, Vibration, Share } from "react-native";
-import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, router } from 'expo-router';
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  ScrollView,
+  ActivityIndicator,
+  RefreshControl,
+  TouchableOpacity,
+  Image,
+  Alert,
+  Vibration,
+  Share,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, router } from "expo-router";
 
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { H1, H2, H3 } from "@/components/ui/typography";
-import { SafeAreaView } from '@/components/safe-area-view';
+import { SafeAreaView } from "@/components/safe-area-view";
 import { useAuth } from "@/context/supabase-provider";
-import { supabase } from '@/config/supabase';
-import { NotificationHelpers } from '@/services/notificationHelpers';
+import { supabase } from "@/config/supabase";
+import { NotificationHelpers } from "@/services/notificationHelpers";
 
 interface FriendProfile {
   id: string;
@@ -71,7 +81,7 @@ interface MatchHistory {
     setsWon: number;
     setsLost: number;
   };
-  recentForm: ('W' | 'L')[];
+  recentForm: ("W" | "L")[];
 }
 
 // NEW: Enhanced Friend Statistics Interface
@@ -83,21 +93,21 @@ interface FriendStats {
   currentStreak: number;
   longestStreak: number;
   averageMatchDuration: number;
-  recentPerformance: 'improving' | 'declining' | 'stable';
+  recentPerformance: "improving" | "declining" | "stable";
   thisWeekMatches: number;
   thisMonthMatches: number;
   setsWon: number;
   setsLost: number;
-  recentForm: ('W' | 'L')[];
+  recentForm: ("W" | "L")[];
 }
 
 // Friendship status enum
 enum FriendshipStatus {
-  NOT_FRIENDS = 'not_friends',
-  FRIENDS = 'friends',
-  REQUEST_SENT = 'request_sent',
-  REQUEST_RECEIVED = 'request_received',
-  LOADING = 'loading'
+  NOT_FRIENDS = "not_friends",
+  FRIENDS = "friends",
+  REQUEST_SENT = "request_sent",
+  REQUEST_RECEIVED = "request_received",
+  LOADING = "loading",
 }
 
 /**
@@ -107,10 +117,10 @@ enum FriendshipStatus {
  */
 interface ProfileAvatarProps {
   profile: FriendProfile | null;
-  size?: 'md' | 'lg' | 'xl';
+  size?: "md" | "lg" | "xl";
 }
 
-function ProfileAvatar({ profile, size = 'xl' }: ProfileAvatarProps) {
+function ProfileAvatar({ profile, size = "xl" }: ProfileAvatarProps) {
   // State management for complex image loading lifecycle
   const [imageLoadError, setImageLoadError] = useState<boolean>(false);
   const [imageLoading, setImageLoading] = useState<boolean>(true);
@@ -118,23 +128,23 @@ function ProfileAvatar({ profile, size = 'xl' }: ProfileAvatarProps) {
   // Configuration matrix for profile avatar sizing
   const avatarSizeConfiguration = {
     md: {
-      containerClass: 'w-16 h-16',
+      containerClass: "w-16 h-16",
       imageStyle: { width: 64, height: 64, borderRadius: 32 },
-      textClass: 'text-2xl',
-      borderWidth: 3
+      textClass: "text-2xl",
+      borderWidth: 3,
     },
     lg: {
-      containerClass: 'w-20 h-20',
+      containerClass: "w-20 h-20",
       imageStyle: { width: 80, height: 80, borderRadius: 40 },
-      textClass: 'text-3xl',
-      borderWidth: 4
+      textClass: "text-3xl",
+      borderWidth: 4,
     },
     xl: {
-      containerClass: 'w-24 h-24',
+      containerClass: "w-24 h-24",
       imageStyle: { width: 96, height: 96, borderRadius: 48 },
-      textClass: 'text-4xl',
-      borderWidth: 4
-    }
+      textClass: "text-4xl",
+      borderWidth: 4,
+    },
   };
 
   const sizeConfig = avatarSizeConfiguration[size];
@@ -145,8 +155,8 @@ function ProfileAvatar({ profile, size = 'xl' }: ProfileAvatarProps) {
    * Priority: full_name -> email -> default fallback
    */
   const extractProfileInitial = (): string => {
-    if (!profile) return '?';
-    
+    if (!profile) return "?";
+
     // Primary extraction path: full_name with comprehensive validation
     if (profile.full_name?.trim()) {
       const sanitizedFullName = profile.full_name.trim();
@@ -154,7 +164,7 @@ function ProfileAvatar({ profile, size = 'xl' }: ProfileAvatarProps) {
         return sanitizedFullName.charAt(0).toUpperCase();
       }
     }
-    
+
     // Secondary extraction path: email with validation
     if (profile.email?.trim()) {
       const sanitizedEmail = profile.email.trim();
@@ -162,9 +172,9 @@ function ProfileAvatar({ profile, size = 'xl' }: ProfileAvatarProps) {
         return sanitizedEmail.charAt(0).toUpperCase();
       }
     }
-    
+
     // Tertiary fallback: default character
-    return '?';
+    return "?";
   };
 
   /**
@@ -173,12 +183,12 @@ function ProfileAvatar({ profile, size = 'xl' }: ProfileAvatarProps) {
    */
   const shouldDisplayProfileImage = (): boolean => {
     if (!profile?.avatar_url) return false;
-    
+
     const trimmedUrl = profile.avatar_url.trim();
     return Boolean(
-      trimmedUrl &&                    // URL exists and not empty
-      trimmedUrl.length > 0 &&         // URL has content
-      !imageLoadError                  // No previous loading failures
+      trimmedUrl && // URL exists and not empty
+        trimmedUrl.length > 0 && // URL has content
+        !imageLoadError, // No previous loading failures
     );
   };
 
@@ -200,10 +210,10 @@ function ProfileAvatar({ profile, size = 'xl' }: ProfileAvatarProps) {
       profileName: profile?.full_name || profile?.email,
       avatarUrl: profile?.avatar_url,
       timestamp: new Date().toISOString(),
-      component: 'ProfileAvatar',
-      context: 'FriendProfileScreen'
+      component: "ProfileAvatar",
+      context: "FriendProfileScreen",
     });
-    
+
     setImageLoadError(true);
     setImageLoading(false);
   };
@@ -219,7 +229,7 @@ function ProfileAvatar({ profile, size = 'xl' }: ProfileAvatarProps) {
   // Avatar Image Rendering Branch with Enhanced Visual Effects
   if (shouldDisplayProfileImage()) {
     return (
-      <View 
+      <View
         className={`${sizeConfig.containerClass} rounded-full bg-primary items-center justify-center mb-4 overflow-hidden`}
         style={{
           shadowColor: "#000",
@@ -237,21 +247,23 @@ function ProfileAvatar({ profile, size = 'xl' }: ProfileAvatarProps) {
           onError={handleImageLoadFailure}
           onLoadStart={handleImageLoadStart}
         />
-        
+
         {/* Advanced Loading State Overlay with Synchronized Styling */}
         {imageLoading && (
-          <View 
+          <View
             className="absolute inset-0 bg-primary items-center justify-center"
             style={{
-              backgroundColor: 'rgba(26, 126, 189, 0.85)',
+              backgroundColor: "rgba(26, 126, 189, 0.85)",
             }}
           >
-            <Text className={`${sizeConfig.textClass} font-bold text-primary-foreground`}>
+            <Text
+              className={`${sizeConfig.textClass} font-bold text-primary-foreground`}
+            >
               {extractProfileInitial()}
             </Text>
-            
+
             {/* Subtle loading indicator overlay */}
-            <View 
+            <View
               className="absolute bottom-2 right-2 bg-white/20 rounded-full p-1"
               style={{
                 shadowColor: "#000",
@@ -271,7 +283,7 @@ function ProfileAvatar({ profile, size = 'xl' }: ProfileAvatarProps) {
 
   // Enhanced Text Initial Fallback with Premium Visual Effects
   return (
-    <View 
+    <View
       className={`${sizeConfig.containerClass} rounded-full bg-primary items-center justify-center mb-4`}
       style={{
         shadowColor: "#000",
@@ -281,7 +293,9 @@ function ProfileAvatar({ profile, size = 'xl' }: ProfileAvatarProps) {
         elevation: 8,
       }}
     >
-      <Text className={`${sizeConfig.textClass} font-bold text-primary-foreground`}>
+      <Text
+        className={`${sizeConfig.textClass} font-bold text-primary-foreground`}
+      >
         {extractProfileInitial()}
       </Text>
     </View>
@@ -295,25 +309,25 @@ export default function FriendProfileScreen() {
     partnerMatches: [],
     rivalMatches: [],
     allMatches: [],
-    partnershipRecord: { 
-      totalMatches: 0, 
-      wins: 0, 
-      losses: 0, 
+    partnershipRecord: {
+      totalMatches: 0,
+      wins: 0,
+      losses: 0,
       winPercentage: 0,
       setsWon: 0,
-      setsLost: 0
+      setsLost: 0,
     },
-    headToHeadRecord: { 
-      totalMatches: 0, 
-      userWins: 0, 
-      friendWins: 0, 
+    headToHeadRecord: {
+      totalMatches: 0,
+      userWins: 0,
+      friendWins: 0,
       userWinPercentage: 0,
       setsWon: 0,
-      setsLost: 0
+      setsLost: 0,
     },
-    recentForm: []
+    recentForm: [],
   });
-  
+
   // NEW: Friend's overall statistics state
   const [friendStats, setFriendStats] = useState<FriendStats>({
     totalMatches: 0,
@@ -323,23 +337,25 @@ export default function FriendProfileScreen() {
     currentStreak: 0,
     longestStreak: 0,
     averageMatchDuration: 0,
-    recentPerformance: 'stable',
+    recentPerformance: "stable",
     thisWeekMatches: 0,
     thisMonthMatches: 0,
     setsWon: 0,
     setsLost: 0,
-    recentForm: []
+    recentForm: [],
   });
-  
+
   const [loading, setLoading] = useState(true);
   const [matchesLoading, setMatchesLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true); // NEW: Stats loading state
   const [refreshing, setRefreshing] = useState(false);
-  
+
   // Friendship status state
-  const [friendshipStatus, setFriendshipStatus] = useState<FriendshipStatus>(FriendshipStatus.LOADING);
+  const [friendshipStatus, setFriendshipStatus] = useState<FriendshipStatus>(
+    FriendshipStatus.LOADING,
+  );
   const [sendingRequest, setSendingRequest] = useState(false);
-  
+
   const { session, profile: currentUserProfile } = useAuth();
 
   // Use userId or friendId (for backward compatibility)
@@ -363,19 +379,23 @@ export default function FriendProfileScreen() {
   const fetchFriendStatistics = async (friendId: string) => {
     try {
       setStatsLoading(true);
-      
+
       // Query all matches where the friend participated
       const { data: allMatches, error } = await supabase
-        .from('matches')
-        .select(`
+        .from("matches")
+        .select(
+          `
           *,
           player1:profiles!player1_id(id, full_name, email),
           player2:profiles!player2_id(id, full_name, email),
           player3:profiles!player3_id(id, full_name, email),
           player4:profiles!player4_id(id, full_name, email)
-        `)
-        .or(`player1_id.eq.${friendId},player2_id.eq.${friendId},player3_id.eq.${friendId},player4_id.eq.${friendId}`)
-        .order('start_time', { ascending: false })
+        `,
+        )
+        .or(
+          `player1_id.eq.${friendId},player2_id.eq.${friendId},player3_id.eq.${friendId},player4_id.eq.${friendId}`,
+        )
+        .order("start_time", { ascending: false })
         .limit(100);
 
       if (error) throw error;
@@ -385,18 +405,21 @@ export default function FriendProfileScreen() {
         setFriendStats(stats);
       }
     } catch (error) {
-      console.error('Error fetching friend statistics:', error);
+      console.error("Error fetching friend statistics:", error);
     } finally {
       setStatsLoading(false);
     }
   };
 
   // NEW: Calculate friend's overall statistics
-  const calculateFriendStats = (matches: MatchData[], friendId: string): FriendStats => {
+  const calculateFriendStats = (
+    matches: MatchData[],
+    friendId: string,
+  ): FriendStats => {
     const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    
+
     let wins = 0;
     let losses = 0;
     let currentStreak = 0;
@@ -407,46 +430,69 @@ export default function FriendProfileScreen() {
     let matchesWithDuration = 0;
     let setsWon = 0;
     let setsLost = 0;
-    
-    const recentForm: ('W' | 'L')[] = [];
+
+    const recentForm: ("W" | "L")[] = [];
     const recentResults: boolean[] = [];
     const olderResults: boolean[] = [];
 
     // Filter completed matches and sort by date
-    const completedMatches = matches.filter(match => {
-      return match.team1_score_set1 !== null && 
-             match.team1_score_set1 !== undefined && 
-             match.team2_score_set1 !== null && 
-             match.team2_score_set1 !== undefined;
-    }).sort((a, b) => {
-      const dateA = new Date(a.completed_at || a.end_time || a.start_time).getTime();
-      const dateB = new Date(b.completed_at || b.end_time || b.start_time).getTime();
-      return dateA - dateB;
-    });
+    const completedMatches = matches
+      .filter((match) => {
+        return (
+          match.team1_score_set1 !== null &&
+          match.team1_score_set1 !== undefined &&
+          match.team2_score_set1 !== null &&
+          match.team2_score_set1 !== undefined
+        );
+      })
+      .sort((a, b) => {
+        const dateA = new Date(
+          a.completed_at || a.end_time || a.start_time,
+        ).getTime();
+        const dateB = new Date(
+          b.completed_at || b.end_time || b.start_time,
+        ).getTime();
+        return dateA - dateB;
+      });
 
     // Process each match
     for (const match of completedMatches) {
       try {
-        const matchDate = new Date(match.completed_at || match.end_time || match.start_time);
-        const isFriendInTeam1 = match.player1_id === friendId || match.player2_id === friendId;
-        
+        const matchDate = new Date(
+          match.completed_at || match.end_time || match.start_time,
+        );
+        const isFriendInTeam1 =
+          match.player1_id === friendId || match.player2_id === friendId;
+
         // Calculate sets for this match
-        const team1Sets = (match.team1_score_set1 > match.team2_score_set1 ? 1 : 0) +
-                         (match.team1_score_set2 > match.team2_score_set2 ? 1 : 0) +
-                         ((match.team1_score_set3 !== null && match.team2_score_set3 !== null) 
-                          ? (match.team1_score_set3 > match.team2_score_set3 ? 1 : 0) : 0);
-        
-        const team2Sets = (match.team2_score_set1 > match.team1_score_set1 ? 1 : 0) +
-                         (match.team2_score_set2 > match.team1_score_set2 ? 1 : 0) +
-                         ((match.team1_score_set3 !== null && match.team2_score_set3 !== null) 
-                          ? (match.team2_score_set3 > match.team1_score_set3 ? 1 : 0) : 0);
+        const team1Sets =
+          (match.team1_score_set1 > match.team2_score_set1 ? 1 : 0) +
+          (match.team1_score_set2 > match.team2_score_set2 ? 1 : 0) +
+          (match.team1_score_set3 !== null && match.team2_score_set3 !== null
+            ? match.team1_score_set3 > match.team2_score_set3
+              ? 1
+              : 0
+            : 0);
+
+        const team2Sets =
+          (match.team2_score_set1 > match.team1_score_set1 ? 1 : 0) +
+          (match.team2_score_set2 > match.team1_score_set2 ? 1 : 0) +
+          (match.team1_score_set3 !== null && match.team2_score_set3 !== null
+            ? match.team2_score_set3 > match.team1_score_set3
+              ? 1
+              : 0
+            : 0);
 
         // Determine if friend won
         let friendWon = false;
         if (match.winner_team) {
-          friendWon = (isFriendInTeam1 && match.winner_team === 1) || (!isFriendInTeam1 && match.winner_team === 2);
+          friendWon =
+            (isFriendInTeam1 && match.winner_team === 1) ||
+            (!isFriendInTeam1 && match.winner_team === 2);
         } else {
-          friendWon = isFriendInTeam1 ? team1Sets > team2Sets : team2Sets > team1Sets;
+          friendWon = isFriendInTeam1
+            ? team1Sets > team2Sets
+            : team2Sets > team1Sets;
         }
 
         // Update win/loss counters
@@ -474,7 +520,7 @@ export default function FriendProfileScreen() {
 
         // Track recent form (last 10 matches)
         if (recentForm.length < 10) {
-          recentForm.unshift(friendWon ? 'W' : 'L');
+          recentForm.unshift(friendWon ? "W" : "L");
         }
 
         // Track performance trends
@@ -488,34 +534,40 @@ export default function FriendProfileScreen() {
 
         // Calculate match duration
         if (match.start_time && match.end_time) {
-          const duration = new Date(match.end_time).getTime() - new Date(match.start_time).getTime();
+          const duration =
+            new Date(match.end_time).getTime() -
+            new Date(match.start_time).getTime();
           if (duration > 0 && duration < 24 * 60 * 60 * 1000) {
             totalDuration += duration;
             matchesWithDuration++;
           }
         }
       } catch (error) {
-        console.warn('Error processing match for friend stats:', error);
+        console.warn("Error processing match for friend stats:", error);
         continue;
       }
     }
 
     // Calculate performance trend
-    let recentPerformance: 'improving' | 'declining' | 'stable' = 'stable';
+    let recentPerformance: "improving" | "declining" | "stable" = "stable";
     if (recentResults.length >= 2 && olderResults.length >= 2) {
-      const recentWinRate = recentResults.filter(Boolean).length / recentResults.length;
-      const olderWinRate = olderResults.filter(Boolean).length / olderResults.length;
-      
+      const recentWinRate =
+        recentResults.filter(Boolean).length / recentResults.length;
+      const olderWinRate =
+        olderResults.filter(Boolean).length / olderResults.length;
+
       if (recentWinRate > olderWinRate + 0.15) {
-        recentPerformance = 'improving';
+        recentPerformance = "improving";
       } else if (recentWinRate < olderWinRate - 0.15) {
-        recentPerformance = 'declining';
+        recentPerformance = "declining";
       }
     }
 
     const totalMatches = wins + losses;
-    const winRate = totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0;
-    const averageMatchDuration = matchesWithDuration > 0 ? totalDuration / matchesWithDuration : 0;
+    const winRate =
+      totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0;
+    const averageMatchDuration =
+      matchesWithDuration > 0 ? totalDuration / matchesWithDuration : 0;
 
     return {
       totalMatches,
@@ -530,7 +582,7 @@ export default function FriendProfileScreen() {
       thisMonthMatches,
       setsWon,
       setsLost,
-      recentForm
+      recentForm,
     };
   };
 
@@ -543,7 +595,7 @@ export default function FriendProfileScreen() {
       }
 
       const currentUserId = session.user.id;
-      
+
       // Check if already friends
       const friendsList = currentUserProfile.friends_list || [];
       if (friendsList.includes(targetUserId)) {
@@ -553,14 +605,14 @@ export default function FriendProfileScreen() {
 
       // Check for pending friend requests
       const { data: sentRequest, error: sentError } = await supabase
-        .from('friend_requests')
-        .select('*')
-        .eq('from_user_id', currentUserId)
-        .eq('to_user_id', targetUserId)
-        .eq('status', 'pending')
+        .from("friend_requests")
+        .select("*")
+        .eq("from_user_id", currentUserId)
+        .eq("to_user_id", targetUserId)
+        .eq("status", "pending")
         .single();
 
-      if (sentError && sentError.code !== 'PGRST116') {
+      if (sentError && sentError.code !== "PGRST116") {
         throw sentError;
       }
 
@@ -571,14 +623,14 @@ export default function FriendProfileScreen() {
 
       // Check for received friend requests
       const { data: receivedRequest, error: receivedError } = await supabase
-        .from('friend_requests')
-        .select('*')
-        .eq('from_user_id', targetUserId)
-        .eq('to_user_id', currentUserId)
-        .eq('status', 'pending')
+        .from("friend_requests")
+        .select("*")
+        .eq("from_user_id", targetUserId)
+        .eq("to_user_id", currentUserId)
+        .eq("status", "pending")
         .single();
 
-      if (receivedError && receivedError.code !== 'PGRST116') {
+      if (receivedError && receivedError.code !== "PGRST116") {
         throw receivedError;
       }
 
@@ -590,7 +642,7 @@ export default function FriendProfileScreen() {
       // Not friends and no pending requests
       setFriendshipStatus(FriendshipStatus.NOT_FRIENDS);
     } catch (error) {
-      console.error('Error checking friendship status:', error);
+      console.error("Error checking friendship status:", error);
       setFriendshipStatus(FriendshipStatus.NOT_FRIENDS);
     }
   };
@@ -598,7 +650,7 @@ export default function FriendProfileScreen() {
   // Send friend request
   const sendFriendRequest = async () => {
     if (!session?.user?.id || !profile || !currentUserProfile) {
-      Alert.alert('Error', 'Unable to send friend request. Please try again.');
+      Alert.alert("Error", "Unable to send friend request. Please try again.");
       return;
     }
 
@@ -607,17 +659,18 @@ export default function FriendProfileScreen() {
       Vibration.vibrate(50);
 
       // Insert friend request
-      const { error } = await supabase
-        .from('friend_requests')
-        .insert({
-          from_user_id: session.user.id,
-          to_user_id: profile.id,
-          status: 'pending'
-        });
+      const { error } = await supabase.from("friend_requests").insert({
+        from_user_id: session.user.id,
+        to_user_id: profile.id,
+        status: "pending",
+      });
 
       if (error) {
-        if (error.code === '23505') {
-          Alert.alert('Friend Request Already Sent', 'You have already sent a friend request to this user.');
+        if (error.code === "23505") {
+          Alert.alert(
+            "Friend Request Already Sent",
+            "You have already sent a friend request to this user.",
+          );
           return;
         }
         throw error;
@@ -625,27 +678,26 @@ export default function FriendProfileScreen() {
 
       // Update local state
       setFriendshipStatus(FriendshipStatus.REQUEST_SENT);
-      
+
       // Send notification
       if (currentUserProfile.full_name) {
         await NotificationHelpers.sendFriendRequestNotification(
           profile.id,
-          currentUserProfile.full_name
+          currentUserProfile.full_name,
         );
       }
 
       // Success feedback
       Vibration.vibrate([100, 50, 100]);
       Alert.alert(
-        'Friend Request Sent!',
+        "Friend Request Sent!",
         `Your friend request has been sent to ${profile.full_name || profile.email}.`,
-        [{ text: 'OK' }]
+        [{ text: "OK" }],
       );
-
     } catch (error) {
-      console.error('Error sending friend request:', error);
+      console.error("Error sending friend request:", error);
       Vibration.vibrate(300);
-      Alert.alert('Error', 'Failed to send friend request. Please try again.');
+      Alert.alert("Error", "Failed to send friend request. Please try again.");
     } finally {
       setSendingRequest(false);
     }
@@ -660,22 +712,27 @@ export default function FriendProfileScreen() {
       Vibration.vibrate(50);
 
       const { error } = await supabase
-        .from('friend_requests')
+        .from("friend_requests")
         .delete()
-        .eq('from_user_id', session.user.id)
-        .eq('to_user_id', profile.id)
-        .eq('status', 'pending');
+        .eq("from_user_id", session.user.id)
+        .eq("to_user_id", profile.id)
+        .eq("status", "pending");
 
       if (error) throw error;
 
       setFriendshipStatus(FriendshipStatus.NOT_FRIENDS);
-      
-      Vibration.vibrate(100);
-      Alert.alert('Friend Request Cancelled', 'Your friend request has been cancelled.');
 
+      Vibration.vibrate(100);
+      Alert.alert(
+        "Friend Request Cancelled",
+        "Your friend request has been cancelled.",
+      );
     } catch (error) {
-      console.error('Error cancelling friend request:', error);
-      Alert.alert('Error', 'Failed to cancel friend request. Please try again.');
+      console.error("Error cancelling friend request:", error);
+      Alert.alert(
+        "Error",
+        "Failed to cancel friend request. Please try again.",
+      );
     } finally {
       setSendingRequest(false);
     }
@@ -691,65 +748,67 @@ export default function FriendProfileScreen() {
 
       // Update friend request status
       const { error: updateError } = await supabase
-        .from('friend_requests')
-        .update({ status: 'accepted' })
-        .eq('from_user_id', profile.id)
-        .eq('to_user_id', session.user.id)
-        .eq('status', 'pending');
+        .from("friend_requests")
+        .update({ status: "accepted" })
+        .eq("from_user_id", profile.id)
+        .eq("to_user_id", session.user.id)
+        .eq("status", "pending");
 
       if (updateError) throw updateError;
 
       // Add to both users' friends lists
       const currentUserFriends = currentUserProfile.friends_list || [];
       const { error: updateCurrentUserError } = await supabase
-        .from('profiles')
+        .from("profiles")
         .update({
-          friends_list: [...currentUserFriends, profile.id]
+          friends_list: [...currentUserFriends, profile.id],
         })
-        .eq('id', session.user.id);
+        .eq("id", session.user.id);
 
       if (updateCurrentUserError) throw updateCurrentUserError;
 
       // Get target user's friends list and update it
       const { data: targetUserProfile, error: targetUserError } = await supabase
-        .from('profiles')
-        .select('friends_list')
-        .eq('id', profile.id)
+        .from("profiles")
+        .select("friends_list")
+        .eq("id", profile.id)
         .single();
 
       if (targetUserError) throw targetUserError;
 
       const targetUserFriends = targetUserProfile.friends_list || [];
       const { error: updateTargetUserError } = await supabase
-        .from('profiles')
+        .from("profiles")
         .update({
-          friends_list: [...targetUserFriends, session.user.id]
+          friends_list: [...targetUserFriends, session.user.id],
         })
-        .eq('id', profile.id);
+        .eq("id", profile.id);
 
       if (updateTargetUserError) throw updateTargetUserError;
 
       // Update local state
       setFriendshipStatus(FriendshipStatus.FRIENDS);
-      
+
       // Send notification
       if (currentUserProfile.full_name) {
         await NotificationHelpers.sendFriendAcceptedNotification(
           profile.id,
-          currentUserProfile.full_name
+          currentUserProfile.full_name,
         );
       }
 
       Vibration.vibrate([100, 50, 100]);
       Alert.alert(
-        'Friend Request Accepted!',
+        "Friend Request Accepted!",
         `You and ${profile.full_name || profile.email} are now friends!`,
-        [{ text: 'OK' }]
+        [{ text: "OK" }],
       );
-
     } catch (error) {
-      console.error('Error accepting friend request:', error);
-      Alert.alert('Error', 'Failed to accept friend request. Please try again.');
+      console.error("Error accepting friend request:", error);
+      Alert.alert(
+        "Error",
+        "Failed to accept friend request. Please try again.",
+      );
     } finally {
       setSendingRequest(false);
     }
@@ -760,17 +819,17 @@ export default function FriendProfileScreen() {
       if (!refreshing) {
         setLoading(true);
       }
-      
+
       const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', id)
+        .from("profiles")
+        .select("*")
+        .eq("id", id)
         .single();
 
       if (error) throw error;
       setProfile(data);
     } catch (error) {
-      console.error('Error fetching friend profile:', error);
+      console.error("Error fetching friend profile:", error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -780,80 +839,106 @@ export default function FriendProfileScreen() {
   const fetchMatchHistory = async (friendId: string, currentUserId: string) => {
     try {
       setMatchesLoading(true);
-      
+
       // Query matches where both users participated
       const { data, error } = await supabase
-        .from('matches')
-        .select(`
+        .from("matches")
+        .select(
+          `
           *,
           player1:profiles!player1_id(id, full_name, email),
           player2:profiles!player2_id(id, full_name, email),
           player3:profiles!player3_id(id, full_name, email),
           player4:profiles!player4_id(id, full_name, email)
-        `)
+        `,
+        )
         .or(
           `and(player1_id.eq.${currentUserId},or(player2_id.eq.${friendId},player3_id.eq.${friendId},player4_id.eq.${friendId})),` +
-          `and(player2_id.eq.${currentUserId},or(player1_id.eq.${friendId},player3_id.eq.${friendId},player4_id.eq.${friendId})),` +
-          `and(player3_id.eq.${currentUserId},or(player1_id.eq.${friendId},player2_id.eq.${friendId},player4_id.eq.${friendId})),` +
-          `and(player4_id.eq.${currentUserId},or(player1_id.eq.${friendId},player2_id.eq.${friendId},player3_id.eq.${friendId}))`
+            `and(player2_id.eq.${currentUserId},or(player1_id.eq.${friendId},player3_id.eq.${friendId},player4_id.eq.${friendId})),` +
+            `and(player3_id.eq.${currentUserId},or(player1_id.eq.${friendId},player2_id.eq.${friendId},player4_id.eq.${friendId})),` +
+            `and(player4_id.eq.${currentUserId},or(player1_id.eq.${friendId},player2_id.eq.${friendId},player3_id.eq.${friendId}))`,
         )
-        .order('start_time', { ascending: false });
+        .order("start_time", { ascending: false });
 
       if (error) throw error;
 
       if (data) {
         // Process and categorize matches
-        const processedMatches = processMatchHistory(data, currentUserId, friendId);
+        const processedMatches = processMatchHistory(
+          data,
+          currentUserId,
+          friendId,
+        );
         setMatchHistory(processedMatches);
       }
     } catch (error) {
-      console.error('Error fetching match history:', error);
+      console.error("Error fetching match history:", error);
     } finally {
       setMatchesLoading(false);
     }
   };
 
-  const processMatchHistory = (matches: MatchData[], currentUserId: string, friendId: string): MatchHistory => {
+  const processMatchHistory = (
+    matches: MatchData[],
+    currentUserId: string,
+    friendId: string,
+  ): MatchHistory => {
     // Separate matches into categories
     const partnerMatches: MatchData[] = [];
     const rivalMatches: MatchData[] = [];
-    
+
     let partnerWins = 0;
     let partnerSetsWon = 0;
     let partnerSetsLost = 0;
     let rivalUserWins = 0;
     let rivalSetsWon = 0;
     let rivalSetsLost = 0;
-    const recentForm: ('W' | 'L')[] = [];
+    const recentForm: ("W" | "L")[] = [];
 
-    matches.forEach(match => {
-      const isUserInTeam1 = match.player1_id === currentUserId || match.player2_id === currentUserId;
-      const isFriendInTeam1 = match.player1_id === friendId || match.player2_id === friendId;
-      
+    matches.forEach((match) => {
+      const isUserInTeam1 =
+        match.player1_id === currentUserId ||
+        match.player2_id === currentUserId;
+      const isFriendInTeam1 =
+        match.player1_id === friendId || match.player2_id === friendId;
+
       // Calculate sets for this match
-      const team1Sets = (match.team1_score_set1 > match.team2_score_set1 ? 1 : 0) +
-                       (match.team1_score_set2 > match.team2_score_set2 ? 1 : 0) +
-                       ((match.team1_score_set3 !== null && match.team2_score_set3 !== null) 
-                        ? (match.team1_score_set3 > match.team2_score_set3 ? 1 : 0) : 0);
-      
-      const team2Sets = (match.team2_score_set1 > match.team1_score_set1 ? 1 : 0) +
-                       (match.team2_score_set2 > match.team1_score_set2 ? 1 : 0) +
-                       ((match.team1_score_set3 !== null && match.team2_score_set3 !== null) 
-                        ? (match.team2_score_set3 > match.team1_score_set3 ? 1 : 0) : 0);
-      
+      const team1Sets =
+        (match.team1_score_set1 > match.team2_score_set1 ? 1 : 0) +
+        (match.team1_score_set2 > match.team2_score_set2 ? 1 : 0) +
+        (match.team1_score_set3 !== null && match.team2_score_set3 !== null
+          ? match.team1_score_set3 > match.team2_score_set3
+            ? 1
+            : 0
+          : 0);
+
+      const team2Sets =
+        (match.team2_score_set1 > match.team1_score_set1 ? 1 : 0) +
+        (match.team2_score_set2 > match.team1_score_set2 ? 1 : 0) +
+        (match.team1_score_set3 !== null && match.team2_score_set3 !== null
+          ? match.team2_score_set3 > match.team1_score_set3
+            ? 1
+            : 0
+          : 0);
+
       // If both in same team (partners)
-      if ((isUserInTeam1 && isFriendInTeam1) || (!isUserInTeam1 && !isFriendInTeam1)) {
+      if (
+        (isUserInTeam1 && isFriendInTeam1) ||
+        (!isUserInTeam1 && !isFriendInTeam1)
+      ) {
         partnerMatches.push(match);
-        
+
         // Check if their team won
-        const teamWon = (isUserInTeam1 && match.winner_team === 1) || (!isUserInTeam1 && match.winner_team === 2);
+        const teamWon =
+          (isUserInTeam1 && match.winner_team === 1) ||
+          (!isUserInTeam1 && match.winner_team === 2);
         if (teamWon) {
           partnerWins++;
-          recentForm.unshift('W');
+          recentForm.unshift("W");
         } else {
-          recentForm.unshift('L');
+          recentForm.unshift("L");
         }
-        
+
         // Track sets
         if (isUserInTeam1) {
           partnerSetsWon += team1Sets;
@@ -865,16 +950,18 @@ export default function FriendProfileScreen() {
       } else {
         // They are opponents (rivals)
         rivalMatches.push(match);
-        
+
         // Check if current user won against friend
-        const userWon = (isUserInTeam1 && match.winner_team === 1) || (!isUserInTeam1 && match.winner_team === 2);
+        const userWon =
+          (isUserInTeam1 && match.winner_team === 1) ||
+          (!isUserInTeam1 && match.winner_team === 2);
         if (userWon) {
           rivalUserWins++;
-          recentForm.unshift('W');
+          recentForm.unshift("W");
         } else {
-          recentForm.unshift('L');
+          recentForm.unshift("L");
         }
-        
+
         // Track sets
         if (isUserInTeam1) {
           rivalSetsWon += team1Sets;
@@ -897,19 +984,25 @@ export default function FriendProfileScreen() {
         totalMatches: partnerMatches.length,
         wins: partnerWins,
         losses: partnerMatches.length - partnerWins,
-        winPercentage: partnerMatches.length > 0 ? Math.round((partnerWins / partnerMatches.length) * 100) : 0,
+        winPercentage:
+          partnerMatches.length > 0
+            ? Math.round((partnerWins / partnerMatches.length) * 100)
+            : 0,
         setsWon: partnerSetsWon,
-        setsLost: partnerSetsLost
+        setsLost: partnerSetsLost,
       },
       headToHeadRecord: {
         totalMatches: rivalMatches.length,
         userWins: rivalUserWins,
         friendWins: rivalMatches.length - rivalUserWins,
-        userWinPercentage: rivalMatches.length > 0 ? Math.round((rivalUserWins / rivalMatches.length) * 100) : 0,
+        userWinPercentage:
+          rivalMatches.length > 0
+            ? Math.round((rivalUserWins / rivalMatches.length) * 100)
+            : 0,
         setsWon: rivalSetsWon,
-        setsLost: rivalSetsLost
+        setsLost: rivalSetsLost,
       },
-      recentForm: limitedRecentForm
+      recentForm: limitedRecentForm,
     };
   };
 
@@ -928,13 +1021,13 @@ export default function FriendProfileScreen() {
   // NEW: Share friend profile function
   const shareFriendProfile = async () => {
     try {
-      const message = `Check out ${profile?.full_name || 'this player'}'s Padel profile!\n\nName: ${profile?.full_name || 'Anonymous Player'}\nRating: ${profile?.glicko_rating || '-'}\nWin Rate: ${friendStats.winRate}%\nMatches: ${friendStats.totalMatches}\nStreak: ${friendStats.currentStreak}\n\nLet's play a match!`;
-      await Share.share({ 
-        message, 
-        title: `${profile?.full_name || 'Player'}'s Padel Profile` 
+      const message = `Check out ${profile?.full_name || "this player"}'s Padel profile!\n\nName: ${profile?.full_name || "Anonymous Player"}\nRating: ${profile?.glicko_rating || "-"}\nWin Rate: ${friendStats.winRate}%\nMatches: ${friendStats.totalMatches}\nStreak: ${friendStats.currentStreak}\n\nLet's play a match!`;
+      await Share.share({
+        message,
+        title: `${profile?.full_name || "Player"}'s Padel Profile`,
       });
     } catch (error) {
-      console.error('Share failed:', error);
+      console.error("Share failed:", error);
     }
   };
 
@@ -944,61 +1037,77 @@ export default function FriendProfileScreen() {
       return (
         <View className="bg-card rounded-2xl mx-6 mb-6 p-6 items-center">
           <ActivityIndicator size="small" color="#2148ce" />
-          <Text className="mt-2 text-muted-foreground">Loading performance data...</Text>
+          <Text className="mt-2 text-muted-foreground">
+            Loading performance data...
+          </Text>
         </View>
       );
     }
 
     const getRatingFromProfile = () => {
       try {
-        return profile?.glicko_rating ? parseInt(profile.glicko_rating.toString()) : null;
+        return profile?.glicko_rating
+          ? parseInt(profile.glicko_rating.toString())
+          : null;
       } catch {
         return null;
       }
     };
 
     const rating = getRatingFromProfile();
-    
+
     // Rating level classification system
     const getRatingLevel = (rating: number | null) => {
-      if (!rating) return { level: 'Unrated', color: '#6b7280', bgColor: '#f3f4f6' };
-      if (rating >= 2100) return { level: 'Elite', color: '#7c2d12', bgColor: '#fbbf24' };
-      if (rating >= 1900) return { level: 'Expert', color: '#7c3aed', bgColor: '#c4b5fd' };
-      if (rating >= 1700) return { level: 'Advanced', color: '#059669', bgColor: '#6ee7b7' };
-      if (rating >= 1500) return { level: 'Intermediate', color: '#2563eb', bgColor: '#93c5fd' };
-      if (rating >= 1300) return { level: 'Beginner', color: '#dc2626', bgColor: '#fca5a5' };
-      return { level: 'Novice', color: '#6b7280', bgColor: '#d1d5db' };
+      if (!rating)
+        return { level: "Unrated", color: "#6b7280", bgColor: "#f3f4f6" };
+      if (rating >= 2100)
+        return { level: "Elite", color: "#7c2d12", bgColor: "#fbbf24" };
+      if (rating >= 1900)
+        return { level: "Expert", color: "#7c3aed", bgColor: "#c4b5fd" };
+      if (rating >= 1700)
+        return { level: "Advanced", color: "#059669", bgColor: "#6ee7b7" };
+      if (rating >= 1500)
+        return { level: "Intermediate", color: "#2563eb", bgColor: "#93c5fd" };
+      if (rating >= 1300)
+        return { level: "Beginner", color: "#dc2626", bgColor: "#fca5a5" };
+      return { level: "Novice", color: "#6b7280", bgColor: "#d1d5db" };
     };
 
     const ratingLevel = getRatingLevel(rating);
-    
+
     // Trend calculation for visual indicator
     const getTrendIndicator = () => {
-      if (friendStats.recentPerformance === 'improving') {
-        return { icon: 'trending-up', color: '#10b981' };
-      } else if (friendStats.recentPerformance === 'declining') {
-        return { icon: 'trending-down', color: '#ef4444' };
+      if (friendStats.recentPerformance === "improving") {
+        return { icon: "trending-up", color: "#10b981" };
+      } else if (friendStats.recentPerformance === "declining") {
+        return { icon: "trending-down", color: "#ef4444" };
       }
-      return { icon: 'remove', color: '#6b7280' };
+      return { icon: "remove", color: "#6b7280" };
     };
 
     const trend = getTrendIndicator();
 
     return (
-      <View className="bg-card rounded-2xl mx-6 mb-6 overflow-hidden"
-            style={{
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 8,
-              elevation: 4,
-            }}>
-        
+      <View
+        className="bg-card rounded-2xl mx-6 mb-6 overflow-hidden"
+        style={{
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          elevation: 4,
+        }}
+      >
         {/* Header with gradient background */}
         <View className="px-6 pt-5 pb-4 bg-primary/5">
           <View className="flex-row justify-between items-center">
             <View className="flex-row items-center">
-              <Ionicons name="analytics" size={22} color="#2148ce" style={{ marginRight: 8 }} />
+              <Ionicons
+                name="analytics"
+                size={22}
+                color="#2148ce"
+                style={{ marginRight: 8 }}
+              />
               <H3 className="text-lg">Performance Overview</H3>
             </View>
             <TouchableOpacity onPress={shareFriendProfile}>
@@ -1010,7 +1119,7 @@ export default function FriendProfileScreen() {
         <View className="px-6 pb-6">
           {/* Compact Rating Badge */}
           <View className="items-center mb-5 -mt-2">
-            <View 
+            <View
               className="px-6 py-3 rounded-xl border-2 flex-row items-center"
               style={{
                 backgroundColor: ratingLevel.bgColor,
@@ -1022,27 +1131,37 @@ export default function FriendProfileScreen() {
                 elevation: 4,
               }}
             >
-              <Ionicons name="trophy" size={20} color={ratingLevel.color} style={{ marginRight: 8 }} />
+              <Ionicons
+                name="trophy"
+                size={20}
+                color={ratingLevel.color}
+                style={{ marginRight: 8 }}
+              />
               <View className="items-center">
-                <Text 
+                <Text
                   className="text-2xl font-bold"
                   style={{ color: ratingLevel.color }}
                 >
-                  {rating || '-'}
+                  {rating || "-"}
                 </Text>
-                <Text 
+                <Text
                   className="text-xs font-medium"
                   style={{ color: ratingLevel.color, opacity: 0.8 }}
                 >
                   Glicko Rating
                 </Text>
               </View>
-              <View className="ml-8 px-3 py-1 rounded-full" style={{ backgroundColor: ratingLevel.color }}>
-                <Text className="text-white text-xs font-bold">{ratingLevel.level}</Text>
+              <View
+                className="ml-8 px-3 py-1 rounded-full"
+                style={{ backgroundColor: ratingLevel.color }}
+              >
+                <Text className="text-white text-xs font-bold">
+                  {ratingLevel.level}
+                </Text>
               </View>
-              <Ionicons 
-                name={trend.icon as any} 
-                size={18} 
+              <Ionicons
+                name={trend.icon as any}
+                size={18}
                 color={trend.color}
                 style={{ marginLeft: 8 }}
               />
@@ -1052,106 +1171,150 @@ export default function FriendProfileScreen() {
           {/* Main Statistics Grid */}
           <View className="flex-row justify-around mb-5">
             <View className="items-center">
-              <Text className="text-xl font-bold text-primary">{friendStats.totalMatches}</Text>
+              <Text className="text-xl font-bold text-primary">
+                {friendStats.totalMatches}
+              </Text>
               <Text className="text-xs text-muted-foreground">Matches</Text>
             </View>
             <View className="items-center">
-              <Text className="text-xl font-bold text-green-500">{friendStats.wins}</Text>
+              <Text className="text-xl font-bold text-green-500">
+                {friendStats.wins}
+              </Text>
               <Text className="text-xs text-muted-foreground">Wins</Text>
             </View>
             <View className="items-center">
-              <Text className="text-xl font-bold text-red-500">{friendStats.losses}</Text>
+              <Text className="text-xl font-bold text-red-500">
+                {friendStats.losses}
+              </Text>
               <Text className="text-xs text-muted-foreground">Losses</Text>
             </View>
             <View className="items-center">
-              <Text className="text-xl font-bold text-primary">{friendStats.winRate}%</Text>
+              <Text className="text-xl font-bold text-primary">
+                {friendStats.winRate}%
+              </Text>
               <Text className="text-xs text-muted-foreground">Win Rate</Text>
             </View>
           </View>
-          
+
           {/* Additional Stats - More Compact */}
           <View className="bg-muted/10 rounded-xl p-3 mb-4">
             <View className="flex-row justify-around">
               <View className="items-center">
-                <Text className="text-base font-bold">{friendStats.thisWeekMatches}</Text>
+                <Text className="text-base font-bold">
+                  {friendStats.thisWeekMatches}
+                </Text>
                 <Text className="text-xs text-muted-foreground">This Week</Text>
               </View>
               <View className="items-center">
-                <Text className="text-base font-bold">{friendStats.thisMonthMatches}</Text>
-                <Text className="text-xs text-muted-foreground">This Month</Text>
+                <Text className="text-base font-bold">
+                  {friendStats.thisMonthMatches}
+                </Text>
+                <Text className="text-xs text-muted-foreground">
+                  This Month
+                </Text>
               </View>
               <View className="items-center">
-                <Text className={`text-base font-bold ${
-                  friendStats.longestStreak > 0 ? 'text-green-500' : 
-                  friendStats.longestStreak < 0 ? 'text-red-500' : ''
-                }`}>
+                <Text
+                  className={`text-base font-bold ${
+                    friendStats.longestStreak > 0
+                      ? "text-green-500"
+                      : friendStats.longestStreak < 0
+                        ? "text-red-500"
+                        : ""
+                  }`}
+                >
                   {Math.abs(friendStats.longestStreak)}
                 </Text>
-                <Text className="text-xs text-muted-foreground">Best Streak</Text>
+                <Text className="text-xs text-muted-foreground">
+                  Best Streak
+                </Text>
               </View>
               <View className="items-center">
                 <Text className="text-base font-bold">
-                  {friendStats.averageMatchDuration > 0 
-                    ? Math.round(friendStats.averageMatchDuration / (1000 * 60)) + 'm'
-                    : '-'
-                  }
+                  {friendStats.averageMatchDuration > 0
+                    ? Math.round(
+                        friendStats.averageMatchDuration / (1000 * 60),
+                      ) + "m"
+                    : "-"}
                 </Text>
-                <Text className="text-xs text-muted-foreground">Avg Duration</Text>
+                <Text className="text-xs text-muted-foreground">
+                  Avg Duration
+                </Text>
               </View>
             </View>
           </View>
-          
+
           {/* Separator */}
           <View className="h-px bg-border mb-4" />
-          
+
           {/* Current Form and Recent Form Display */}
           <View className="flex-row justify-between items-center">
             <View className="flex-row items-center flex-1">
-              <Ionicons 
+              <Ionicons
                 name={
-                  friendStats.recentPerformance === 'improving' ? 'trending-up' :
-                  friendStats.recentPerformance === 'declining' ? 'trending-down' : 'remove'
-                } 
-                size={18} 
+                  friendStats.recentPerformance === "improving"
+                    ? "trending-up"
+                    : friendStats.recentPerformance === "declining"
+                      ? "trending-down"
+                      : "remove"
+                }
+                size={18}
                 color={
-                  friendStats.recentPerformance === 'improving' ? '#10b981' :
-                  friendStats.recentPerformance === 'declining' ? '#ef4444' : '#6b7280'
-                } 
-                style={{ marginRight: 8 }} 
+                  friendStats.recentPerformance === "improving"
+                    ? "#10b981"
+                    : friendStats.recentPerformance === "declining"
+                      ? "#ef4444"
+                      : "#6b7280"
+                }
+                style={{ marginRight: 8 }}
               />
               <View className="flex-1">
                 <Text className="text-sm text-muted-foreground">
-                  Streak: 
-                  <Text className={`font-medium ${
-                    friendStats.currentStreak > 0 ? 'text-green-500' : 
-                    friendStats.currentStreak < 0 ? 'text-red-500' : ''
-                  }`}>
-                    {' '}{friendStats.currentStreak > 0 ? `${friendStats.currentStreak}W` : 
-                         friendStats.currentStreak < 0 ? `${Math.abs(friendStats.currentStreak)}L` : '0'}
+                  Streak:
+                  <Text
+                    className={`font-medium ${
+                      friendStats.currentStreak > 0
+                        ? "text-green-500"
+                        : friendStats.currentStreak < 0
+                          ? "text-red-500"
+                          : ""
+                    }`}
+                  >
+                    {" "}
+                    {friendStats.currentStreak > 0
+                      ? `${friendStats.currentStreak}W`
+                      : friendStats.currentStreak < 0
+                        ? `${Math.abs(friendStats.currentStreak)}L`
+                        : "0"}
                   </Text>
-                  {' • '}
-                  <Text className={`${
-                    friendStats.recentPerformance === 'improving' ? 'text-green-500' :
-                    friendStats.recentPerformance === 'declining' ? 'text-red-500' : 'text-muted-foreground'
-                  }`}>
+                  {" • "}
+                  <Text
+                    className={`${
+                      friendStats.recentPerformance === "improving"
+                        ? "text-green-500"
+                        : friendStats.recentPerformance === "declining"
+                          ? "text-red-500"
+                          : "text-muted-foreground"
+                    }`}
+                  >
                     {friendStats.recentPerformance}
                   </Text>
                 </Text>
               </View>
             </View>
-            
+
             {/* Recent Form Visualization */}
             <View className="flex-row ml-4">
               {friendStats.recentForm.slice(0, 5).map((result, index) => (
                 <View
                   key={index}
                   className={`w-6 h-6 rounded-full mr-1 items-center justify-center ${
-                    result === 'W' ? 'bg-green-100' : 'bg-red-100'
+                    result === "W" ? "bg-green-100" : "bg-red-100"
                   }`}
                 >
-                  <Text 
+                  <Text
                     className={`font-bold text-xs ${
-                      result === 'W' ? 'text-green-700' : 'text-red-700'
+                      result === "W" ? "text-green-700" : "text-red-700"
                     }`}
                   >
                     {result}
@@ -1169,8 +1332,12 @@ export default function FriendProfileScreen() {
    * Enhanced Information Card Renderer with Improved Visual Design
    * Implements consistent styling and improved accessibility
    */
-  const renderInfoCard = (title: string, value: string | null, icon: keyof typeof Ionicons.glyphMap) => (
-    <View 
+  const renderInfoCard = (
+    title: string,
+    value: string | null,
+    icon: keyof typeof Ionicons.glyphMap,
+  ) => (
+    <View
       className="bg-card rounded-lg p-4 mb-3 flex-row items-center border border-border/30"
       style={{
         shadowColor: "#000",
@@ -1184,8 +1351,12 @@ export default function FriendProfileScreen() {
         <Ionicons name={icon} size={20} color="#2148ce" />
       </View>
       <View className="flex-1">
-        <Text className="text-sm text-muted-foreground font-medium">{title}</Text>
-        <Text className="font-medium text-foreground">{value || 'Not set'}</Text>
+        <Text className="text-sm text-muted-foreground font-medium">
+          {title}
+        </Text>
+        <Text className="font-medium text-foreground">
+          {value || "Not set"}
+        </Text>
       </View>
     </View>
   );
@@ -1221,10 +1392,15 @@ export default function FriendProfileScreen() {
             {sendingRequest ? (
               <ActivityIndicator size="small" color="#ffffff" />
             ) : (
-              <Ionicons name="person-add" size={20} color="#ffffff" style={{ marginRight: 8 }} />
+              <Ionicons
+                name="person-add"
+                size={20}
+                color="#ffffff"
+                style={{ marginRight: 8 }}
+              />
             )}
             <Text className="text-white font-medium">
-              {sendingRequest ? 'Sending...' : 'Add Friend'}
+              {sendingRequest ? "Sending..." : "Add Friend"}
             </Text>
           </Button>
         );
@@ -1237,24 +1413,31 @@ export default function FriendProfileScreen() {
               className="w-full mb-2"
               disabled
               style={{
-                borderColor: '#059669',
-                backgroundColor: '#dcfce7',
+                borderColor: "#059669",
+                backgroundColor: "#dcfce7",
               }}
             >
-              <Ionicons name="checkmark-circle" size={20} color="#059669" style={{ marginRight: 8 }} />
-              <Text style={{ color: '#059669' }} className="font-medium">Friend Request Sent</Text>
+              <Ionicons
+                name="checkmark-circle"
+                size={20}
+                color="#059669"
+                style={{ marginRight: 8 }}
+              />
+              <Text style={{ color: "#059669" }} className="font-medium">
+                Friend Request Sent
+              </Text>
             </Button>
             <Button
               variant="destructive"
               size="sm"
               onPress={() => {
                 Alert.alert(
-                  'Cancel Friend Request',
-                  'Are you sure you want to cancel your friend request?',
+                  "Cancel Friend Request",
+                  "Are you sure you want to cancel your friend request?",
                   [
-                    { text: 'No', style: 'cancel' },
-                    { text: 'Yes', onPress: cancelFriendRequest }
-                  ]
+                    { text: "No", style: "cancel" },
+                    { text: "Yes", onPress: cancelFriendRequest },
+                  ],
                 );
               }}
               disabled={sendingRequest}
@@ -1270,7 +1453,12 @@ export default function FriendProfileScreen() {
           <View className="mb-4">
             <View className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg mb-3 border border-blue-200 dark:border-blue-800">
               <View className="flex-row items-center">
-                <Ionicons name="mail" size={20} color="#2563eb" style={{ marginRight: 8 }} />
+                <Ionicons
+                  name="mail"
+                  size={20}
+                  color="#2563eb"
+                  style={{ marginRight: 8 }}
+                />
                 <Text className="font-medium text-blue-800 dark:text-blue-300">
                   Friend Request Received
                 </Text>
@@ -1289,7 +1477,12 @@ export default function FriendProfileScreen() {
                 {sendingRequest ? (
                   <ActivityIndicator size="small" color="#ffffff" />
                 ) : (
-                  <Ionicons name="checkmark" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+                  <Ionicons
+                    name="checkmark"
+                    size={18}
+                    color="#ffffff"
+                    style={{ marginRight: 6 }}
+                  />
                 )}
                 <Text className="text-white font-medium">Accept</Text>
               </Button>
@@ -1298,15 +1491,18 @@ export default function FriendProfileScreen() {
                 className="flex-1"
                 onPress={() => {
                   Alert.alert(
-                    'Decline Friend Request',
-                    'Are you sure you want to decline this friend request?',
+                    "Decline Friend Request",
+                    "Are you sure you want to decline this friend request?",
                     [
-                      { text: 'No', style: 'cancel' },
-                      { text: 'Yes', onPress: () => {
-                        // Handle decline logic here
-                        setFriendshipStatus(FriendshipStatus.NOT_FRIENDS);
-                      }}
-                    ]
+                      { text: "No", style: "cancel" },
+                      {
+                        text: "Yes",
+                        onPress: () => {
+                          // Handle decline logic here
+                          setFriendshipStatus(FriendshipStatus.NOT_FRIENDS);
+                        },
+                      },
+                    ],
                   );
                 }}
               >
@@ -1326,10 +1522,10 @@ export default function FriendProfileScreen() {
    */
   const renderHeadToHeadCard = () => {
     const { headToHeadRecord } = matchHistory;
-    
+
     if (headToHeadRecord.totalMatches === 0) {
       return (
-        <View 
+        <View
           className="bg-gradient-to-r from-orange-50 to-red-50 rounded-lg p-6 mb-4 border border-orange-200"
           style={{
             shadowColor: "#ea580c",
@@ -1343,7 +1539,9 @@ export default function FriendProfileScreen() {
             <View className="bg-orange-100 p-2 rounded-full mr-3">
               <Ionicons name="flash-outline" size={20} color="#ea580c" />
             </View>
-            <Text className="font-bold text-lg text-orange-800">Head-to-Head Record</Text>
+            <Text className="font-bold text-lg text-orange-800">
+              Head-to-Head Record
+            </Text>
           </View>
           <Text className="text-orange-600 text-center">
             No competitive matches yet - time for a rivalry to begin!
@@ -1356,7 +1554,7 @@ export default function FriendProfileScreen() {
     const friendWinPercentage = 100 - userWinPercentage;
 
     return (
-      <View 
+      <View
         className="bg-gradient-to-r from-orange-50 to-red-50 rounded-lg p-6 mb-4 border border-orange-200"
         style={{
           shadowColor: "#ea580c",
@@ -1370,30 +1568,38 @@ export default function FriendProfileScreen() {
           <View className="bg-orange-100 p-2 rounded-full mr-3">
             <Ionicons name="flash-outline" size={20} color="#ea580c" />
           </View>
-          <Text className="font-bold text-lg text-orange-800">Head-to-Head Record</Text>
+          <Text className="font-bold text-lg text-orange-800">
+            Head-to-Head Record
+          </Text>
         </View>
-        
+
         {/* Win percentage bar */}
         <View className="mb-4">
           <View className="flex-row justify-between mb-2">
             <Text className="font-medium text-sm">You</Text>
-            <Text className="font-medium text-sm">{profile?.full_name || 'Friend'}</Text>
+            <Text className="font-medium text-sm">
+              {profile?.full_name || "Friend"}
+            </Text>
           </View>
           <View className="h-6 bg-gray-200 rounded-full overflow-hidden flex-row">
-            <View 
+            <View
               className="bg-green-500 h-full justify-center items-center"
               style={{ width: `${userWinPercentage}%` }}
             >
               {userWinPercentage > 20 && (
-                <Text className="text-white text-xs font-bold">{userWinPercentage}%</Text>
+                <Text className="text-white text-xs font-bold">
+                  {userWinPercentage}%
+                </Text>
               )}
             </View>
-            <View 
+            <View
               className="bg-red-500 h-full justify-center items-center"
               style={{ width: `${friendWinPercentage}%` }}
             >
               {friendWinPercentage > 20 && (
-                <Text className="text-white text-xs font-bold">{friendWinPercentage}%</Text>
+                <Text className="text-white text-xs font-bold">
+                  {friendWinPercentage}%
+                </Text>
               )}
             </View>
           </View>
@@ -1407,14 +1613,14 @@ export default function FriendProfileScreen() {
             </Text>
             <Text className="text-xs text-gray-600">Your Wins</Text>
           </View>
-          
+
           <View className="items-center flex-1">
             <Text className="text-lg font-bold text-gray-600">
               {headToHeadRecord.totalMatches}
             </Text>
             <Text className="text-xs text-gray-600">Total Matches</Text>
           </View>
-          
+
           <View className="items-center flex-1">
             <Text className="text-2xl font-bold text-red-600">
               {headToHeadRecord.friendWins}
@@ -1430,8 +1636,11 @@ export default function FriendProfileScreen() {
               Sets: {headToHeadRecord.setsWon}-{headToHeadRecord.setsLost}
             </Text>
             <Text className="text-sm font-medium text-orange-700">
-              {headToHeadRecord.userWins > headToHeadRecord.friendWins ? 'You lead' : 
-               headToHeadRecord.friendWins > headToHeadRecord.userWins ? 'They lead' : 'Tied'}
+              {headToHeadRecord.userWins > headToHeadRecord.friendWins
+                ? "You lead"
+                : headToHeadRecord.friendWins > headToHeadRecord.userWins
+                  ? "They lead"
+                  : "Tied"}
             </Text>
           </View>
         </View>
@@ -1444,10 +1653,10 @@ export default function FriendProfileScreen() {
    */
   const renderPartnershipCard = () => {
     const { partnershipRecord } = matchHistory;
-    
+
     if (partnershipRecord.totalMatches === 0) {
       return (
-        <View 
+        <View
           className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 mb-4 border border-blue-200"
           style={{
             shadowColor: "#3b82f6",
@@ -1461,7 +1670,9 @@ export default function FriendProfileScreen() {
             <View className="bg-blue-100 p-2 rounded-full mr-3">
               <Ionicons name="people-outline" size={20} color="#3b82f6" />
             </View>
-            <Text className="font-bold text-lg text-blue-800">Partnership Record</Text>
+            <Text className="font-bold text-lg text-blue-800">
+              Partnership Record
+            </Text>
           </View>
           <Text className="text-blue-600 text-center">
             No team matches yet - team up for your first victory!
@@ -1471,7 +1682,7 @@ export default function FriendProfileScreen() {
     }
 
     return (
-      <View 
+      <View
         className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 mb-4 border border-blue-200"
         style={{
           shadowColor: "#3b82f6",
@@ -1485,9 +1696,11 @@ export default function FriendProfileScreen() {
           <View className="bg-blue-100 p-2 rounded-full mr-3">
             <Ionicons name="people-outline" size={20} color="#3b82f6" />
           </View>
-          <Text className="font-bold text-lg text-blue-800">Partnership Record</Text>
+          <Text className="font-bold text-lg text-blue-800">
+            Partnership Record
+          </Text>
         </View>
-        
+
         {/* Win rate circle or bar */}
         <View className="items-center mb-4">
           <View className="bg-white rounded-full p-4 shadow-sm">
@@ -1506,14 +1719,14 @@ export default function FriendProfileScreen() {
             </Text>
             <Text className="text-xs text-gray-600">Wins</Text>
           </View>
-          
+
           <View className="items-center flex-1">
             <Text className="text-xl font-bold text-gray-600">
               {partnershipRecord.totalMatches}
             </Text>
             <Text className="text-xs text-gray-600">Matches</Text>
           </View>
-          
+
           <View className="items-center flex-1">
             <Text className="text-xl font-bold text-red-600">
               {partnershipRecord.losses}
@@ -1525,7 +1738,8 @@ export default function FriendProfileScreen() {
         {/* Sets record */}
         <View className="pt-4 border-t border-blue-200">
           <Text className="text-sm text-gray-600 text-center">
-            Sets as partners: {partnershipRecord.setsWon}-{partnershipRecord.setsLost}
+            Sets as partners: {partnershipRecord.setsWon}-
+            {partnershipRecord.setsLost}
           </Text>
         </View>
       </View>
@@ -1539,7 +1753,7 @@ export default function FriendProfileScreen() {
     if (matchHistory.recentForm.length === 0) return null;
 
     return (
-      <View 
+      <View
         className="bg-card rounded-lg p-4 mb-4 border border-border/30"
         style={{
           shadowColor: "#000",
@@ -1554,12 +1768,12 @@ export default function FriendProfileScreen() {
             <View
               key={index}
               className={`w-8 h-8 rounded-full mr-2 items-center justify-center ${
-                result === 'W' ? 'bg-green-100' : 'bg-red-100'
+                result === "W" ? "bg-green-100" : "bg-red-100"
               }`}
             >
-              <Text 
+              <Text
                 className={`font-bold text-xs ${
-                  result === 'W' ? 'text-green-700' : 'text-red-700'
+                  result === "W" ? "text-green-700" : "text-red-700"
                 }`}
               >
                 {result}
@@ -1577,7 +1791,7 @@ export default function FriendProfileScreen() {
   const renderMatchHistoryCard = () => {
     if (matchesLoading) {
       return (
-        <View 
+        <View
           className="bg-card rounded-lg p-6 mb-6 items-center border border-border/30"
           style={{
             shadowColor: "#000",
@@ -1588,14 +1802,16 @@ export default function FriendProfileScreen() {
           }}
         >
           <ActivityIndicator size="small" color="#2148ce" />
-          <Text className="mt-2 text-muted-foreground">Loading match history...</Text>
+          <Text className="mt-2 text-muted-foreground">
+            Loading match history...
+          </Text>
         </View>
       );
     }
 
     if (matchHistory.allMatches.length === 0) {
       return (
-        <View 
+        <View
           className="bg-card rounded-lg p-6 mb-6 items-center border border-border/30"
           style={{
             shadowColor: "#000",
@@ -1621,18 +1837,18 @@ export default function FriendProfileScreen() {
     return (
       <View className="mb-6">
         <H3 className="mb-4">Match History</H3>
-        
+
         {/* Head-to-Head Record */}
         {renderHeadToHeadCard()}
-        
+
         {/* Partnership Record */}
         {renderPartnershipCard()}
-        
+
         {/* Recent Form */}
         {renderRecentForm()}
-        
+
         {/* Recent Matches Preview */}
-        <View 
+        <View
           className="bg-card rounded-lg p-4 border border-border/30"
           style={{
             shadowColor: "#000",
@@ -1648,8 +1864,8 @@ export default function FriendProfileScreen() {
               <TouchableOpacity
                 onPress={() => {
                   router.push({
-                    pathname: '/(protected)/(screens)/match-history',
-                    params: { friendId: profileId as string }
+                    pathname: "/(protected)/(screens)/match-history",
+                    params: { friendId: profileId as string },
                   });
                 }}
               >
@@ -1657,8 +1873,10 @@ export default function FriendProfileScreen() {
               </TouchableOpacity>
             )}
           </View>
-          
-          {matchHistory.allMatches.slice(0, 3).map(match => renderMatchItem(match))}
+
+          {matchHistory.allMatches
+            .slice(0, 3)
+            .map((match) => renderMatchItem(match))}
         </View>
       </View>
     );
@@ -1669,34 +1887,44 @@ export default function FriendProfileScreen() {
    */
   const renderMatchItem = (match: MatchData) => {
     const currentUserId = session?.user?.id;
-    const isUserInTeam1 = match.player1_id === currentUserId || match.player2_id === currentUserId;
-    const isFriendInTeam1 = match.player1_id === profileId || match.player2_id === profileId;
-    const arePartners = (isUserInTeam1 && isFriendInTeam1) || (!isUserInTeam1 && !isFriendInTeam1);
-    
+    const isUserInTeam1 =
+      match.player1_id === currentUserId || match.player2_id === currentUserId;
+    const isFriendInTeam1 =
+      match.player1_id === profileId || match.player2_id === profileId;
+    const arePartners =
+      (isUserInTeam1 && isFriendInTeam1) ||
+      (!isUserInTeam1 && !isFriendInTeam1);
+
     // Format match date
     const matchDate = new Date(match.start_time);
     const formattedDate = matchDate.toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric'
+      month: "short",
+      day: "numeric",
     });
-    
+
     // Calculate if user won
-    const userWon = (isUserInTeam1 && match.winner_team === 1) || (!isUserInTeam1 && match.winner_team === 2);
-    
+    const userWon =
+      (isUserInTeam1 && match.winner_team === 1) ||
+      (!isUserInTeam1 && match.winner_team === 2);
+
     // Calculate score to display
-    let scoreDisplay = '';
+    let scoreDisplay = "";
     if (isUserInTeam1) {
       scoreDisplay = `${match.team1_score_set1}-${match.team2_score_set1}`;
-      if (match.team1_score_set2 !== null) scoreDisplay += `, ${match.team1_score_set2}-${match.team2_score_set2}`;
-      if (match.team1_score_set3 !== null) scoreDisplay += `, ${match.team1_score_set3}-${match.team2_score_set3}`;
+      if (match.team1_score_set2 !== null)
+        scoreDisplay += `, ${match.team1_score_set2}-${match.team2_score_set2}`;
+      if (match.team1_score_set3 !== null)
+        scoreDisplay += `, ${match.team1_score_set3}-${match.team2_score_set3}`;
     } else {
       scoreDisplay = `${match.team2_score_set1}-${match.team1_score_set1}`;
-      if (match.team1_score_set2 !== null) scoreDisplay += `, ${match.team2_score_set2}-${match.team1_score_set2}`;
-      if (match.team1_score_set3 !== null) scoreDisplay += `, ${match.team2_score_set3}-${match.team1_score_set3}`;
+      if (match.team1_score_set2 !== null)
+        scoreDisplay += `, ${match.team2_score_set2}-${match.team1_score_set2}`;
+      if (match.team1_score_set3 !== null)
+        scoreDisplay += `, ${match.team2_score_set3}-${match.team1_score_set3}`;
     }
-    
+
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         key={match.id}
         className="bg-background border border-border/40 rounded-lg p-3 mb-2"
         style={{
@@ -1708,50 +1936,57 @@ export default function FriendProfileScreen() {
         }}
         onPress={() => {
           router.push({
-            pathname: '/(protected)/(screens)/match-details',
-            params: { matchId: match.id }
+            pathname: "/(protected)/(screens)/match-details",
+            params: { matchId: match.id },
           });
         }}
         activeOpacity={0.7}
       >
         <View className="flex-row justify-between items-center">
           <View className="flex-row items-center">
-            <View className={`w-8 h-8 rounded-full ${
-              arePartners 
-                ? 'bg-blue-100' 
-                : 'bg-orange-100'
-            } items-center justify-center mr-3`}>
-              <Ionicons 
-                name={arePartners ? "people-outline" : "flash-outline"} 
-                size={16} 
-                color={arePartners ? "#3b82f6" : "#ea580c"} 
+            <View
+              className={`w-8 h-8 rounded-full ${
+                arePartners ? "bg-blue-100" : "bg-orange-100"
+              } items-center justify-center mr-3`}
+            >
+              <Ionicons
+                name={arePartners ? "people-outline" : "flash-outline"}
+                size={16}
+                color={arePartners ? "#3b82f6" : "#ea580c"}
               />
             </View>
             <View>
               <Text className="font-medium">
-                {arePartners ? 'Partners' : 'Rivals'}
+                {arePartners ? "Partners" : "Rivals"}
               </Text>
-              <Text className="text-xs text-muted-foreground">{formattedDate}</Text>
+              <Text className="text-xs text-muted-foreground">
+                {formattedDate}
+              </Text>
             </View>
           </View>
-          
+
           <View className="items-end">
-            <View className={`px-2 py-1 rounded-full ${
-              userWon ? 'bg-green-100' : 'bg-red-100'
-            }`}>
-              <Text className={`text-xs font-bold ${
-                userWon ? 'text-green-700' : 'text-red-700'
-              }`}>
-                {userWon ? 'WIN' : 'LOSS'}
+            <View
+              className={`px-2 py-1 rounded-full ${
+                userWon ? "bg-green-100" : "bg-red-100"
+              }`}
+            >
+              <Text
+                className={`text-xs font-bold ${
+                  userWon ? "text-green-700" : "text-red-700"
+                }`}
+              >
+                {userWon ? "WIN" : "LOSS"}
               </Text>
             </View>
-            <Text className="text-xs mt-1 text-muted-foreground">{scoreDisplay}</Text>
+            <Text className="text-xs mt-1 text-muted-foreground">
+              {scoreDisplay}
+            </Text>
           </View>
         </View>
       </TouchableOpacity>
     );
   };
-
 
   if (loading && !refreshing) {
     return (
@@ -1766,8 +2001,8 @@ export default function FriendProfileScreen() {
     return (
       <SafeAreaView className="flex-1 bg-background p-6">
         <View className="flex-row items-center mb-6">
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             onPress={() => router.back()}
             className="mr-2"
           >
@@ -1802,8 +2037,8 @@ export default function FriendProfileScreen() {
       >
         {/* Enhanced Header with Back Button */}
         <View className="pt-4 flex-row items-center">
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             onPress={() => router.back()}
             className="mr-2"
           >
@@ -1814,25 +2049,28 @@ export default function FriendProfileScreen() {
         {/* Enhanced Profile Header with Avatar Integration */}
         <View className="pt-4 pb-6 px-6 items-center">
           <ProfileAvatar profile={profile} size="xl" />
-          <H1 className="mb-1 text-center">{profile.full_name || 'Anonymous Player'}</H1>
+          <H1 className="mb-1 text-center">
+            {profile.full_name || "Anonymous Player"}
+          </H1>
           {profile.nickname && (
-            <H2 className="text-muted-foreground text-center">"{profile.nickname}"</H2>
+            <H2 className="text-muted-foreground text-center">
+              "{profile.nickname}"
+            </H2>
           )}
-        </View> 
+        </View>
 
         {/* Enhanced Content Section */}
         <View className="px-6 pb-8">
           {/* NEW: Friend's Performance Overview */}
           {renderFriendPerformanceOverview()}
-          
-   
-          
+
           {/* Friendship Status and Action Button */}
           {renderFriendshipButton()}
-          
+
           {/* Match History - Only show if friends */}
-          {friendshipStatus === FriendshipStatus.FRIENDS && renderMatchHistoryCard()}
-          
+          {friendshipStatus === FriendshipStatus.FRIENDS &&
+            renderMatchHistoryCard()}
+
           {/* Personal Info Section */}
           <H3 className="mb-4">Personal Information</H3>
           {renderInfoCard("Age", profile.age, "person-outline")}
@@ -1840,9 +2078,21 @@ export default function FriendProfileScreen() {
 
           {/* Playing Preferences Section */}
           <H3 className="mb-4 mt-6">Playing Preferences</H3>
-          {renderInfoCard("Preferred Hand", profile.preferred_hand, "hand-left-outline")}
-          {renderInfoCard("Court Position", profile.court_playing_side, "tennisball-outline")}
-          {renderInfoCard("Preferred Area", profile.preferred_area, "location-outline")}
+          {renderInfoCard(
+            "Preferred Hand",
+            profile.preferred_hand,
+            "hand-left-outline",
+          )}
+          {renderInfoCard(
+            "Court Position",
+            profile.court_playing_side,
+            "tennisball-outline",
+          )}
+          {renderInfoCard(
+            "Preferred Area",
+            profile.preferred_area,
+            "location-outline",
+          )}
 
           {/* Enhanced Actions Section - Only show if friends */}
           {friendshipStatus === FriendshipStatus.FRIENDS && (
@@ -1853,8 +2103,8 @@ export default function FriendProfileScreen() {
                 variant="default"
                 onPress={() => {
                   router.push({
-                    pathname: '/(protected)/(screens)/create-match',
-                    params: { friendId: profile.id }
+                    pathname: "/(protected)/(screens)/create-match",
+                    params: { friendId: profile.id },
                   });
                 }}
                 style={{
@@ -1865,7 +2115,11 @@ export default function FriendProfileScreen() {
                   elevation: 4,
                 }}
               >
-                <Ionicons name="tennisball-outline" size={20} style={{ marginRight: 8 }} />
+                <Ionicons
+                  name="tennisball-outline"
+                  size={20}
+                  style={{ marginRight: 8 }}
+                />
                 <Text>Play Together</Text>
               </Button>
             </View>

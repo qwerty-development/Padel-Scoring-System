@@ -1,4 +1,3 @@
-/* eslint-disable import/no-unresolved */
 // Simple client-side processor that can be called from your app
 // Put this in a component that's always mounted (like your main layout)
 

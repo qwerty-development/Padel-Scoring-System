@@ -1,4 +1,3 @@
-/* eslint-disable import/no-unresolved */
 import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
@@ -19,7 +18,7 @@ import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/supabase-provider";
 import { supabase } from "@/config/supabase";
-import { SafeAreaView } from "@/components/safe-area-view";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useMatchConfirmationV2 } from "@/hooks/useMatchConfirmation";
 
 // Simplified enums and interfaces
@@ -97,7 +96,7 @@ const Avatar: React.FC<AvatarProps> = ({
     if (!player) return;
 
     if (isCurrentUser) {
-      router.push('/(tabs)/profile');
+      router.push("/(protected)/(tabs)/profile");
       return;
     }
 
@@ -289,11 +288,11 @@ export default function CleanMatchDetails() {
   const { session, profile } = useAuth();
 
   // Match confirmation hook (for approve/report flow)
- const {
-   canTakeAction: canConfirmMatch,
-   approveMatch,
-   processing: approving,
- } = useMatchConfirmationV2(matchId as string);
+  const {
+    canTakeAction: canConfirmMatch,
+    approveMatch,
+    processing: approving,
+  } = useMatchConfirmationV2(matchId as string);
 
   const confirmMatch = async () => {
     if (!match) return;
@@ -739,72 +738,92 @@ export default function CleanMatchDetails() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-background dark:bg-gray-900">
+      <View className="flex-1 bg-white">
+        <SafeAreaView edges={['top']} className="bg-blue-600">
+          <View className="bg-blue-600 px-6 py-4">
+            <View className="flex-row items-center justify-between">
+              <TouchableOpacity
+                onPress={() => router.back()}
+                className="p-2"
+              >
+                <Ionicons name="close" size={24} color="white" />
+              </TouchableOpacity>
+              <Text className="text-xl font-bold text-white flex-1 text-center">
+                Match Details
+              </Text>
+              <View className="p-2" />
+            </View>
+          </View>
+        </SafeAreaView>
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#3B82F6" />
-          <Text className="mt-4 text-gray-500 dark:text-gray-400">
+          <Text className="mt-4 text-gray-500">
             Loading match details...
           </Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (!match) {
     return (
-      <SafeAreaView className="flex-1 bg-gray-50 dark:bg-gray-900 p-6">
-        <View className="flex-1 items-center justify-center">
+      <View className="flex-1 bg-white">
+        <SafeAreaView edges={['top']} className="bg-blue-600">
+          <View className="bg-blue-600 px-6 py-4">
+            <View className="flex-row items-center justify-between">
+              <TouchableOpacity
+                onPress={() => router.back()}
+                className="p-2"
+              >
+                <Ionicons name="close" size={24} color="white" />
+              </TouchableOpacity>
+              <Text className="text-xl font-bold text-white flex-1 text-center">
+                Match Details
+              </Text>
+              <View className="p-2" />
+            </View>
+          </View>
+        </SafeAreaView>
+        <View className="flex-1 items-center justify-center p-6">
           <Ionicons name="alert-circle-outline" size={48} color="#ef4444" />
           <Text className="text-lg font-medium mt-4 mb-2">Match Not Found</Text>
-          <Text className="text-gray-500 dark:text-gray-400 text-center mb-6">
+          <Text className="text-gray-500 text-center mb-6">
             Could not find the match you're looking for.
           </Text>
           <Button onPress={() => router.back()}>
             <Text className="text-white">Go Back</Text>
           </Button>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background dark:bg-gray-900">
-      {/* Header */}
-      <View className="bg-backround dark:bg-gray-800 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-        <View className="flex-row items-center justify-between">
-          <View className="flex-row items-center">
+    <View className="flex-1 bg-white">
+      {/* Blue Header with Safe Area */}
+      <SafeAreaView edges={['top']} className="bg-blue-600">
+        <View className="bg-blue-600 px-6 py-4">
+          <View className="flex-row items-center justify-between">
             <TouchableOpacity
               onPress={() => router.back()}
-              className="mr-4 p-2"
+              className="p-2"
             >
-              <Ionicons name="arrow-back" size={24} color="#3B82F6" />
+              <Ionicons name="close" size={24} color="white" />
             </TouchableOpacity>
-            <View>
-              <Text className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                Match Details
-              </Text>
-              <Text className="text-sm text-gray-500 dark:text-gray-400">
-                {formatDate(match.start_time)}
-              </Text>
-            </View>
-          </View>
 
-          <View className="flex-row gap-3">
+            <Text className="text-xl font-bold text-white flex-1 text-center">
+              Match Details
+            </Text>
+
             <TouchableOpacity onPress={shareMatch} className="p-2">
-              <Ionicons name="share-social" size={20} color="#3B82F6" />
+              <Ionicons name="share-social" size={24} color="white" />
             </TouchableOpacity>
-
-            {matchState.isCreator && (
-              <TouchableOpacity onPress={deleteMatch} className="p-2">
-                <Ionicons name="trash" size={20} color="#ef4444" />
-              </TouchableOpacity>
-            )}
           </View>
         </View>
-      </View>
+      </SafeAreaView>
 
       <ScrollView
-        className="flex-1 bg-background"
+        className="flex-1 bg-white"
         contentContainerStyle={{ padding: 20 }}
         refreshControl={
           <RefreshControl
@@ -814,247 +833,455 @@ export default function CleanMatchDetails() {
           />
         }
       >
-        {/* Match Status */}
-        <View className="bg-card dark:bg-gray-800 rounded-xl p-4 mb-6 border border-gray-200 dark:border-gray-700">
-          <View className="flex-row items-center justify-between mb-4">
-            <Text className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              {formatTime(match.start_time)}
-              {match.end_time && ` - ${formatTime(match.end_time)}`}
-            </Text>
+        {/* Match Details Section */}
+        <View className="bg-white rounded-xl p-6 mb-6 border border-gray-200">
+          <View className="flex-row items-center justify-between">
+            {/* Match Information */}
+            <View className="flex-1 mr-4">
+              {/* Date */}
+              <Text className="text-lg text-gray-900 mb-1">
+                {format(new Date(match.start_time), "EEEE, d MMMM")}
+              </Text>
+              
+              {/* Time */}
+              <Text className="text-base text-gray-700 mb-1">
+                {formatTime(match.start_time)}
+                {match.end_time && ` - ${formatTime(match.end_time)}`}
+              </Text>
 
-            <View className="flex-row items-center gap-2">
-              {match.is_public && (
-                <View className="bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded-full">
-                  <Text className="text-xs text-blue-700 dark:text-blue-300 font-medium">
-                    Public
-                  </Text>
-                </View>
-              )}
-
-              <View
-                className={`px-2 py-1 rounded-full ${
-                  matchState.isFuture
-                    ? "bg-blue-100 dark:bg-blue-900/30"
-                    : matchState.hasScores
-                      ? "bg-green-100 dark:bg-green-900/30"
-                      : "bg-orange-100 dark:bg-orange-900/30"
-                }`}
-              >
-                <Text
-                  className={`text-xs font-medium ${
-                    matchState.isFuture
-                      ? "text-blue-700 dark:text-blue-300"
-                      : matchState.hasScores
-                        ? "text-green-700 dark:text-green-300"
-                        : "text-orange-700 dark:text-orange-300"
-                  }`}
-                >
-                  {matchState.isFuture
-                    ? "Upcoming"
-                    : matchState.hasScores
-                      ? "Completed"
-                      : "Needs Scores"}
+              {/* Location */}
+              {(match.region || match.court) && (
+                <Text className="text-sm text-gray-600">
+                  {match.court ? `${match.court}, ` : ""}
+                  {match.region || "TBD"}
                 </Text>
-              </View>
+              )}
+            </View>
+
+            {/* Padel Court Image */}
+            <View className="w-32 h-24 rounded-xl overflow-hidden">
+              <Image
+                source={require('../../../assets/padel-court-light.webp')}
+                className="w-full h-full"
+                resizeMode="cover"
+              />
             </View>
           </View>
-
-          {(match.region || match.court) && (
-            <View className="flex-row items-center">
-              <Ionicons
-                name="location-outline"
-                size={16}
-                color="#6B7280"
-                style={{ marginRight: 8 }}
-              />
-              <Text className="text-gray-600 dark:text-gray-400">
-                {match.court ? `${match.court}, ` : ""}
-                {match.region || "TBD"}
-              </Text>
-            </View>
-          )}
         </View>
 
-        {/* Score Display or Input */}
-        {editingScores ? (
-          <View className="bg-card dark:bg-gray-800 rounded-xl p-6 mb-6 border border-gray-200 dark:border-gray-700">
-            <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                Enter Scores
-              </Text>
-              <TouchableOpacity
-                onPress={() => setEditingScores(false)}
-                className="p-2"
-              >
-                <Ionicons name="close" size={20} color="#6B7280" />
-              </TouchableOpacity>
-            </View>
-
-            {renderScoreInput(1, set1Score, setSet1Score)}
-            {renderScoreInput(2, set2Score, setSet2Score)}
-            {showSet3 && renderScoreInput(3, set3Score, setSet3Score)}
-
-            <Button
-              onPress={saveScores}
-              disabled={saving}
-              className="w-full mt-4"
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text className="text-white font-medium">Save Scores</Text>
-              )}
-            </Button>
-          </View>
-        ) : matchState.hasScores ? (
-          <View className="bg-card dark:bg-gray-800 rounded-xl p-6 mb-6 border border-gray-200 dark:border-gray-700">
-            <View className="items-center mb-6">
-              <Text className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                Final Score
-              </Text>
-              <View className="flex-row items-center">
-                <Text className="text-4xl font-bold text-blue-600">
-                  {matchState.team1Sets}
-                </Text>
-                <Text className="text-2xl mx-4 text-gray-400">-</Text>
-                <Text className="text-4xl font-bold text-purple-600">
-                  {matchState.team2Sets}
+        {/* Match Breakdown Section */}
+        {matchState.hasScores && (
+          <View className="bg-white rounded-xl p-4 mb-6 border border-gray-200">
+                    {/* Header with label and status */}
+        <View className="flex-row items-center justify-between mb-3">
+          <Text className="text-base text-gray-900">
+            Match Breakdown
+          </Text>
+              <View className={`px-3 py-1 rounded-full ${
+                match.all_confirmed
+                  ? "bg-green-100"
+                  : "bg-orange-100"
+              }`}>
+                <Text className={`text-sm font-medium ${
+                  match.all_confirmed
+                    ? "text-green-700"
+                    : "text-orange-700"
+                }`}>
+                  {match.all_confirmed ? "Confirmed" : "Not Confirmed"}
                 </Text>
               </View>
-
-              {matchState.userParticipating && (
-                <View
-                  className={`mt-3 px-4 py-2 rounded-full ${
-                    matchState.userWon === true
-                      ? "bg-green-100 dark:bg-green-900/30"
-                      : matchState.userWon === false
-                        ? "bg-red-100 dark:bg-red-900/30"
-                        : "bg-yellow-100 dark:bg-yellow-900/30"
-                  }`}
-                >
-                  <Text
-                    className={`font-medium ${
-                      matchState.userWon === true
-                        ? "text-green-700 dark:text-green-300"
-                        : matchState.userWon === false
-                          ? "text-red-700 dark:text-red-300"
-                          : "text-yellow-700 dark:text-yellow-300"
-                    }`}
-                  >
-                    {matchState.userWon === true
-                      ? "🏆 Victory!"
-                      : matchState.userWon === false
-                        ? "😔 Defeat"
-                        : "🤝 Draw"}
-                  </Text>
-                </View>
-              )}
             </View>
-
+            
+            {/* Separator Line */}
+            <View className="h-px bg-gray-200 mb-4" />
+            
+            {/* Score Layout - Match Card Style */}
             <View>
-              <Text className="font-medium mb-3 text-gray-900 dark:text-gray-100">
-                Set Breakdown
-              </Text>
-              {renderSetScore(
-                1,
-                match.team1_score_set1,
-                match.team2_score_set1,
+              {/* Team 1 - Names with scores vertically centered */}
+              <View className="flex-row justify-between mb-2">
+                <View className="flex-1 min-w-0">
+                  {/* Player 1 */}
+                  <View className="flex-row items-center mb-1">
+                    <View className="w-8 h-8 rounded-full bg-blue-100 border-2 border-white items-center justify-center mr-3">
+                      <Text className="text-blue-800 font-bold text-xs">
+                        {match.player1?.full_name?.charAt(0) || match.player1?.email.charAt(0).toUpperCase() || 'P'}
+                      </Text>
+                    </View>
+                    <View className="flex-row items-center flex-1">
+                      <Text className="text-sm text-gray-900 flex-1" numberOfLines={1} ellipsizeMode="tail">
+                        {match.player1_id === session?.user?.id ? "You" : (match.player1?.full_name?.split(' ')[0] || match.player1?.email.split('@')[0] || 'Player')}
+                      </Text>
+                      {/* Green dot for winning team */}
+                      {matchState.winnerTeam === 1 && (
+                        <View className="w-2 h-2 bg-emerald-600 rounded-full ml-2" />
+                      )}
+                    </View>
+                  </View>
+                  {/* Player 2 */}
+                  {match.player2 && (
+                    <View className="flex-row items-center">
+                      <View className="w-8 h-8 rounded-full bg-blue-100 border-2 border-white items-center justify-center mr-3">
+                        <Text className="text-blue-800 font-bold text-xs">
+                          {match.player2?.full_name?.charAt(0) || match.player2?.email.charAt(0).toUpperCase() || 'P'}
+                        </Text>
+                      </View>
+                      <Text className="text-sm text-gray-900 flex-1" numberOfLines={1} ellipsizeMode="tail">
+                        {match.player2_id === session?.user?.id ? "You" : (match.player2?.full_name?.split(' ')[0] || match.player2?.email.split('@')[0] || 'Player')}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                {/* Team 1 scores - always show 3 sets, centered vertically */}
+                <View className="flex-row items-center self-center flex-shrink-0">
+                  <View className="w-12 items-center">
+                    <Text className={`text-xl font-semibold ${
+                      match.team1_score_set1 !== null
+                        ? (match.team1_score_set1 > (match.team2_score_set1 || 0))
+                          ? "text-gray-900"
+                          : "text-gray-400"
+                        : "text-gray-400"
+                    }`}>
+                      {match.team1_score_set1 ?? "-"}
+                    </Text>
+                  </View>
+                  <View className="w-12 items-center">
+                    <Text className={`text-xl font-semibold ${
+                      match.team1_score_set2 !== null
+                        ? (match.team1_score_set2 > (match.team2_score_set2 || 0))
+                          ? "text-gray-900"
+                          : "text-gray-400"
+                        : "text-gray-400"
+                    }`}>
+                      {match.team1_score_set2 ?? "-"}
+                    </Text>
+                  </View>
+                  <View className="w-12 items-center">
+                    <Text className={`text-xl font-semibold ${
+                      match.team1_score_set3 !== null
+                        ? (match.team1_score_set3 > (match.team2_score_set3 || 0))
+                          ? "text-gray-900"
+                          : "text-gray-400"
+                        : "text-gray-400"
+                    }`}>
+                      {match.team1_score_set3 ?? "-"}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Divider - lighter and shorter */}
+              <View className="flex-row justify-between my-2">
+                <View className="flex-1 mr-6">
+                  <View className="h-px bg-gray-200" />
+                </View>
+                <View className="flex-row items-center flex-shrink-0">
+                  <View className="w-12 items-center">
+                    <View className="w-6 h-px bg-gray-200" />
+                  </View>
+                  <View className="w-12 items-center">
+                    <View className="w-6 h-px bg-gray-200" />
+                  </View>
+                  <View className="w-12 items-center">
+                    <View className="w-6 h-px bg-gray-200" />
+                  </View>
+                </View>
+              </View>
+
+              {/* Team 2 - Names with scores vertically centered */}
+              {match.player3 && (
+                <View className="flex-row justify-between">
+                  <View className="flex-1 min-w-0">
+                    {/* Player 3 */}
+                    <View className="flex-row items-center mb-1">
+                      <View className="w-8 h-8 rounded-full bg-purple-100 border-2 border-white items-center justify-center mr-3">
+                        <Text className="text-purple-800 font-bold text-xs">
+                          {match.player3?.full_name?.charAt(0) || match.player3?.email.charAt(0).toUpperCase() || 'P'}
+                        </Text>
+                      </View>
+                      <View className="flex-row items-center flex-1">
+                        <Text className="text-sm text-gray-900 flex-1" numberOfLines={1} ellipsizeMode="tail">
+                          {match.player3_id === session?.user?.id ? "You" : (match.player3?.full_name?.split(' ')[0] || match.player3?.email.split('@')[0] || 'Player')}
+                        </Text>
+                        {/* Green dot for winning team */}
+                        {matchState.winnerTeam === 2 && (
+                          <View className="w-2 h-2 bg-emerald-600 rounded-full ml-2" />
+                        )}
+                      </View>
+                    </View>
+                    {/* Player 4 */}
+                    {match.player4 && (
+                      <View className="flex-row items-center">
+                        <View className="w-8 h-8 rounded-full bg-purple-100 border-2 border-white items-center justify-center mr-3">
+                          <Text className="text-purple-800 font-bold text-xs">
+                            {match.player4?.full_name?.charAt(0) || match.player4?.email.charAt(0).toUpperCase() || 'P'}
+                          </Text>
+                        </View>
+                        <Text className="text-sm text-gray-900 flex-1" numberOfLines={1} ellipsizeMode="tail">
+                          {match.player4_id === session?.user?.id ? "You" : (match.player4?.full_name?.split(' ')[0] || match.player4?.email.split('@')[0] || 'Player')}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  {/* Team 2 scores - always show 3 sets, centered vertically */}
+                  <View className="flex-row items-center self-center flex-shrink-0">
+                    <View className="w-12 items-center">
+                      <Text className={`text-xl font-semibold ${
+                        match.team2_score_set1 !== null
+                          ? (match.team2_score_set1 > (match.team1_score_set1 || 0))
+                            ? "text-gray-900"
+                            : "text-gray-400"
+                          : "text-gray-400"
+                      }`}>
+                        {match.team2_score_set1 ?? "-"}
+                      </Text>
+                    </View>
+                    <View className="w-12 items-center">
+                      <Text className={`text-xl font-semibold ${
+                        match.team2_score_set2 !== null
+                          ? (match.team2_score_set2 > (match.team1_score_set2 || 0))
+                            ? "text-gray-900"
+                            : "text-gray-400"
+                          : "text-gray-400"
+                      }`}>
+                        {match.team2_score_set2 ?? "-"}
+                      </Text>
+                    </View>
+                    <View className="w-12 items-center">
+                      <Text className={`text-xl font-semibold ${
+                        match.team2_score_set3 !== null
+                          ? (match.team2_score_set3 > (match.team1_score_set3 || 0))
+                            ? "text-gray-900"
+                            : "text-gray-400"
+                          : "text-gray-400"
+                      }`}>
+                        {match.team2_score_set3 ?? "-"}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
               )}
-              {renderSetScore(
-                2,
-                match.team1_score_set2,
-                match.team2_score_set2,
-              )}
-              {match.team1_score_set3 !== null &&
-                match.team2_score_set3 !== null &&
-                renderSetScore(
-                  3,
-                  match.team1_score_set3,
-                  match.team2_score_set3,
-                )}
             </View>
           </View>
-        ) : null}
+        )}
 
-        {/* Players */}
-        <View className="bg-card dark:bg-gray-800 rounded-xl p-6 mb-6 border border-gray-200 dark:border-gray-700">
-          <Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-            Players
-            <Text className="text-sm text-gray-500 dark:text-gray-400 font-normal ml-2">
-              • Tap names to view profiles
+        {/* Players Section */}
+        <View className="bg-white rounded-xl p-4 mb-6 border border-gray-200">
+          <View className="flex-row items-center justify-between mb-3">
+            <Text className="text-base text-gray-900">
+              Players
             </Text>
-          </Text>
+            <Text className="text-xs text-gray-500">
+              Tap player to view profile
+            </Text>
+          </View>
 
-          {/* Team 1 */}
-          <View className="mb-6">
-            <View className="flex-row items-center justify-between mb-3">
-              <Text className="font-medium text-blue-600">Team 1</Text>
-              {matchState.hasScores && matchState.winnerTeam === 1 && (
-                <View className="bg-yellow-100 dark:bg-yellow-900/30 px-2 py-1 rounded-full">
-                  <Text className="text-xs font-bold text-yellow-700 dark:text-yellow-300">
-                    WINNER
+          {/* Separator Line */}
+          <View className="h-px bg-gray-200 mb-4" />
+
+          {/* All Players in One Row with Team Labels */}
+          <View className="flex-row justify-between">
+            {/* Team 1 */}
+            <View className="flex-1 mr-4">
+              <Text className="text-xs text-gray-500 font-medium text-center mb-3">TEAM 1</Text>
+              <View className="flex-row justify-between">
+                {/* Player 1 */}
+                <TouchableOpacity 
+                  className="flex-1 items-center p-3 mr-2"
+                  onPress={() => {
+                    if (match.player1_id !== session?.user?.id && match.player1) {
+                      router.push({
+                        pathname: "/(protected)/(screens)/friend-profile",
+                        params: {
+                          userId: match.player1.id,
+                          playerName: match.player1.full_name || match.player1.email.split("@")[0],
+                        },
+                      });
+                    }
+                  }}
+                >
+                  <View className="w-12 h-12 rounded-full bg-blue-100 items-center justify-center mb-2 relative">
+                    <Text className="text-blue-800 font-bold text-sm">
+                      {match.player1?.full_name?.charAt(0) || match.player1?.email.charAt(0).toUpperCase() || 'P'}
+                    </Text>
+                    {match.player1_id === session?.user?.id && (
+                      <View className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-green-500 items-center justify-center">
+                        <Ionicons name="person" size={8} color="white" />
+                      </View>
+                    )}
+                  </View>
+                  <Text className="font-medium text-gray-900 text-center text-xs mb-1" numberOfLines={1}>
+                    {match.player1_id === session?.user?.id ? "You" : (match.player1?.full_name?.split(' ')[0] || match.player1?.email.split('@')[0] || 'Player')}
                   </Text>
-                </View>
-              )}
+                  {match.player1?.glicko_rating && (
+                    <Text className="text-xs text-gray-500 text-center">
+                      {Math.round(parseFloat(match.player1.glicko_rating))}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+
+                {/* Player 2 */}
+                {match.player2 ? (
+                  <TouchableOpacity 
+                    className="flex-1 items-center p-3"
+                    onPress={() => {
+                      if (match.player2_id !== session?.user?.id && match.player2) {
+                        router.push({
+                          pathname: "/(protected)/(screens)/friend-profile",
+                          params: {
+                            userId: match.player2.id,
+                            playerName: match.player2.full_name || match.player2.email.split("@")[0],
+                          },
+                        });
+                      }
+                    }}
+                  >
+                    <View className="w-12 h-12 rounded-full bg-blue-100 items-center justify-center mb-2 relative">
+                      <Text className="text-blue-800 font-bold text-sm">
+                        {match.player2?.full_name?.charAt(0) || match.player2?.email.charAt(0).toUpperCase() || 'P'}
+                      </Text>
+                      {match.player2_id === session?.user?.id && (
+                        <View className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-green-500 items-center justify-center">
+                          <Ionicons name="person" size={8} color="white" />
+                        </View>
+                      )}
+                    </View>
+                    <Text className="font-medium text-gray-900 text-center text-xs mb-1" numberOfLines={1}>
+                      {match.player2_id === session?.user?.id ? "You" : (match.player2?.full_name?.split(' ')[0] || match.player2?.email.split('@')[0] || 'Player')}
+                    </Text>
+                    {match.player2?.glicko_rating && (
+                      <Text className="text-xs text-gray-500 text-center">
+                        {Math.round(parseFloat(match.player2.glicko_rating))}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                ) : (
+                  <View className="flex-1 items-center p-3">
+                    <View className="w-12 h-12 rounded-full bg-gray-200 items-center justify-center mb-2">
+                      <Text className="text-gray-500 font-bold text-sm">?</Text>
+                    </View>
+                    <Text className="font-medium text-gray-500 text-center text-xs mb-1">Empty</Text>
+                    <Text className="text-xs text-gray-400 text-center">-</Text>
+                  </View>
+                )}
+              </View>
             </View>
-            <View className="flex-row justify-around">
-              <Avatar
-                player={match.player1}
-                isCurrentUser={match.player1_id === session?.user?.id}
-                teamColor="#3B82F6"
-                currentUserId={session?.user?.id}
-              />
-              <Avatar
-                player={match.player2}
-                isCurrentUser={match.player2_id === session?.user?.id}
-                teamColor="#3B82F6"
-                currentUserId={session?.user?.id}
-              />
+
+            {/* Separator */}
+            <View className="w-px bg-gray-200 mx-2 self-stretch" />
+
+            {/* Team 2 */}
+            <View className="flex-1 ml-4">
+              <Text className="text-xs text-gray-500 font-medium text-center mb-3">TEAM 2</Text>
+              <View className="flex-row justify-between">
+                {/* Player 3 */}
+                {match.player3 ? (
+                  <TouchableOpacity 
+                    className="flex-1 items-center p-3 mr-2"
+                    onPress={() => {
+                      if (match.player3_id !== session?.user?.id && match.player3) {
+                        router.push({
+                          pathname: "/(protected)/(screens)/friend-profile",
+                          params: {
+                            userId: match.player3.id,
+                            playerName: match.player3.full_name || match.player3.email.split("@")[0],
+                          },
+                        });
+                      }
+                    }}
+                  >
+                    <View className="w-12 h-12 rounded-full bg-purple-100 items-center justify-center mb-2 relative">
+                      <Text className="text-purple-800 font-bold text-sm">
+                        {match.player3?.full_name?.charAt(0) || match.player3?.email.charAt(0).toUpperCase() || 'P'}
+                      </Text>
+                      {match.player3_id === session?.user?.id && (
+                        <View className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-green-500 items-center justify-center">
+                          <Ionicons name="person" size={8} color="white" />
+                        </View>
+                      )}
+                    </View>
+                    <Text className="font-medium text-gray-900 text-center text-xs mb-1" numberOfLines={1}>
+                      {match.player3_id === session?.user?.id ? "You" : (match.player3?.full_name?.split(' ')[0] || match.player3?.email.split('@')[0] || 'Player')}
+                    </Text>
+                    {match.player3?.glicko_rating && (
+                      <Text className="text-xs text-gray-500 text-center">
+                        {Math.round(parseFloat(match.player3.glicko_rating))}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                ) : (
+                  <View className="flex-1 items-center p-3 mr-2">
+                    <View className="w-12 h-12 rounded-full bg-gray-200 items-center justify-center mb-2">
+                      <Text className="text-gray-500 font-bold text-sm">?</Text>
+                    </View>
+                    <Text className="font-medium text-gray-500 text-center text-xs mb-1">Empty</Text>
+                    <Text className="text-xs text-gray-400 text-center">-</Text>
+                  </View>
+                )}
+
+                {/* Player 4 */}
+                {match.player4 ? (
+                  <TouchableOpacity 
+                    className="flex-1 items-center p-3"
+                    onPress={() => {
+                      if (match.player4_id !== session?.user?.id && match.player4) {
+                        router.push({
+                          pathname: "/(protected)/(screens)/friend-profile",
+                          params: {
+                            userId: match.player4.id,
+                            playerName: match.player4.full_name || match.player4.email.split("@")[0],
+                          },
+                        });
+                      }
+                    }}
+                  >
+                    <View className="w-12 h-12 rounded-full bg-purple-100 items-center justify-center mb-2 relative">
+                      <Text className="text-purple-800 font-bold text-sm">
+                        {match.player4?.full_name?.charAt(0) || match.player4?.email.charAt(0).toUpperCase() || 'P'}
+                      </Text>
+                      {match.player4_id === session?.user?.id && (
+                        <View className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-green-500 items-center justify-center">
+                          <Ionicons name="person" size={8} color="white" />
+                        </View>
+                      )}
+                    </View>
+                    <Text className="font-medium text-gray-900 text-center text-xs mb-1" numberOfLines={1}>
+                      {match.player4_id === session?.user?.id ? "You" : (match.player4?.full_name?.split(' ')[0] || match.player4?.email.split('@')[0] || 'Player')}
+                    </Text>
+                    {match.player4?.glicko_rating && (
+                      <Text className="text-xs text-gray-500 text-center">
+                        {Math.round(parseFloat(match.player4.glicko_rating))}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                ) : (
+                  <View className="flex-1 items-center p-3">
+                    <View className="w-12 h-12 rounded-full bg-gray-200 items-center justify-center mb-2">
+                      <Text className="text-gray-500 font-bold text-sm">?</Text>
+                    </View>
+                    <Text className="font-medium text-gray-500 text-center text-xs mb-1">Empty</Text>
+                    <Text className="text-xs text-gray-400 text-center">-</Text>
+                  </View>
+                )}
+              </View>
             </View>
           </View>
 
-          {/* Team 2 */}
-          <View>
-            <View className="flex-row items-center justify-between mb-3">
-              <Text className="font-medium text-purple-600">Team 2</Text>
-              {matchState.hasScores && matchState.winnerTeam === 2 && (
-                <View className="bg-yellow-100 dark:bg-yellow-900/30 px-2 py-1 rounded-full">
-                  <Text className="text-xs font-bold text-yellow-700 dark:text-yellow-300">
-                    WINNER
-                  </Text>
-                </View>
-              )}
-            </View>
-            <View className="flex-row justify-around">
-              <Avatar
-                player={match.player3}
-                isCurrentUser={match.player3_id === session?.user?.id}
-                teamColor="#8B5CF6"
-                currentUserId={session?.user?.id}
-              />
-              <Avatar
-                player={match.player4}
-                isCurrentUser={match.player4_id === session?.user?.id}
-                teamColor="#8B5CF6"
-                currentUserId={session?.user?.id}
-              />
-            </View>
-          </View>
+
         </View>
 
         {/* Match Description */}
         {match.description && (
-          <View className="bg-card dark:bg-gray-800 rounded-xl p-6 mb-6 border border-gray-200 dark:border-gray-700">
-            <Text className="font-medium mb-3 text-gray-900 dark:text-gray-100">
+          <View className="bg-white rounded-xl p-4 mb-6 border border-gray-200">
+            <Text className="text-base text-gray-900 mb-3">
               Description
             </Text>
-            <Text className="text-gray-600 dark:text-gray-400 leading-5">
+            <Text className="text-gray-600 leading-5">
               {match.description}
             </Text>
           </View>
         )}
 
-        { match.team1_score_set1 !== null && (
+        {match.team1_score_set1 !== null && (
           <MatchConfirmationSectionV2
             matchId={match.id}
             players={[
@@ -1111,27 +1338,11 @@ export default function CleanMatchDetails() {
               )}
             </Button>
           )}
-
-          {matchState.canEnterScores && (
-            <Button onPress={() => setEditingScores(true)} className="w-full">
-              <Text className="text-white font-medium">Enter Scores</Text>
-            </Button>
-          )}
-
-          {matchState.isCreator && matchState.hasScores && (
-            <Button
-              variant="outline"
-              onPress={() => setEditingScores(true)}
-              className="w-full"
-            >
-              <Text className="text-black dark:text-white">Edit Scores</Text>
-            </Button>
-          )}
         </View>
 
         {/* Bottom Spacing */}
         <View className="h-8" />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }

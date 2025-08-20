@@ -1,10 +1,10 @@
-import React from 'react';
-import { View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import React from "react";
+import { View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 
-import { Text } from '@/components/ui/text';
-import { Button } from '@/components/ui/button';
+import { Text } from "@/components/ui/text";
+import { Button } from "@/components/ui/button";
 
 export function EmptyMatches() {
   return (
@@ -16,7 +16,7 @@ export function EmptyMatches() {
       </Text>
       <Button
         variant="default"
-        onPress={() => router.push('/(protected)/(screens)/create-match')}
+        onPress={() => router.push("/(protected)/(screens)/create-match")}
       >
         <Text>Create First Match</Text>
       </Button>

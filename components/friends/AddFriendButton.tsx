@@ -1,6 +1,6 @@
-import React from 'react';
-import { TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React from "react";
+import { TouchableOpacity } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 interface AddFriendButtonProps {
   onPress: () => void;
@@ -8,7 +8,7 @@ interface AddFriendButtonProps {
 
 export function AddFriendButton({ onPress }: AddFriendButtonProps) {
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       className="w-10 h-10 rounded-full items-center justify-center"
       onPress={onPress}
     >

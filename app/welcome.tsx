@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
-import { 
-  View, 
-  ScrollView, 
-  Dimensions, 
-  Animated, 
-  ImageBackground, 
-  StyleSheet 
+import {
+  View,
+  ScrollView,
+  Dimensions,
+  Animated,
+  ImageBackground,
+  StyleSheet,
 } from "react-native";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -26,30 +26,34 @@ const FEATURES = [
   {
     id: 1,
     title: "Match Tracking",
-    description: "Record scores, track performance stats, and analyze your game progression",
+    description:
+      "Record scores, track performance stats, and analyze your game progression",
     icon: "tennisball",
-    color: "#2148ce" // Primary blue
+    color: "#2148ce", // Primary blue
   },
   {
     id: 2,
     title: "Glicko Rating",
-    description: "Advanced rating system that accurately reflects your skill level and improvement",
+    description:
+      "Advanced rating system that accurately reflects your skill level and improvement",
     icon: "stats-chart",
-    color: "#10b981" // Green for growth
+    color: "#10b981", // Green for growth
   },
   {
     id: 3,
     title: "Friend Network",
-    description: "Connect with friends, challenge players, and build your padel community",
+    description:
+      "Connect with friends, challenge players, and build your padel community",
     icon: "people",
-    color: "#3b82f6" // Blue for social
+    color: "#3b82f6", // Blue for social
   },
   {
     id: 4,
     title: "Match History",
-    description: "Comprehensive history of all your matches with detailed performance metrics",
+    description:
+      "Comprehensive history of all your matches with detailed performance metrics",
     icon: "calendar",
-    color: "#8b5cf6" // Purple for history
+    color: "#8b5cf6", // Purple for history
   },
 ];
 
@@ -63,32 +67,36 @@ export default function WelcomeScreen() {
   const [scrollViewWidth, setScrollViewWidth] = useState(SCREEN_WIDTH);
   const [isLayoutReady, setIsLayoutReady] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
-  
+
   const isDark = colorScheme === "dark";
-  
+
   // App icon based on color scheme
   const appIcon = isDark
     ? require("@/assets/icon.png")
     : require("@/assets/icon-dark.png");
-    
+
   // Background image based on color scheme
   const backgroundImage = isDark
     ? require("@/assets/padel-court-dark.jpeg")
     : require("@/assets/padel-court-light.jpeg");
-    
+
   // Colors based on theme
   const gradientColors = isDark
     ? ["rgba(0,0,0,0.85)", "rgba(0,0,0,0.7)", "rgba(0,0,0,0.5)"]
-    : ["rgba(255,255,255,0.95)", "rgba(255,255,255,0.85)", "rgba(255,255,255,0.7)"];
-    
+    : [
+        "rgba(255,255,255,0.95)",
+        "rgba(255,255,255,0.85)",
+        "rgba(255,255,255,0.7)",
+      ];
+
   // Primary color
-  const primaryColor = "#2148ce"; 
+  const primaryColor = "#2148ce";
 
   // **FIX 1: Handle ScrollView layout and ensure proper initial positioning**
   const handleScrollViewLayout = (event: any) => {
     const { width } = event.nativeEvent.layout;
     setScrollViewWidth(width);
-    
+
     // **FIX 2: Ensure initial position is exactly 0 after layout**
     if (!isLayoutReady) {
       setIsLayoutReady(true);
@@ -104,7 +112,7 @@ export default function WelcomeScreen() {
   // **FIX 3: Enhanced scroll handling with proper width calculation**
   const handleScroll = Animated.event(
     [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-    { 
+    {
       useNativeDriver: false,
       listener: (event) => {
         const position = event.nativeEvent.contentOffset.x;
@@ -112,8 +120,8 @@ export default function WelcomeScreen() {
         if (page !== currentPage && page >= 0 && page < FEATURES.length) {
           setCurrentPage(page);
         }
-      }
-    }
+      },
+    },
   );
 
   // **FIX 4: Updated momentum scroll end handler with proper width**
@@ -153,13 +161,13 @@ export default function WelcomeScreen() {
       index * scrollViewWidth,
       (index + 1) * scrollViewWidth,
     ];
-    
+
     const opacity = scrollX.interpolate({
       inputRange,
       outputRange: [0.4, 1, 0.4],
       extrapolate: "clamp",
     });
-    
+
     const scale = scrollX.interpolate({
       inputRange,
       outputRange: [0.8, 1, 0.8],
@@ -167,31 +175,29 @@ export default function WelcomeScreen() {
     });
 
     return (
-      <View 
+      <View
         style={{
           width: scrollViewWidth, // **FIX 6: Use actual ScrollView width**
-          alignItems: 'center',
-          justifyContent: 'center',
+          alignItems: "center",
+          justifyContent: "center",
         }}
         key={item.id}
       >
-        <Animated.View 
+        <Animated.View
           style={[
             styles.featureItem,
-            { 
+            {
               opacity,
               transform: [{ scale }],
               width: scrollViewWidth * 0.85, // **FIX 7: Scale based on actual width**
-            }
+            },
           ]}
         >
           <View style={[styles.iconContainer, { backgroundColor: item.color }]}>
             <Ionicons name={item.icon} size={32} color="white" />
           </View>
           <H2 style={styles.featureTitle}>{item.title}</H2>
-          <Text style={styles.featureDescription}>
-            {item.description}
-          </Text>
+          <Text style={styles.featureDescription}>{item.description}</Text>
         </Animated.View>
       </View>
     );
@@ -211,7 +217,7 @@ export default function WelcomeScreen() {
             outputRange: [0.3, 1, 0.3],
             extrapolate: "clamp",
           });
-          
+
           const scale = scrollX.interpolate({
             inputRange: [
               (index - 1) * scrollViewWidth,
@@ -229,12 +235,17 @@ export default function WelcomeScreen() {
               key={index}
               style={[
                 styles.paginationDot,
-                { 
+                {
                   opacity,
                   transform: [{ scale }],
                   width,
-                  backgroundColor: currentPage === index ? primaryColor : (isDark ? '#555' : '#ccc')
-                }
+                  backgroundColor:
+                    currentPage === index
+                      ? primaryColor
+                      : isDark
+                        ? "#555"
+                        : "#ccc",
+                },
               ]}
             />
           );
@@ -244,7 +255,7 @@ export default function WelcomeScreen() {
   };
 
   return (
-    <ImageBackground 
+    <ImageBackground
       source={backgroundImage}
       style={styles.backgroundImage}
       resizeMode="cover"
@@ -265,7 +276,7 @@ export default function WelcomeScreen() {
             >
               <Image source={appIcon} style={styles.appLogo} />
             </Animated.View>
-            
+
             <Animated.View
               style={{
                 opacity: fadeAnim,
@@ -281,7 +292,8 @@ export default function WelcomeScreen() {
             >
               <H1 style={styles.appTitle}>Padel System</H1>
               <Muted style={styles.appSubtitle}>
-                Track matches, improve your rating, and connect with the padel community
+                Track matches, improve your rating, and connect with the padel
+                community
               </Muted>
             </Animated.View>
           </View>
@@ -292,7 +304,7 @@ export default function WelcomeScreen() {
               styles.carouselContainer,
               {
                 opacity: fadeAnim,
-              }
+              },
             ]}
           >
             <ScrollView
@@ -314,7 +326,7 @@ export default function WelcomeScreen() {
             >
               {FEATURES.map((item, index) => renderFeatureItem(item, index))}
             </ScrollView>
-            
+
             {renderPagination()}
           </Animated.View>
 
@@ -332,7 +344,7 @@ export default function WelcomeScreen() {
                     }),
                   },
                 ],
-              }
+              },
             ]}
           >
             <Button
@@ -342,11 +354,16 @@ export default function WelcomeScreen() {
               onPress={() => router.push("/sign-up")}
             >
               <View style={styles.buttonContent}>
-                <Ionicons name="person-add" size={20} color="#333" style={styles.buttonIcon} />
+                <Ionicons
+                  name="person-add"
+                  size={20}
+                  color="#333"
+                  style={styles.buttonIcon}
+                />
                 <Text style={styles.signUpText}>Create Account</Text>
               </View>
             </Button>
-            
+
             <Button
               size="lg"
               variant="outline"
@@ -354,7 +371,12 @@ export default function WelcomeScreen() {
               onPress={() => router.push("/sign-in")}
             >
               <View style={styles.buttonContent}>
-                <Ionicons name="log-in" size={20} color={isDark ? primaryColor : "#333"} style={styles.buttonIcon} />
+                <Ionicons
+                  name="log-in"
+                  size={20}
+                  color={isDark ? primaryColor : "#333"}
+                  style={styles.buttonIcon}
+                />
                 <Text style={styles.signInText}>Sign In</Text>
               </View>
             </Button>
@@ -372,13 +394,13 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   backgroundImage: {
     flex: 1,
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   gradient: {
     flex: 1,
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   safeArea: {
     flex: 1,
@@ -386,7 +408,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   headerSection: {
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 24,
     marginBottom: 24,
   },
@@ -397,12 +419,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   appTitle: {
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 8,
     fontSize: 28,
   },
   appSubtitle: {
-    textAlign: 'center',
+    textAlign: "center",
     marginHorizontal: 24,
     fontSize: 16,
     lineHeight: 22,
@@ -412,37 +434,37 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   featureItem: {
-    alignItems: 'center',
+    alignItems: "center",
     padding: 20,
     borderRadius: 16,
     // **FIX 15: Removed fixed width - now set dynamically in render**
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: "rgba(255, 255, 255, 0.2)",
   },
   iconContainer: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 16,
   },
   featureTitle: {
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 12,
     fontSize: 24,
   },
   featureDescription: {
-    textAlign: 'center',
+    textAlign: "center",
     fontSize: 16,
     lineHeight: 22,
     opacity: 0.8,
   },
   paginationContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     marginTop: 20,
     height: 20,
   },
@@ -468,30 +490,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   buttonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: '100%',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: "100%",
   },
   buttonIcon: {
     marginRight: 8,
   },
   signUpText: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     lineHeight: 24,
     includeFontPadding: false,
-    textAlignVertical: 'center',
+    textAlignVertical: "center",
   },
   signInText: {
     fontSize: 18,
-    fontWeight: '500',
+    fontWeight: "500",
     lineHeight: 24,
     includeFontPadding: false,
-    textAlignVertical: 'center',
+    textAlignVertical: "center",
   },
   versionText: {
-    textAlign: 'center',
+    textAlign: "center",
     fontSize: 12,
     opacity: 0.6,
     marginBottom: 8,

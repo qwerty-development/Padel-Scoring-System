@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier */
-/* eslint-disable @typescript-eslint/no-unused-vars */
+ 
 import { Redirect, Stack } from "expo-router";
 import { useAuth } from "@/context/supabase-provider";
 

@@ -1,10 +1,10 @@
-import { useRouter } from 'expo-router';
-import React, { useMemo } from 'react';
-import { TouchableOpacity, View } from 'react-native';
+import { useRouter } from "expo-router";
+import React, { useMemo } from "react";
+import { TouchableOpacity, View } from "react-native";
 
-import { Text } from '@/components/ui/text';
-import { H3 } from '@/components/ui/typography';
-import { Profile, MatchData } from '@/types';
+import { Text } from "@/components/ui/text";
+import { H3 } from "@/components/ui/typography";
+import { Profile, MatchData } from "@/types";
 
 interface StatsCardProps {
   profile: Profile | null;
@@ -16,7 +16,7 @@ export function StatsCard({ profile, matches, userId }: StatsCardProps) {
   const router = useRouter();
 
   const handlePress = () => {
-    router.push('/(tabs)/profile');
+    router.push("/(tabs)/profile");
   };
   // Calculate stats from matches data
   const stats = useMemo(() => {
@@ -34,8 +34,10 @@ export function StatsCard({ profile, matches, userId }: StatsCardProps) {
 
     matches.forEach((match) => {
       // Determine which team the user is on
-      const isTeam1 = match.player1_id === userId || match.player2_id === userId;
-      const isTeam2 = match.player3_id === userId || match.player4_id === userId;
+      const isTeam1 =
+        match.player1_id === userId || match.player2_id === userId;
+      const isTeam2 =
+        match.player3_id === userId || match.player4_id === userId;
 
       // Get the winner based on sets instead of directly from winner_team
       let winnerTeam = 0;
@@ -86,7 +88,8 @@ export function StatsCard({ profile, matches, userId }: StatsCardProps) {
     });
 
     const totalMatches = matches.length;
-    const winRate = totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0;
+    const winRate =
+      totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0;
 
     return {
       totalMatches,
@@ -98,15 +101,15 @@ export function StatsCard({ profile, matches, userId }: StatsCardProps) {
 
   // Format the Glicko rating with appropriate rounding
   const formattedRating = useMemo(() => {
-    if (!profile?.glicko_rating) return '-';
+    if (!profile?.glicko_rating) return "-";
 
     // Handle both string and number types for glicko_rating
     const rating =
-      typeof profile.glicko_rating === 'string'
+      typeof profile.glicko_rating === "string"
         ? parseInt(profile.glicko_rating, 10)
         : profile.glicko_rating;
 
-    return isNaN(rating) ? '-' : Math.round(rating).toString();
+    return isNaN(rating) ? "-" : Math.round(rating).toString();
   }, [profile?.glicko_rating]);
 
   return (
@@ -115,17 +118,23 @@ export function StatsCard({ profile, matches, userId }: StatsCardProps) {
         <H3 className="mb-4">Your Statistics</H3>
         <View className="flex-row justify-around">
           <View className="items-center">
-            <Text className="text-2xl font-bold text-primary">{formattedRating}</Text>
+            <Text className="text-2xl font-bold text-primary">
+              {formattedRating}
+            </Text>
             <Text className="text-sm text-muted-foreground">Rating</Text>
           </View>
 
           <View className="items-center">
-            <Text className="text-2xl font-bold text-green-500">{stats.wins}</Text>
+            <Text className="text-2xl font-bold text-green-500">
+              {stats.wins}
+            </Text>
             <Text className="text-sm text-muted-foreground">Wins</Text>
           </View>
 
           <View className="items-center">
-            <Text className="text-2xl font-bold text-red-500">{stats.losses}</Text>
+            <Text className="text-2xl font-bold text-red-500">
+              {stats.losses}
+            </Text>
             <Text className="text-sm text-muted-foreground">Losses</Text>
           </View>
 

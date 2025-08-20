@@ -50,14 +50,14 @@ export function CustomDateTimePicker({
     const roundedDate = new Date(date);
     const minutes = roundedDate.getMinutes();
     const roundedMinutes = Math.round(minutes / 30) * 30;
-    
+
     if (roundedMinutes === 60) {
       roundedDate.setHours(roundedDate.getHours() + 1);
       roundedDate.setMinutes(0, 0, 0);
     } else {
       roundedDate.setMinutes(roundedMinutes, 0, 0);
     }
-    
+
     return roundedDate;
   };
 
@@ -121,14 +121,12 @@ export function CustomDateTimePicker({
         activeOpacity={0.8}
       >
         <View className="flex-1">
-          <Text className="text-foreground font-medium">{getFormattedValue()}</Text>
+          <Text className="text-foreground font-medium">
+            {getFormattedValue()}
+          </Text>
         </View>
         <View className="ml-3 p-2 rounded-lg bg-primary/10">
-          <Ionicons
-            name={getIcon()}
-            size={20}
-            color="#2148ce"
-          />
+          <Ionicons name={getIcon()} size={20} color="#2148ce" />
         </View>
       </TouchableOpacity>
 
@@ -153,7 +151,7 @@ export function CustomDateTimePicker({
               <TouchableWithoutFeedback>
                 <View className="bg-card rounded-t-xl">
                   <View className="flex-row justify-between items-center p-4 border-b border-border">
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       onPress={cancelIOSDate}
                       className="py-2 px-3 rounded-lg"
                       activeOpacity={0.7}
@@ -168,7 +166,7 @@ export function CustomDateTimePicker({
                         </Text>
                       )}
                     </View>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       onPress={confirmIOSDate}
                       className="py-2 px-3 rounded-lg bg-primary/10"
                       activeOpacity={0.7}
@@ -188,7 +186,7 @@ export function CustomDateTimePicker({
                     textColor={colorScheme === "dark" ? "#fff" : "#000"}
                     is24Hour={false}
                   />
-                  
+
                   {/* Additional padding for better iOS experience */}
                   <View className="h-8" />
                 </View>

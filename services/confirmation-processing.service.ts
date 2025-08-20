@@ -21,18 +21,17 @@ export class ConfirmationProcessingService {
       confirmedApplied: 0,
       expiredApplied: 0,
       rejected: 0,
-      errors: []
+      errors: [],
     };
 
     try {
-      console.log('🔄 [PROCESSOR] Starting confirmation processing...');
+      console.log("🔄 [PROCESSOR] Starting confirmation processing...");
 
       // Call the database function that handles all the logic
-      const { data, error } = await supabase
-        .rpc('process_match_confirmations');
+      const { data, error } = await supabase.rpc("process_match_confirmations");
 
       if (error) {
-        console.error('❌ [PROCESSOR] Database processing error:', error);
+        console.error("❌ [PROCESSOR] Database processing error:", error);
         result.errors.push(error.message);
         return result;
       }
@@ -48,16 +47,17 @@ export class ConfirmationProcessingService {
           processed: result.processed,
           confirmedApplied: result.confirmedApplied,
           expiredApplied: result.expiredApplied,
-          rejected: result.rejected
+          rejected: result.rejected,
         });
       }
 
       // Also process any matches that the database function might have missed
       await this.processMatchesWithJavaScript(result);
-
     } catch (error) {
-      console.error('💥 [PROCESSOR] Critical error:', error);
-      result.errors.push(error instanceof Error ? error.message : 'Unknown error');
+      console.error("💥 [PROCESSOR] Critical error:", error);
+      result.errors.push(
+        error instanceof Error ? error.message : "Unknown error",
+      );
     }
 
     return result;
@@ -70,95 +70,116 @@ export class ConfirmationProcessingService {
     try {
       // Find matches that need processing
       const { data: matches, error } = await supabase
-        .from('matches')
-        .select(`
+        .from("matches")
+        .select(
+          `
           *,
           match_confirmations (*)
-        `)
-        .eq('status', '4')
-        .eq('rating_applied', false)
-        .or('all_confirmed.eq.true,validation_deadline.lte.now()');
+        `,
+        )
+        .eq("status", "4")
+        .eq("rating_applied", false)
+        .or("all_confirmed.eq.true,validation_deadline.lte.now()");
 
       if (error || !matches) {
-        console.error('❌ [PROCESSOR] Error fetching matches:', error);
+        console.error("❌ [PROCESSOR] Error fetching matches:", error);
         return;
       }
 
       for (const match of matches) {
         try {
           // Skip if already processed
-          if (match.validation_status === 'validated' && match.rating_applied) {
+          if (match.validation_status === "validated" && match.rating_applied) {
             continue;
           }
 
           const confirmations = match.match_confirmations || [];
-          const rejectionCount = confirmations.filter((c: any) => c.status === 'rejected').length;
+          const rejectionCount = confirmations.filter(
+            (c: any) => c.status === "rejected",
+          ).length;
           const allConfirmed = match.all_confirmed;
 
           // Handle different scenarios
           if (rejectionCount >= 2) {
             // Mark as disputed
             await supabase
-              .from('matches')
+              .from("matches")
               .update({
-                validation_status: 'disputed',
-                confirmation_status: 'rejected',
-                disputed_at: new Date().toISOString()
+                validation_status: "disputed",
+                confirmation_status: "rejected",
+                disputed_at: new Date().toISOString(),
               })
-              .eq('id', match.id);
+              .eq("id", match.id);
 
             result.rejected++;
-            console.log(`❌ [PROCESSOR] Match ${match.id} rejected due to multiple rejections`);
-
+            console.log(
+              `❌ [PROCESSOR] Match ${match.id} rejected due to multiple rejections`,
+            );
           } else if (allConfirmed) {
             // Apply ratings immediately
-            const ratingResult = await EnhancedRatingService.applyValidatedRatings(match.id);
-            
+            const ratingResult =
+              await EnhancedRatingService.applyValidatedRatings(match.id);
+
             if (ratingResult.success) {
               result.confirmedApplied++;
-              console.log(`✅ [PROCESSOR] Match ${match.id} confirmed and ratings applied`);
+              console.log(
+                `✅ [PROCESSOR] Match ${match.id} confirmed and ratings applied`,
+              );
             } else {
-              result.errors.push(`Failed to apply ratings for match ${match.id}: ${ratingResult.message}`);
+              result.errors.push(
+                `Failed to apply ratings for match ${match.id}: ${ratingResult.message}`,
+              );
             }
-
           } else if (new Date(match.validation_deadline) <= new Date()) {
             // Validation period expired
             if (rejectionCount < 2 && (match.report_count || 0) < 2) {
               // Apply ratings
-              const ratingResult = await EnhancedRatingService.applyValidatedRatings(match.id);
-              
+              const ratingResult =
+                await EnhancedRatingService.applyValidatedRatings(match.id);
+
               if (ratingResult.success) {
                 result.expiredApplied++;
-                console.log(`⏰ [PROCESSOR] Match ${match.id} validated after expiry`);
+                console.log(
+                  `⏰ [PROCESSOR] Match ${match.id} validated after expiry`,
+                );
               } else {
-                result.errors.push(`Failed to apply ratings for expired match ${match.id}: ${ratingResult.message}`);
+                result.errors.push(
+                  `Failed to apply ratings for expired match ${match.id}: ${ratingResult.message}`,
+                );
               }
             } else {
               // Too many issues - dispute it
               await supabase
-                .from('matches')
+                .from("matches")
                 .update({
-                  validation_status: 'disputed',
-                  disputed_at: new Date().toISOString()
+                  validation_status: "disputed",
+                  disputed_at: new Date().toISOString(),
                 })
-                .eq('id', match.id);
+                .eq("id", match.id);
 
               result.rejected++;
-              console.log(`❌ [PROCESSOR] Match ${match.id} disputed after expiry due to reports/rejections`);
+              console.log(
+                `❌ [PROCESSOR] Match ${match.id} disputed after expiry due to reports/rejections`,
+              );
             }
           }
 
           result.processed++;
-
         } catch (matchError) {
-          console.error(`💥 [PROCESSOR] Error processing match ${match.id}:`, matchError);
-          result.errors.push(`Match ${match.id}: ${matchError instanceof Error ? matchError.message : 'Unknown error'}`);
+          console.error(
+            `💥 [PROCESSOR] Error processing match ${match.id}:`,
+            matchError,
+          );
+          result.errors.push(
+            `Match ${match.id}: ${matchError instanceof Error ? matchError.message : "Unknown error"}`,
+          );
         }
       }
-
     } catch (error) {
-      console.error('💥 [PROCESSOR] Error in JavaScript processing:', error);
-      result.errors.push(`JS Processing: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error("💥 [PROCESSOR] Error in JavaScript processing:", error);
+      result.errors.push(
+        `JS Processing: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
     }
   }
 
@@ -168,32 +189,33 @@ export class ConfirmationProcessingService {
   static async processSingleMatch(matchId: string): Promise<{
     success: boolean;
     message: string;
-    action?: 'confirmed' | 'expired' | 'rejected';
+    action?: "confirmed" | "expired" | "rejected";
   }> {
     try {
       console.log(`🔄 [PROCESSOR] Processing single match: ${matchId}`);
 
       // Get match details
-      const confirmationStatus = await MatchConfirmationService.getMatchConfirmationStatus(matchId);
-      
+      const confirmationStatus =
+        await MatchConfirmationService.getMatchConfirmationStatus(matchId);
+
       if (!confirmationStatus) {
         return {
           success: false,
-          message: 'Failed to get confirmation status'
+          message: "Failed to get confirmation status",
         };
       }
 
       // Get match details
       const { data: match, error } = await supabase
-        .from('matches')
-        .select('*')
-        .eq('id', matchId)
+        .from("matches")
+        .select("*")
+        .eq("id", matchId)
         .single();
 
       if (error || !match) {
         return {
           success: false,
-          message: 'Match not found'
+          message: "Match not found",
         };
       }
 
@@ -201,7 +223,7 @@ export class ConfirmationProcessingService {
       if (match.rating_applied) {
         return {
           success: true,
-          message: 'Match already processed'
+          message: "Match already processed",
         };
       }
 
@@ -209,70 +231,74 @@ export class ConfirmationProcessingService {
       if (confirmationStatus.rejected_count >= 2) {
         // Reject the match
         await supabase
-          .from('matches')
+          .from("matches")
           .update({
-            validation_status: 'disputed',
-            confirmation_status: 'rejected',
-            disputed_at: new Date().toISOString()
+            validation_status: "disputed",
+            confirmation_status: "rejected",
+            disputed_at: new Date().toISOString(),
           })
-          .eq('id', matchId);
+          .eq("id", matchId);
 
         return {
           success: true,
-          message: 'Match rejected due to multiple player rejections',
-          action: 'rejected'
+          message: "Match rejected due to multiple player rejections",
+          action: "rejected",
         };
       }
 
       if (confirmationStatus.all_confirmed) {
         // Apply ratings immediately
-        const result = await EnhancedRatingService.applyValidatedRatings(matchId);
-        
+        const result =
+          await EnhancedRatingService.applyValidatedRatings(matchId);
+
         return {
           success: result.success,
           message: result.message,
-          action: 'confirmed'
+          action: "confirmed",
         };
       }
 
       if (new Date(match.validation_deadline) <= new Date()) {
         // Validation expired - check if we can apply ratings
-        if (confirmationStatus.rejected_count < 2 && (match.report_count || 0) < 2) {
-          const result = await EnhancedRatingService.applyValidatedRatings(matchId);
-          
+        if (
+          confirmationStatus.rejected_count < 2 &&
+          (match.report_count || 0) < 2
+        ) {
+          const result =
+            await EnhancedRatingService.applyValidatedRatings(matchId);
+
           return {
             success: result.success,
             message: result.message,
-            action: 'expired'
+            action: "expired",
           };
         } else {
           // Dispute it
           await supabase
-            .from('matches')
+            .from("matches")
             .update({
-              validation_status: 'disputed',
-              disputed_at: new Date().toISOString()
+              validation_status: "disputed",
+              disputed_at: new Date().toISOString(),
             })
-            .eq('id', matchId);
+            .eq("id", matchId);
 
           return {
             success: true,
-            message: 'Match disputed due to reports/rejections',
-            action: 'rejected'
+            message: "Match disputed due to reports/rejections",
+            action: "rejected",
           };
         }
       }
 
       return {
         success: false,
-        message: 'Match not ready for processing yet'
+        message: "Match not ready for processing yet",
       };
-
     } catch (error) {
-      console.error('💥 [PROCESSOR] Error processing single match:', error);
+      console.error("💥 [PROCESSOR] Error processing single match:", error);
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Unknown error'
+        message: error instanceof Error ? error.message : "Unknown error",
       };
     }
   }
@@ -292,9 +318,11 @@ export class ConfirmationProcessingService {
 
       // Get various counts
       const { data: stats } = await supabase
-        .from('matches')
-        .select('status, rating_applied, all_confirmed, validation_deadline, validation_status, confirmation_status')
-        .eq('status', '4');
+        .from("matches")
+        .select(
+          "status, rating_applied, all_confirmed, validation_deadline, validation_status, confirmation_status",
+        )
+        .eq("status", "4");
 
       if (!stats) {
         return {
@@ -302,7 +330,7 @@ export class ConfirmationProcessingService {
           pendingExpiry: 0,
           readyToProcess: 0,
           disputed: 0,
-          completed: 0
+          completed: 0,
         };
       }
 
@@ -311,19 +339,28 @@ export class ConfirmationProcessingService {
         pendingExpiry: 0,
         readyToProcess: 0,
         disputed: 0,
-        completed: 0
+        completed: 0,
       };
 
-      stats.forEach(match => {
+      stats.forEach((match) => {
         if (match.rating_applied) {
           counts.completed++;
-        } else if (match.validation_status === 'disputed' || match.confirmation_status === 'rejected') {
+        } else if (
+          match.validation_status === "disputed" ||
+          match.confirmation_status === "rejected"
+        ) {
           counts.disputed++;
         } else if (match.all_confirmed) {
           counts.readyToProcess++;
-        } else if (match.validation_deadline && new Date(match.validation_deadline) <= now) {
+        } else if (
+          match.validation_deadline &&
+          new Date(match.validation_deadline) <= now
+        ) {
           counts.readyToProcess++;
-        } else if (match.validation_deadline && new Date(match.validation_deadline) > now) {
+        } else if (
+          match.validation_deadline &&
+          new Date(match.validation_deadline) > now
+        ) {
           counts.pendingExpiry++;
         } else {
           counts.pendingConfirmation++;
@@ -331,15 +368,14 @@ export class ConfirmationProcessingService {
       });
 
       return counts;
-
     } catch (error) {
-      console.error('Error getting processing stats:', error);
+      console.error("Error getting processing stats:", error);
       return {
         pendingConfirmation: 0,
         pendingExpiry: 0,
         readyToProcess: 0,
         disputed: 0,
-        completed: 0
+        completed: 0,
       };
     }
   }

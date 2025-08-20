@@ -1,7 +1,7 @@
-import React from 'react';
-import { TouchableOpacity, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import React from "react";
+import { TouchableOpacity, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 
 interface CreateMatchFABProps {
   onPress?: () => void;
@@ -12,7 +12,7 @@ export function CreateMatchFAB({ onPress }: CreateMatchFABProps) {
     if (onPress) {
       onPress();
     } else {
-      router.push('/(protected)/(screens)/create-match');
+      router.push("/(protected)/(screens)/create-match");
     }
   };
 
@@ -29,17 +29,17 @@ export function CreateMatchFAB({ onPress }: CreateMatchFABProps) {
 
 const styles = StyleSheet.create({
   fab: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 20,
     right: 20,
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#2148ce',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#2148ce",
+    justifyContent: "center",
+    alignItems: "center",
     elevation: 4,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
