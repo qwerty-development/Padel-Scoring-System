@@ -25,6 +25,15 @@ import { VALIDATION_CONFIG, PREDEFINED_COURTS } from "@/constants/create-match";
 export default function CreateMatchWizardRefactored() {
   const router = useRouter();
   
+  // Debug state for tracking actions
+  const [debugLog, setDebugLog] = React.useState<string[]>([]);
+  const [lastButtonPress, setLastButtonPress] = React.useState<string>("Never");
+  
+  const addDebugLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setDebugLog(prev => [`${timestamp}: ${message}`, ...prev.slice(0, 4)]); // Keep last 5 logs
+  };
+  
   const {
     // State
     currentStep,
@@ -93,6 +102,13 @@ export default function CreateMatchWizardRefactored() {
     ...(isPastMatch ? [WizardStep.SCORE_ENTRY] : []), // Step 3: Scores (if past match)
     WizardStep.REVIEW_SUBMIT,     // Step 4: Review
   ];
+  
+  // Log initial state
+  React.useEffect(() => {
+    addDebugLog(`🚀 Component initialized - isPastMatch: ${isPastMatch}`);
+    addDebugLog(`📋 Step sequence: [${customStepSequence.join(', ')}]`);
+    addDebugLog(`📍 Starting at step: ${currentStep}`);
+  }, []);
 
   // Step configuration
   const stepConfig: StepConfig[] = [
@@ -128,9 +144,13 @@ export default function CreateMatchWizardRefactored() {
 
   // Custom navigation functions that use our step sequence
   const goToNextStepCustom = async () => {
+    addDebugLog("🔴 Next button pressed!");
+    
     const validation = validateCurrentStep();
+    addDebugLog(`✅ Validation result: ${validation.isValid ? 'PASS' : 'FAIL'} - ${validation.errors.join(', ') || 'No errors'}`);
     
     if (!validation.isValid) {
+      addDebugLog("❌ Validation failed, showing error alert");
       // Error haptic feedback
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert(
@@ -141,13 +161,19 @@ export default function CreateMatchWizardRefactored() {
       return;
     }
     
+    addDebugLog("✅ Validation passed, proceeding to next step");
+    
     // Success haptic feedback for advancing
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
     const currentIndex = customStepSequence.indexOf(currentStep);
     const nextStep = customStepSequence[currentIndex + 1];
     
+    addDebugLog(`📊 Current index: ${currentIndex}, Next step: ${nextStep}`);
+    
     if (nextStep) {
+      addDebugLog(`🚀 Moving from step ${currentStep} to step ${nextStep}`);
+      
       // Show step progression feedback
       const stepNames = {
         [WizardStep.LOCATION_SETTINGS]: "Location & Time",
@@ -168,6 +194,10 @@ export default function CreateMatchWizardRefactored() {
       setCompletedSteps((prev: Set<WizardStep>) => new Set([...prev, currentStep]));
       setCurrentStep(nextStep);
       setSlideDirection("forward");
+      
+      addDebugLog(`✅ Step transition completed to step ${nextStep}`);
+    } else {
+      addDebugLog("❌ No next step found");
     }
   };
 
@@ -284,20 +314,27 @@ export default function CreateMatchWizardRefactored() {
     return slots;
   };
 
-  // Generate dates (today + 30 days)
+  // Generate dates (only past dates - today, yesterday, and 1 month back)
   const generateDates = () => {
     const dates = [];
     const today = new Date();
     
-    for (let i = 0; i < 31; i++) {
+    // Start from 30 days ago and go up to today
+    for (let i = 30; i >= 0; i--) {
       const date = new Date(today);
-      date.setDate(today.getDate() + i);
+      date.setDate(today.getDate() - i);
       
       let label;
       if (i === 0) {
         label = "Today";
       } else if (i === 1) {
-        label = "Tomorrow";
+        label = "Yesterday";
+      } else if (i === 7) {
+        label = "1 week ago";
+      } else if (i === 14) {
+        label = "2 weeks ago";
+      } else if (i === 30) {
+        label = "1 month ago";
       } else {
         label = date.toLocaleDateString('en-US', { 
           weekday: 'short', 
@@ -323,11 +360,17 @@ export default function CreateMatchWizardRefactored() {
   // Set default court if none selected
   React.useEffect(() => {
     if (!selectedCourt) {
+      addDebugLog("🔍 No court selected, finding default court");
       // Find "The Padel Lab" as default court
       const defaultCourt = PREDEFINED_COURTS.find(court => court.name === "The Padel Lab");
       if (defaultCourt) {
+        addDebugLog(`✅ Setting default court: ${defaultCourt.name}`);
         setSelectedCourt(defaultCourt);
+      } else {
+        addDebugLog("❌ Default court not found");
       }
+    } else {
+      addDebugLog(`✅ Court already selected: ${selectedCourt.name}`);
     }
   }, [selectedCourt, setSelectedCourt]);
 
@@ -1047,6 +1090,101 @@ export default function CreateMatchWizardRefactored() {
     </SlideContainer>
   );
 
+  // Debug panel to show current state
+  const renderDebugPanel = () => {
+    const currentStepValidation = validateCurrentStep();
+    const currentStepIndex = customStepSequence.indexOf(currentStep);
+    
+    return (
+      <View className="bg-yellow-100 border-2 border-yellow-500 rounded-lg p-4 mx-4 mb-4">
+        <Text className="text-yellow-800 font-bold text-lg mb-2">🐛 DEBUG INFO</Text>
+        
+        {/* Current Step Info */}
+        <View className="mb-3">
+          <Text className="text-yellow-800 font-semibold">📍 Current Step:</Text>
+          <Text className="text-yellow-700">ID: {currentStep} | Index: {currentStepIndex}</Text>
+          <Text className="text-yellow-700">Sequence: [{customStepSequence.join(', ')}]</Text>
+        </View>
+        
+        {/* State Values */}
+        <View className="mb-3">
+          <Text className="text-yellow-800 font-semibold">🏗️ State Values:</Text>
+          <Text className="text-yellow-700">Court: {selectedCourt?.name || 'NULL'}</Text>
+          <Text className="text-yellow-700">Times: [{selectedTimes.join(', ')}]</Text>
+          <Text className="text-yellow-700">Players: {selectedPlayers.length}/3</Text>
+          <Text className="text-yellow-700">isPastMatch: {isPastMatch.toString()}</Text>
+        </View>
+        
+        {/* Validation Results */}
+        <View className="mb-3">
+          <Text className="text-yellow-800 font-semibold">✅ Validation:</Text>
+          <Text className="text-yellow-700">Is Valid: {currentStepValidation.isValid.toString()}</Text>
+          <Text className="text-yellow-700">Errors: {currentStepValidation.errors.length > 0 ? currentStepValidation.errors.join(', ') : 'None'}</Text>
+        </View>
+        
+        {/* Navigation State */}
+        <View className="mb-3">
+          <Text className="text-yellow-800 font-semibold">🎮 Navigation:</Text>
+          <Text className="text-yellow-700">Can Proceed: {currentStepValidation.isValid.toString()}</Text>
+          <Text className="text-yellow-700">Is Last Step: {(currentStepIndex === customStepSequence.length - 1).toString()}</Text>
+          <Text className="text-yellow-700">Next Step: {customStepSequence[currentStepIndex + 1] || 'None'}</Text>
+        </View>
+        
+        {/* Button State */}
+        <View className="mb-3">
+          <Text className="text-yellow-800 font-semibold">🔘 Button State:</Text>
+          <Text className="text-yellow-700">Next Button Disabled: {(!currentStepValidation.isValid).toString()}</Text>
+          <Text className="text-yellow-700">Next Button Color: {currentStepValidation.isValid ? 'Blue' : 'Gray'}</Text>
+          <Text className="text-yellow-700">Last Button Press: {lastButtonPress}</Text>
+        </View>
+        
+        {/* Debug Actions */}
+        <View className="mb-3">
+          <Text className="text-yellow-800 font-semibold">🧪 Debug Actions:</Text>
+          <TouchableOpacity 
+            onPress={() => {
+              const validation = validateCurrentStep();
+              Alert.alert(
+                "🔍 Manual Validation Test",
+                `Step: ${currentStep}\nValid: ${validation.isValid}\nErrors: ${validation.errors.join(', ') || 'None'}`
+              );
+            }}
+            className="bg-yellow-600 px-3 py-2 rounded mt-2"
+          >
+            <Text className="text-white text-center font-semibold">Test Validation</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            onPress={() => {
+              const currentIndex = customStepSequence.indexOf(currentStep);
+              const nextStep = customStepSequence[currentIndex + 1];
+              Alert.alert(
+                "➡️ Next Step Test",
+                `Current: ${currentStep} (index ${currentIndex})\nNext: ${nextStep || 'None'}\nSequence: [${customStepSequence.join(', ')}]`
+              );
+            }}
+            className="bg-blue-600 px-3 py-2 rounded mt-2"
+          >
+            <Text className="text-white text-center font-semibold">Test Next Step</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Debug Log */}
+        <View>
+          <Text className="text-yellow-800 font-semibold">📝 Debug Log:</Text>
+          {debugLog.map((log, index) => (
+            <Text key={index} className="text-yellow-700 text-xs mb-1">
+              {log}
+            </Text>
+          ))}
+          {debugLog.length === 0 && (
+            <Text className="text-yellow-700 text-xs italic">No actions yet...</Text>
+          )}
+        </View>
+      </View>
+    );
+  };
+
   // Navigation controls
   const renderNavigationControls = () => {
     const currentStepValidation = validateCurrentStep();
@@ -1069,7 +1207,39 @@ export default function CreateMatchWizardRefactored() {
 
           {!isLastStep && (
             <TouchableOpacity
-              onPress={goToNextStepCustom}
+              onPress={() => {
+                const now = new Date().toLocaleTimeString();
+                setLastButtonPress(now);
+                addDebugLog(`🔴 Next button pressed at ${now}`);
+                
+                if (!canProceed) {
+                  // Show why button is disabled
+                  const validation = validateCurrentStep();
+                  addDebugLog(`❌ Button disabled: ${validation.errors.join(', ')}`);
+                  Alert.alert(
+                    "❌ Cannot Proceed",
+                    `Button is disabled because:\n\n${validation.errors.join('\n') || 'Unknown validation error'}`,
+                    [{ text: "OK", style: "default" }]
+                  );
+                } else {
+                  // Show immediate feedback that button was pressed
+                  addDebugLog(`✅ Button enabled, proceeding to next step`);
+                  Alert.alert(
+                    "🔴 Next Button Pressed!",
+                    `Current Step: ${currentStep}\nCan Proceed: ${canProceed}\nValidation: ${validateCurrentStep().isValid ? 'PASS' : 'FAIL'}\nErrors: ${validateCurrentStep().errors.join(', ') || 'None'}`,
+                    [
+                      {
+                        text: "Cancel",
+                        style: "cancel"
+                      },
+                      {
+                        text: "Continue to Next Step",
+                        onPress: goToNextStepCustom
+                      }
+                    ]
+                  );
+                }
+              }}
               disabled={!canProceed}
               className={`flex-1 py-4 rounded-full flex-row items-center justify-center ${
                 !canProceed ? 'bg-gray-400' : 'bg-blue-600'
@@ -1149,6 +1319,9 @@ export default function CreateMatchWizardRefactored() {
 
       {/* Content Container */}
       <View className="flex-1 relative">
+        {/* Debug Panel - Always visible */}
+        {renderDebugPanel()}
+        
         {renderLocationStep()}
         {renderPlayerStep()}
         {renderScoreStep()}
