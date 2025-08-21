@@ -144,7 +144,7 @@ export default function CreateMatchWizardRefactored() {
 
   // Custom navigation functions that use our step sequence
   const goToNextStepCustom = async () => {
-    addDebugLog("🔴 Next button pressed!");
+    addDebugLog("🚀 goToNextStepCustom function called!");
     
     const validation = validateCurrentStep();
     addDebugLog(`✅ Validation result: ${validation.isValid ? 'PASS' : 'FAIL'} - ${validation.errors.join(', ') || 'No errors'}`);
@@ -170,6 +170,8 @@ export default function CreateMatchWizardRefactored() {
     const nextStep = customStepSequence[currentIndex + 1];
     
     addDebugLog(`📊 Current index: ${currentIndex}, Next step: ${nextStep}`);
+    addDebugLog(`🎯 Step sequence: [${customStepSequence.join(', ')}]`);
+    addDebugLog(`📍 Current step: ${currentStep}`);
     
     if (nextStep) {
       addDebugLog(`🚀 Moving from step ${currentStep} to step ${nextStep}`);
@@ -177,6 +179,7 @@ export default function CreateMatchWizardRefactored() {
       // Show step progression feedback
       const stepNames = {
         [WizardStep.LOCATION_SETTINGS]: "Location & Time",
+        [WizardStep.MATCH_TYPE_TIME]: "Match Type & Time",
         [WizardStep.PLAYER_SELECTION]: "Player Selection", 
         [WizardStep.SCORE_ENTRY]: "Score Entry",
         [WizardStep.REVIEW_SUBMIT]: "Review & Submit"
@@ -191,13 +194,34 @@ export default function CreateMatchWizardRefactored() {
         // The haptic feedback above already provides good feedback
       }
       
-      setCompletedSteps((prev: Set<WizardStep>) => new Set([...prev, currentStep]));
+      addDebugLog(`🔄 Setting completed steps...`);
+      setCompletedSteps((prev: Set<WizardStep>) => {
+        const newSet = new Set([...prev, currentStep]);
+        addDebugLog(`✅ Completed steps updated: [${Array.from(newSet).join(', ')}]`);
+        return newSet;
+      });
+      
+      addDebugLog(`🔄 Setting current step to ${nextStep}...`);
       setCurrentStep(nextStep);
+      
+      addDebugLog(`🔄 Setting slide direction to forward...`);
       setSlideDirection("forward");
       
       addDebugLog(`✅ Step transition completed to step ${nextStep}`);
+      
+      // Force a re-render and show success
+      setTimeout(() => {
+        addDebugLog(`⏰ After timeout - checking if step changed...`);
+        Alert.alert(
+          "✅ Step Changed Successfully!",
+          `You are now on step: ${stepNames[nextStep] || nextStep}`,
+          [{ text: "OK" }]
+        );
+      }, 100);
+      
     } else {
       addDebugLog("❌ No next step found");
+      Alert.alert("❌ Error", "No next step found in sequence");
     }
   };
 
@@ -305,22 +329,38 @@ export default function CreateMatchWizardRefactored() {
     setRefreshing(false);
   };
 
-  // Generate time slots (individual hours) - all day
+  // Generate time slots (individual hours) - limited based on selected date
   const generateTimeSlots = () => {
     const slots = [];
-    for (let hour = 0; hour <= 23; hour++) {
-      slots.push(`${hour.toString().padStart(2, '0')}:00`);
+    const now = new Date();
+    const selectedDateObj = new Date(selectedDate);
+    
+    // Check if selected date is today
+    const isToday = selectedDateObj.toDateString() === now.toDateString();
+    
+    if (isToday) {
+      // For today, only show times up to 1 hour before now
+      const maxHour = Math.max(0, now.getHours() - 1);
+      for (let hour = 0; hour <= maxHour; hour++) {
+        slots.push(`${hour.toString().padStart(2, '0')}:00`);
+      }
+    } else {
+      // For past dates, show all hours
+      for (let hour = 0; hour <= 23; hour++) {
+        slots.push(`${hour.toString().padStart(2, '0')}:00`);
+      }
     }
+    
     return slots;
   };
 
-  // Generate dates (only past dates - today, yesterday, and 1 month back)
+  // Generate dates (only past dates - start with today, then yesterday, then go back)
   const generateDates = () => {
     const dates = [];
     const today = new Date();
     
-    // Start from 30 days ago and go up to today
-    for (let i = 30; i >= 0; i--) {
+    // Start with today (index 0), then yesterday (index 1), then go back in time
+    for (let i = 0; i <= 30; i++) {
       const date = new Date(today);
       date.setDate(today.getDate() - i);
       
@@ -351,11 +391,35 @@ export default function CreateMatchWizardRefactored() {
     return dates;
   };
 
-  const timeSlots = generateTimeSlots();
   const dateOptions = generateDates();
   const [selectedTimes, setSelectedTimes] = React.useState<string[]>([]);
   const [selectedDate, setSelectedDate] = React.useState(dateOptions[0].value);
   const [showSuccessScreen, setShowSuccessScreen] = React.useState(false);
+  
+  // Generate time slots based on selected date
+  const timeSlots = React.useMemo(() => {
+    const slots = [];
+    const now = new Date();
+    const selectedDateObj = new Date(selectedDate);
+    
+    // Check if selected date is today
+    const isToday = selectedDateObj.toDateString() === now.toDateString();
+    
+    if (isToday) {
+      // For today, only show times up to 1 hour before now
+      const maxHour = Math.max(0, now.getHours() - 1);
+      for (let hour = 0; hour <= maxHour; hour++) {
+        slots.push(`${hour.toString().padStart(2, '0')}:00`);
+      }
+    } else {
+      // For past dates, show all hours
+      for (let hour = 0; hour <= 23; hour++) {
+        slots.push(`${hour.toString().padStart(2, '0')}:00`);
+      }
+    }
+    
+    return slots;
+  }, [selectedDate]);
 
   // Set default court if none selected
   React.useEffect(() => {
@@ -1166,6 +1230,16 @@ export default function CreateMatchWizardRefactored() {
             className="bg-blue-600 px-3 py-2 rounded mt-2"
           >
             <Text className="text-white text-center font-semibold">Test Next Step</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            onPress={() => {
+              addDebugLog("🧪 Manual test of goToNextStepCustom");
+              goToNextStepCustom();
+            }}
+            className="bg-green-600 px-3 py-2 rounded mt-2"
+          >
+            <Text className="text-white text-center font-semibold">Test Navigation Function</Text>
           </TouchableOpacity>
         </View>
         
