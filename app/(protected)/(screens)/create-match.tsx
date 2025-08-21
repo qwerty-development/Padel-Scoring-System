@@ -144,13 +144,9 @@ export default function CreateMatchWizardRefactored() {
 
   // Custom navigation functions that use our step sequence
   const goToNextStepCustom = async () => {
-    addDebugLog("🚀 goToNextStepCustom function called!");
-    
     const validation = validateCurrentStep();
-    addDebugLog(`✅ Validation result: ${validation.isValid ? 'PASS' : 'FAIL'} - ${validation.errors.join(', ') || 'No errors'}`);
     
     if (!validation.isValid) {
-      addDebugLog("❌ Validation failed, showing error alert");
       // Error haptic feedback
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert(
@@ -161,22 +157,21 @@ export default function CreateMatchWizardRefactored() {
       return;
     }
     
-    addDebugLog("✅ Validation passed, proceeding to next step");
-    
     // Success haptic feedback for advancing
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
     const currentIndex = customStepSequence.indexOf(currentStep);
     const nextStep = customStepSequence[currentIndex + 1];
     
-    addDebugLog(`📊 Current index: ${currentIndex}, Next step: ${nextStep}`);
-    addDebugLog(`🎯 Step sequence: [${customStepSequence.join(', ')}]`);
-    addDebugLog(`📍 Current step: ${currentStep}`);
-    
     if (nextStep) {
-      addDebugLog(`🚀 Moving from step ${currentStep} to step ${nextStep}`);
+      // Mark current step as completed
+      setCompletedSteps((prev) => new Set([...prev, currentStep]));
       
-      // Show step progression feedback
+      // Move to next step
+      setCurrentStep(nextStep);
+      setSlideDirection("forward");
+      
+      // Show success toast
       const stepNames = {
         [WizardStep.LOCATION_SETTINGS]: "Location & Time",
         [WizardStep.MATCH_TYPE_TIME]: "Match Type & Time",
@@ -185,43 +180,9 @@ export default function CreateMatchWizardRefactored() {
         [WizardStep.REVIEW_SUBMIT]: "Review & Submit"
       };
       
-      // Show toast notification for step progression
-      const message = `✅ Moving to ${stepNames[nextStep]}`;
       if (Platform.OS === 'android') {
-        ToastAndroid.show(message, ToastAndroid.SHORT);
-      } else {
-        // For iOS, you could use a third-party toast library or just haptic feedback
-        // The haptic feedback above already provides good feedback
+        ToastAndroid.show(`✅ Moving to ${stepNames[nextStep]}`, ToastAndroid.SHORT);
       }
-      
-      addDebugLog(`🔄 Setting completed steps...`);
-      setCompletedSteps((prev: Set<WizardStep>) => {
-        const newSet = new Set([...prev, currentStep]);
-        addDebugLog(`✅ Completed steps updated: [${Array.from(newSet).join(', ')}]`);
-        return newSet;
-      });
-      
-      addDebugLog(`🔄 Setting current step to ${nextStep}...`);
-      setCurrentStep(nextStep);
-      
-      addDebugLog(`🔄 Setting slide direction to forward...`);
-      setSlideDirection("forward");
-      
-      addDebugLog(`✅ Step transition completed to step ${nextStep}`);
-      
-      // Force a re-render and show success
-      setTimeout(() => {
-        addDebugLog(`⏰ After timeout - checking if step changed...`);
-        Alert.alert(
-          "✅ Step Changed Successfully!",
-          `You are now on step: ${stepNames[nextStep] || nextStep}`,
-          [{ text: "OK" }]
-        );
-      }, 100);
-      
-    } else {
-      addDebugLog("❌ No next step found");
-      Alert.alert("❌ Error", "No next step found in sequence");
     }
   };
 
@@ -245,18 +206,14 @@ export default function CreateMatchWizardRefactored() {
   };
 
   const validateCurrentStep = () => {
-    const errors: string[] = [];
+    const errors = [];
     
     switch (currentStep) {
       case WizardStep.LOCATION_SETTINGS:
-        // Validate location and time selection
-        if (!selectedCourt) {
+        // Ensure court is selected (check both selectedCourt and that it has required properties)
+        if (!selectedCourt || !selectedCourt.name) {
           errors.push("Please select a court");
         }
-        // Note: Time selection is optional for now as it's still being developed
-        // if (selectedTimes.length === 0) {
-        //   errors.push("Please select at least one time slot");
-        // }
         break;
         
       case WizardStep.PLAYER_SELECTION:
@@ -296,7 +253,7 @@ export default function CreateMatchWizardRefactored() {
         
       case WizardStep.REVIEW_SUBMIT:
         // All previous validations should pass
-        const locationValid = selectedCourt; // Time selection is optional for now
+        const locationValid = selectedCourt && selectedCourt.name;
         const playersValid = selectedPlayers.length === 3;
         const scoresValid = !isPastMatch || (
           isValidPadelScore(set1Score.team1, set1Score.team2) &&
@@ -423,20 +380,14 @@ export default function CreateMatchWizardRefactored() {
 
   // Set default court if none selected
   React.useEffect(() => {
-    if (!selectedCourt) {
-      addDebugLog("🔍 No court selected, finding default court");
-      // Find "The Padel Lab" as default court
-      const defaultCourt = PREDEFINED_COURTS.find(court => court.name === "The Padel Lab");
+    if (!selectedCourt && PREDEFINED_COURTS.length > 0) {
+      // Find "The Padel Lab" as default court, or use first available court
+      const defaultCourt = PREDEFINED_COURTS.find(court => court.name === "The Padel Lab") || PREDEFINED_COURTS[0];
       if (defaultCourt) {
-        addDebugLog(`✅ Setting default court: ${defaultCourt.name}`);
         setSelectedCourt(defaultCourt);
-      } else {
-        addDebugLog("❌ Default court not found");
       }
-    } else {
-      addDebugLog(`✅ Court already selected: ${selectedCourt.name}`);
     }
-  }, [selectedCourt, setSelectedCourt]);
+  }, []); // Run only once on mount
 
   // Enhanced createMatch function with haptic feedback and success screen
   const handleCreateMatch = async () => {
@@ -1281,39 +1232,7 @@ export default function CreateMatchWizardRefactored() {
 
           {!isLastStep && (
             <TouchableOpacity
-              onPress={() => {
-                const now = new Date().toLocaleTimeString();
-                setLastButtonPress(now);
-                addDebugLog(`🔴 Next button pressed at ${now}`);
-                
-                if (!canProceed) {
-                  // Show why button is disabled
-                  const validation = validateCurrentStep();
-                  addDebugLog(`❌ Button disabled: ${validation.errors.join(', ')}`);
-                  Alert.alert(
-                    "❌ Cannot Proceed",
-                    `Button is disabled because:\n\n${validation.errors.join('\n') || 'Unknown validation error'}`,
-                    [{ text: "OK", style: "default" }]
-                  );
-                } else {
-                  // Show immediate feedback that button was pressed
-                  addDebugLog(`✅ Button enabled, proceeding to next step`);
-                  Alert.alert(
-                    "🔴 Next Button Pressed!",
-                    `Current Step: ${currentStep}\nCan Proceed: ${canProceed}\nValidation: ${validateCurrentStep().isValid ? 'PASS' : 'FAIL'}\nErrors: ${validateCurrentStep().errors.join(', ') || 'None'}`,
-                    [
-                      {
-                        text: "Cancel",
-                        style: "cancel"
-                      },
-                      {
-                        text: "Continue to Next Step",
-                        onPress: goToNextStepCustom
-                      }
-                    ]
-                  );
-                }
-              }}
+              onPress={goToNextStepCustom}
               disabled={!canProceed}
               className={`flex-1 py-4 rounded-full flex-row items-center justify-center ${
                 !canProceed ? 'bg-gray-400' : 'bg-blue-600'
