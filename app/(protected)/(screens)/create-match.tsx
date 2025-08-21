@@ -1,5 +1,5 @@
 import React from "react";
-import { View, ScrollView, TouchableOpacity, TextInput, Alert } from "react-native";
+import { View, ScrollView, TouchableOpacity, TextInput, Alert, ToastAndroid, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
@@ -148,6 +148,23 @@ export default function CreateMatchWizardRefactored() {
     const nextStep = customStepSequence[currentIndex + 1];
     
     if (nextStep) {
+      // Show step progression feedback
+      const stepNames = {
+        [WizardStep.LOCATION_SETTINGS]: "Location & Time",
+        [WizardStep.PLAYER_SELECTION]: "Player Selection", 
+        [WizardStep.SCORE_ENTRY]: "Score Entry",
+        [WizardStep.REVIEW_SUBMIT]: "Review & Submit"
+      };
+      
+      // Show toast notification for step progression
+      const message = `✅ Moving to ${stepNames[nextStep]}`;
+      if (Platform.OS === 'android') {
+        ToastAndroid.show(message, ToastAndroid.SHORT);
+      } else {
+        // For iOS, you could use a third-party toast library or just haptic feedback
+        // The haptic feedback above already provides good feedback
+      }
+      
       setCompletedSteps((prev: Set<WizardStep>) => new Set([...prev, currentStep]));
       setCurrentStep(nextStep);
       setSlideDirection("forward");
@@ -409,8 +426,8 @@ export default function CreateMatchWizardRefactored() {
           showsVerticalScrollIndicator={false}
         >
           <View className="px-6">
-            <Text className="text-xl font-bold mb-2 text-gray-900">Location & Time</Text>
-            <Text className="text-gray-600 mb-6 text-sm">
+            <Text className="text-2xl font-bold mb-2 text-blue-600">📍 Location & Time</Text>
+            <Text className="text-gray-600 mb-6 text-base">
               Select the padel club and the time your match took place.
             </Text>
 
@@ -524,9 +541,9 @@ export default function CreateMatchWizardRefactored() {
           showsVerticalScrollIndicator={false}
         >
           <View className="px-6">
-            <Text className="text-xl font-bold mb-2 text-gray-900">Players</Text>
-            <Text className="text-gray-600 mb-6 text-sm">
-              Select 3 other players for your match
+            <Text className="text-2xl font-bold mb-2 text-purple-600">👥 Players</Text>
+            <Text className="text-gray-600 mb-6 text-base">
+              Select 3 other players for your match (4 players total including you)
             </Text>
 
             {/* Team Layout */}
