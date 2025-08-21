@@ -25,6 +25,7 @@ interface PlayerSelectionModalProps {
   loading: boolean;
   maxSelections?: number;
   isPastMatch?: boolean; // Add this to differentiate between past and future matches
+  onRefresh?: () => void; // Add refresh function
 }
 
 interface UserAvatarProps {
@@ -73,7 +74,7 @@ function UserAvatar({ user, size = "md", teamIndex }: UserAvatarProps) {
     return "bg-primary"; // Default
   };
 
-  const shouldShowImage = user.avatar_url && !imageLoadError;
+  const shouldShowImage = user.avatar_url && !imageLoadError && user.avatar_url !== null;
 
   if (shouldShowImage) {
     return (
@@ -81,7 +82,7 @@ function UserAvatar({ user, size = "md", teamIndex }: UserAvatarProps) {
         className={`${sizeClasses} rounded-full ${getBgColor()} items-center justify-center overflow-hidden`}
       >
         <Image
-          source={{ uri: user.avatar_url }}
+          source={{ uri: user.avatar_url! }}
           style={sizeStyle}
           resizeMode="cover"
           onLoad={() => setImageLoading(false)}
@@ -124,6 +125,7 @@ export function PlayerSelectionModal({
   loading,
   maxSelections = 3,
   isPastMatch = false,
+  onRefresh,
 }: PlayerSelectionModalProps) {
   const { colorScheme } = useColorScheme();
   const { session } = useAuth(); // Get current user session
@@ -461,16 +463,34 @@ export function PlayerSelectionModal({
               </Text>
             </View>
 
-            <TouchableOpacity
-              className="w-8 h-8 rounded-full items-center justify-center bg-gray-100 dark:bg-gray-800"
-              onPress={onClose}
-            >
-              <Ionicons
-                name="close"
-                size={18}
-                color={isDark ? "#ddd" : "#555"}
-              />
-            </TouchableOpacity>
+            <View className="flex-row gap-2">
+              <TouchableOpacity
+                className="w-8 h-8 rounded-full items-center justify-center bg-blue-100 dark:bg-blue-800"
+                onPress={() => {
+                  // Trigger refresh of friends list
+                  if (typeof onRefresh === 'function') {
+                    onRefresh();
+                  }
+                }}
+              >
+                <Ionicons
+                  name="refresh"
+                  size={18}
+                  color={isDark ? "#3b82f6" : "#1d4ed8"}
+                />
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                className="w-8 h-8 rounded-full items-center justify-center bg-gray-100 dark:bg-gray-800"
+                onPress={onClose}
+              >
+                <Ionicons
+                  name="close"
+                  size={18}
+                  color={isDark ? "#ddd" : "#555"}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Selected players summary */}
@@ -562,7 +582,7 @@ export function PlayerSelectionModal({
                         className={`text-xs ${
                           isPastMatch
                             ? "text-amber-600 dark:text-amber-400"
-                            : "text-blue-600 dark:text-blue-400"
+                            : "text-primary dark:text-blue-400"
                         }`}
                       >
                         {validation.hintText}

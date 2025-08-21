@@ -115,7 +115,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({
       return {
         type: "validated",
         label: "Validated",
-        color: "text-blue-600",
+        color: "text-primary",
         bgColor: "bg-blue-100 dark:bg-blue-900/30",
         icon: "shield-checkmark",
       };

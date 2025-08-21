@@ -47,7 +47,7 @@ export const ValidationInfoCard: React.FC<ValidationInfoCardProps> = ({
             <Text className="font-semibold text-blue-800 dark:text-blue-300">
               Score Validation System Active
             </Text>
-            <Text className="text-sm text-blue-600 dark:text-blue-400">
+            <Text className="text-sm text-primary dark:text-blue-400">
               {isDemo ? "1-hour" : "24-hour"} dispute window • Tap to learn more
             </Text>
           </View>
@@ -76,7 +76,7 @@ export const ValidationInfoCard: React.FC<ValidationInfoCardProps> = ({
 
           <View className="space-y-2">
             <View className="flex-row items-start">
-              <Text className="text-blue-600 dark:text-blue-400 mr-2">1.</Text>
+              <Text className="text-primary dark:text-blue-400 mr-2">1.</Text>
               <Text className="text-sm text-blue-700 dark:text-blue-300 flex-1">
                 After recording scores, all participants have{" "}
                 {isDemo ? "1 hour" : "24 hours"} to dispute if incorrect
@@ -84,14 +84,14 @@ export const ValidationInfoCard: React.FC<ValidationInfoCardProps> = ({
             </View>
 
             <View className="flex-row items-start">
-              <Text className="text-blue-600 dark:text-blue-400 mr-2">2.</Text>
+              <Text className="text-primary dark:text-blue-400 mr-2">2.</Text>
               <Text className="text-sm text-blue-700 dark:text-blue-300 flex-1">
                 Ratings are only applied after the dispute window closes
               </Text>
             </View>
 
             <View className="flex-row items-start">
-              <Text className="text-blue-600 dark:text-blue-400 mr-2">3.</Text>
+              <Text className="text-primary dark:text-blue-400 mr-2">3.</Text>
               <Text className="text-sm text-blue-700 dark:text-blue-300 flex-1">
                 If 2+ players report issues, the match is disputed and ratings
                 are not applied
@@ -99,7 +99,7 @@ export const ValidationInfoCard: React.FC<ValidationInfoCardProps> = ({
             </View>
 
             <View className="flex-row items-start">
-              <Text className="text-blue-600 dark:text-blue-400 mr-2">4.</Text>
+              <Text className="text-primary dark:text-blue-400 mr-2">4.</Text>
               <Text className="text-sm text-blue-700 dark:text-blue-300 flex-1">
                 Match creator can delete within 24 hours if mistakes were made
               </Text>

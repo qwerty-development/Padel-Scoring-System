@@ -1,6 +1,6 @@
 import "../global.css";
 import { decode, encode } from "base-64";
-import { LogBox, AppState } from "react-native";
+import { LogBox, AppState, View } from "react-native";
 import * as Updates from "expo-updates";
 import { useEffect, useRef } from "react";
 import { Stack } from "expo-router";
@@ -88,58 +88,60 @@ export default function AppLayout() {
   runConfirmationProcessor();
 
   return (
-    <AuthProvider>
-      <NotificationProvider>
-        <Stack screenOptions={{ headerShown: false, gestureEnabled: false }}>
-          <Stack.Screen name="(protected)" />
-          <Stack.Screen name="welcome" />
-          <Stack.Screen
-            name="(auth)/sign-up"
-            options={{
-              headerShown: false,
-              headerTitle: "Sign Up",
-              headerStyle: {
-                backgroundColor:
-                  colorScheme === "dark" ? colors.dark.card : colors.light.card,
-              },
-              headerTintColor:
-                colorScheme === "dark"
-                  ? colors.dark.foreground
-                  : colors.light.foreground,
-            }}
-          />
-          <Stack.Screen
-            name="(auth)/sign-in"
-            options={{
-              headerShown: false,
-              headerTitle: "Sign In",
-              headerStyle: {
-                backgroundColor:
-                  colorScheme === "dark" ? colors.dark.card : colors.light.card,
-              },
-              headerTintColor:
-                colorScheme === "dark"
-                  ? colors.dark.foreground
-                  : colors.light.foreground,
-            }}
-          />
-          <Stack.Screen
-            name="(auth)/onboarding"
-            options={{
-              headerShown: false,
-              headerTitle: "Profile Setup",
-              headerStyle: {
-                backgroundColor:
-                  colorScheme === "dark" ? colors.dark.card : colors.light.card,
-              },
-              headerTintColor:
-                colorScheme === "dark"
-                  ? colors.dark.foreground
-                  : colors.light.foreground,
-            }}
-          />
-        </Stack>
-      </NotificationProvider>
-    </AuthProvider>
+    <View className={`flex-1 ${colorScheme === "dark" ? "bg-gray-900" : "bg-white"}`}>
+      <AuthProvider>
+        <NotificationProvider>
+          <Stack screenOptions={{ headerShown: false, gestureEnabled: false }}>
+            <Stack.Screen name="(protected)" />
+            <Stack.Screen name="welcome" />
+            <Stack.Screen
+              name="(auth)/sign-up"
+              options={{
+                headerShown: false,
+                headerTitle: "Sign Up",
+                headerStyle: {
+                  backgroundColor:
+                    colorScheme === "dark" ? colors.dark.card : colors.light.card,
+                },
+                headerTintColor:
+                  colorScheme === "dark"
+                    ? colors.dark.foreground
+                    : colors.light.foreground,
+              }}
+            />
+            <Stack.Screen
+              name="(auth)/sign-in"
+              options={{
+                headerShown: false,
+                headerTitle: "Sign In",
+                headerStyle: {
+                  backgroundColor:
+                    colorScheme === "dark" ? colors.dark.card : colors.light.card,
+                },
+                headerTintColor:
+                  colorScheme === "dark"
+                    ? colors.dark.foreground
+                    : colors.light.foreground,
+              }}
+            />
+            <Stack.Screen
+              name="(auth)/onboarding"
+              options={{
+                headerShown: false,
+                headerTitle: "Profile Setup",
+                headerStyle: {
+                  backgroundColor:
+                    colorScheme === "dark" ? colors.dark.card : colors.light.card,
+                },
+                headerTintColor:
+                  colorScheme === "dark"
+                    ? colors.dark.foreground
+                    : colors.light.foreground,
+              }}
+            />
+          </Stack>
+        </NotificationProvider>
+      </AuthProvider>
+    </View>
   );
 }

@@ -56,7 +56,7 @@ function UserAvatar({ user, rank, isCurrentUser, size = "md" }: AvatarProps) {
         className={`${sizeClasses} rounded-full mr-3 overflow-hidden ${getBgColor()} items-center justify-center`}
       >
         <Image
-          source={{ uri: user.avatar_url }}
+          source={{ uri: user.avatar_url! }}
           style={sizeStyle}
           resizeMode="cover"
           onLoad={() => setImageLoading(false)}
@@ -72,11 +72,7 @@ function UserAvatar({ user, rank, isCurrentUser, size = "md" }: AvatarProps) {
             className={`absolute inset-0 ${getBgColor()} items-center justify-center`}
           >
             <Text
-              className={`${textSize} font-bold ${
-                rank <= 3
-                  ? "text-primary-foreground"
-                  : "text-primary-foreground"
-              }`}
+              className={`${textSize} font-bold text-primary-foreground`}
             >
               {getInitial()}
             </Text>
@@ -92,9 +88,7 @@ function UserAvatar({ user, rank, isCurrentUser, size = "md" }: AvatarProps) {
       className={`${sizeClasses} rounded-full items-center justify-center mr-3 ${getBgColor()}`}
     >
       <Text
-        className={`${textSize} font-bold ${
-          rank <= 3 ? "text-primary-foreground" : "text-primary-foreground"
-        }`}
+        className={`${textSize} font-bold text-primary-foreground`}
       >
         {getInitial()}
       </Text>
@@ -129,12 +123,12 @@ export function FriendLeaderboard({ friends, userId }: FriendLeaderboardProps) {
     const rank = index + 1;
     const isCurrentUser = user.id === userId;
 
-    // Create background color based on rank
+    // Create background color based on rank - using app's color scheme
     const getBgColor = () => {
-      if (isCurrentUser) return "bg-primary/15";
-      if (rank === 1) return "bg-amber-50 dark:bg-amber-950/30";
-      if (rank === 2) return "bg-gray-50 dark:bg-gray-800/40";
-      if (rank === 3) return "bg-orange-50 dark:bg-orange-950/30";
+      if (isCurrentUser) return "bg-primary/10";
+      if (rank === 1) return "bg-amber-50 dark:bg-amber-950/20";
+      if (rank === 2) return "bg-gray-50 dark:bg-gray-800/30";
+      if (rank === 3) return "bg-orange-50 dark:bg-orange-950/20";
       return "bg-card";
     };
 
@@ -153,11 +147,17 @@ export function FriendLeaderboard({ friends, userId }: FriendLeaderboardProps) {
       );
     };
 
+    // Format rating to show only full numbers (no decimals)
+    const formatRating = (rating: number | null) => {
+      if (!rating) return "1500";
+      return Math.round(rating).toString();
+    };
+
     return (
       <TouchableOpacity
         key={user.id}
-        className={`flex-row items-center p-3 mb-2 rounded-xl border ${getBgColor()} ${
-          isCurrentUser ? "border-primary/30" : "border-border/30"
+        className={`flex-row items-center p-4 mb-3 rounded-xl border ${getBgColor()} ${
+          isCurrentUser ? "border-primary/30" : "border-border/40"
         }`}
         style={[styles.cardShadow, rank <= 3 && styles.topRankShadow]}
         onPress={() => {
@@ -182,16 +182,16 @@ export function FriendLeaderboard({ friends, userId }: FriendLeaderboardProps) {
         {/* User info */}
         <View className="flex-1">
           <View className="flex-row items-center">
-            <Text className="font-medium">
+            <Text className="font-medium text-foreground">
               {user.full_name || user.email.split("@")[0]}
             </Text>
             {isCurrentUser && (
-              <View className="ml-2 px-2 py-0.5 bg-primary rounded-full">
-                <Text className="text-xs text-primary-foreground">You</Text>
+              <View className="ml-2 px-2 py-1 bg-primary rounded-full">
+                <Text className="text-xs text-primary-foreground font-medium">You</Text>
               </View>
             )}
           </View>
-          <Text className="text-xs text-muted-foreground">{user.email}</Text>
+          <Text className="text-xs text-muted-foreground mt-1">{user.email}</Text>
         </View>
 
         {/* Rating */}
@@ -199,15 +199,15 @@ export function FriendLeaderboard({ friends, userId }: FriendLeaderboardProps) {
           <View className="flex-row items-center">
             <Ionicons
               name="stats-chart"
-              size={12}
-              color="#888"
-              style={{ marginRight: 4 }}
+              size={14}
+              color="hsl(var(--muted-foreground))"
+              style={{ marginRight: 6 }}
             />
             <Text className="text-lg font-bold text-primary">
-              {user.glicko_rating?.toString() || "1500"}
+              {formatRating(user.glicko_rating)}
             </Text>
           </View>
-          <Text className="text-xs text-muted-foreground">Rating</Text>
+          <Text className="text-xs text-muted-foreground mt-1">Rating</Text>
         </View>
       </TouchableOpacity>
     );
@@ -215,7 +215,7 @@ export function FriendLeaderboard({ friends, userId }: FriendLeaderboardProps) {
 
   const renderEmptyState = () => (
     <View
-      className="bg-card rounded-lg p-6 items-center mt-4 border border-border/40"
+      className="bg-card rounded-xl p-8 items-center mt-4 border border-border/40 dark:bg-gray-800"
       style={{
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 1 },
@@ -224,8 +224,8 @@ export function FriendLeaderboard({ friends, userId }: FriendLeaderboardProps) {
         elevation: 2,
       }}
     >
-      <Ionicons name="people-outline" size={48} color="#888" />
-      <Text className="text-lg font-medium mt-4 mb-2">No friends found</Text>
+      <Ionicons name="people-outline" size={48} color="hsl(var(--muted-foreground))" />
+      <Text className="text-lg font-medium mt-4 mb-2 text-foreground">No friends found</Text>
       <Text className="text-muted-foreground text-center">
         Connect with other players to see their rank
       </Text>
@@ -234,29 +234,30 @@ export function FriendLeaderboard({ friends, userId }: FriendLeaderboardProps) {
 
   return (
     <View className="mb-6">
-      <View className="flex-row justify-between items-center mb-4"></View>
+      <View className="flex-row justify-between items-center mb-4">
+        <Text className="text-lg font-semibold text-foreground">Top Players</Text>
+        <Text className="text-sm text-muted-foreground">
+          {friends.length} {friends.length === 1 ? 'friend' : 'friends'}
+        </Text>
+      </View>
 
       {sortedFriends.length > 0 ? (
         <>
           {sortedFriends.map((friend, index) => renderUserRank(friend, index))}
-          {friends.length > 5 && (
-            <TouchableOpacity
-              className="items-center"
-              onPress={() => router.push("/leaderboard")}
-            ></TouchableOpacity>
-          )}
         </>
       ) : (
         renderEmptyState()
       )}
 
       <TouchableOpacity
-        className="items-center"
+        className="items-center mt-6"
         onPress={() => router.push("/leaderboard")}
       >
-        <Text className="bg-primary px-5 py-2 rounded-3xl mt-5 text-primary-foreground">
-          More
-        </Text>
+        <View className="bg-primary px-6 py-3 rounded-full">
+          <Text className="text-primary-foreground font-medium">
+            View Full Leaderboard
+          </Text>
+        </View>
       </TouchableOpacity>
     </View>
   );

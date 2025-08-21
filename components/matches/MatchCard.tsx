@@ -332,7 +332,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, onPress }) => {
 
   return (
     <TouchableOpacity
-      className="bg-white dark:bg-gray-800 rounded-2xl p-4 mb-4 border border-gray-200 dark:border-gray-700"
+      className="bg-white border  dark:bg-gray-800 rounded-2xl p-4 mb-4  border-gray-300 dark:border-gray-700"
       onPress={handlePress}
       activeOpacity={0.85}
       accessibilityLabel={accessibilityLabel}

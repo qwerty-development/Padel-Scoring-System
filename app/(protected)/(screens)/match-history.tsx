@@ -573,7 +573,7 @@ export default function CleanMatchHistory() {
       </Text>
       <Button
         onPress={() => router.push("/(protected)/(screens)/create-match")}
-        className="bg-blue-500 hover:bg-blue-600"
+        className="bg-blue-500 hover:bg-primary"
       >
         <Text className="text-white font-medium">Create Match</Text>
       </Button>
@@ -582,7 +582,7 @@ export default function CleanMatchHistory() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-backround dark:bg-gray-900">
+      <SafeAreaView className="flex-1 bg-white dark:bg-gray-900">
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#3B82F6" />
           <Text className="mt-4 text-gray-500 dark:text-gray-400">
@@ -602,89 +602,93 @@ export default function CleanMatchHistory() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background  dark:bg-gray-900">
-      {/* Header */}
-      <View className=" dark:bg-gray-800 px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-        <View className="flex-row items-center mb-4">
-          <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
-            <Ionicons name="arrow-back" size={24} color="#3B82F6" />
-          </TouchableOpacity>
-          <Text className="text-2xl font-bold text-gray-900 dark:text-gray-100 ml-2">
-            Match History
-          </Text>
-        </View>
+    <View className="flex-1">
+      <SafeAreaView className="bg-primary">
+        {/* Blue Header */}
+        <View className="px-4 py-3">
+          <View className="flex-row items-center mb-3">
+            <TouchableOpacity onPress={() => router.back()} className="p-1 -ml-1">
+              <Ionicons name="arrow-back" size={20} color="white" />
+            </TouchableOpacity>
+            <Text className="text-xl font-bold text-white ml-2">
+              Match History
+            </Text>
+          </View>
 
-        {/* Filters */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          className="flex-row"
-        >
-          {(["all", "upcoming", "completed", "attention"] as FilterType[]).map(
-            (filterType) => {
-              const count = stats[filterType];
-              const isActive = filter === filterType;
+          {/* Filters */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            className="flex-row"
+          >
+            {(["all", "upcoming", "completed", "attention"] as FilterType[]).map(
+              (filterType) => {
+                const count = stats[filterType];
+                const isActive = filter === filterType;
 
-              return (
-                <TouchableOpacity
-                  key={filterType}
-                  className={`mr-3 px-4 py-2 rounded-xl ${
-                    isActive ? "bg-blue-500" : "bg-gray-100 dark:bg-gray-700"
-                  }`}
-                  onPress={() => setFilter(filterType)}
-                >
-                  <View className="flex-row items-center">
-                    <Text
-                      className={`font-medium capitalize ${
-                        isActive
-                          ? "text-white"
-                          : "text-gray-700 dark:text-gray-300"
-                      }`}
-                    >
-                      {filterType === "attention"
-                        ? "Needs Attention"
-                        : filterType}
-                    </Text>
-                    {count > 0 && (
-                      <View
-                        className={`ml-2 px-2 py-0.5 rounded-full ${
-                          isActive ? "bg-card" : "bg-blue-500"
+                return (
+                  <TouchableOpacity
+                    key={filterType}
+                    className={`mr-2 px-3 py-1.5 rounded-lg ${
+                      isActive ? "bg-white" : "bg-white/20"
+                    }`}
+                    onPress={() => setFilter(filterType)}
+                  >
+                    <View className="flex-row items-center">
+                      <Text
+                        className={`text-sm font-medium capitalize ${
+                          isActive
+                            ? "text-primary"
+                            : "text-white"
                         }`}
                       >
-                        <Text
-                          className={`text-xs font-bold ${
-                            isActive ? "text-white" : "text-white"
+                        {filterType === "attention"
+                          ? "Needs Attention"
+                          : filterType}
+                      </Text>
+                      {count > 0 && (
+                        <View
+                          className={`ml-1.5 px-1.5 py-0.5 rounded-full ${
+                            isActive ? "bg-primary" : "bg-white"
                           }`}
                         >
-                          {count}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              );
-            },
-          )}
-        </ScrollView>
-      </View>
+                          <Text
+                            className={`text-xs font-bold ${
+                              isActive ? "text-white" : "text-primary"
+                            }`}
+                          >
+                            {count}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              },
+            )}
+          </ScrollView>
+        </View>
+      </SafeAreaView>
 
       {/* Content */}
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ padding: 16 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#3B82F6"
-          />
-        }
-        showsVerticalScrollIndicator={false}
-      >
-        {filteredMatches.length > 0
-          ? filteredMatches.map(renderMatchCard)
-          : renderEmptyState()}
-      </ScrollView>
-    </SafeAreaView>
+      <View className="flex-1 bg-white dark:bg-gray-900">
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{ padding: 16 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#3B82F6"
+            />
+          }
+          showsVerticalScrollIndicator={false}
+        >
+          {filteredMatches.length > 0
+            ? filteredMatches.map(renderMatchCard)
+            : renderEmptyState()}
+        </ScrollView>
+      </View>
+    </View>
   );
 }

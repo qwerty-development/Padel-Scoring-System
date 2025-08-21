@@ -313,6 +313,7 @@ export const useCreateMatchState = () => {
     set2Score,
     set3Score,
     showSet3,
+    profile,
 
     // Computed
     isPastMatch,

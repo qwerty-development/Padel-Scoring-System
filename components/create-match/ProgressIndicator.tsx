@@ -17,7 +17,7 @@ export const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
   const currentIndex = stepConfig.findIndex((step) => step.id === currentStep);
 
   return (
-    <View className="bg-blue-600 px-4 py-6">
+    <View className="bg-primary px-4 py-6">
       {/* Header with back button and step indicator */}
       <View className="flex-row items-center justify-between">
         {/* Close Button */}

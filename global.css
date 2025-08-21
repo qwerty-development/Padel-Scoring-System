@@ -4,38 +4,41 @@
 
 @layer base {
 	:root {
-		/* Padel court colors: court surface, lines, glass walls, and padel colors */
-		--background: 175 18% 89%;    /* Light padel court surface color (blue-green) */
-		--foreground: 0 0% 14.50%;     /* Dark text on light background */
-		--card: 175 15% 85%;           /* Slightly lighter court surface */
+		/* Light mode: Clean white background */
+		--background: 0 0% 100%;       /* Pure white background */
+		--foreground: 0 0% 14.50%;     /* Dark text on white background */
+		--card: 0 0% 100%;             /* White card background */
 		--card-foreground: 0 0% 14.50%;
-		--popover: 175 18% 89%;
+		--popover: 0 0% 100%;
 		--popover-foreground: 0 0% 14.50%;
 		
-		/* Primary color - Official padel ball yellow */
-		--primary: 226, 72%, 47%;         /* Padel ball yellow */
+		/* Primary color - Blue for tab bar background */
+		--primary: 226, 72%, 47%;        
 		--primary-foreground: 0 0% 14.50%;
 		
-		/* Secondary - Racket colors */
-		--secondary: 0 0% 94%;         /* Light gray for racket surface */
+		/* Tennis ball yellow for active tabs and buttons */
+		--tennis-ball: 75, 85%, 55%;
+		
+		/* Secondary - Light gray for subtle elements */
+		--secondary: 0 0% 96%;         /* Very light gray */
 		--secondary-foreground: 0 0% 20.50%;
 		
-		/* Muted - Glass wall effect */
-		--muted: 175 10% 90%;          /* Court color with less saturation */
+		/* Muted - Subtle gray for backgrounds */
+		--muted: 0 0% 96%;             /* Light gray */
 		--muted-foreground: 0 0% 45%;   /* Medium gray for subtle text */
 		
 		/* Accent - White court lines */
-		--accent: 0 0% 98%;            /* Court line color (bright white) */
+		--accent: 0 0% 98%;            /* Very light gray */
 		--accent-foreground: 0 0% 14.50%;
 		
 		/* Destructive - Warning red for out of bounds */
-		--destructive: 0 85% 55%;
+		--destructive: 0 85%, 55%;
 		--destructive-foreground: 0 0% 100%;
 		
-		/* Borders and rings - Padel net color */
-		--border: 175 12% 82%;
-		--input: 175 12% 82%;
-		--ring: 175 35% 65%;            /* Darker blue-green for ring effect */
+		/* Borders and rings - Subtle gray */
+		--border: 0 0% 90%;            /* Light gray borders */
+		--input: 0 0% 90%;
+		--ring: 0 0% 80%;              /* Medium gray for ring effect */
 	}
 
 	.dark:root {
@@ -47,9 +50,12 @@
 		--popover: 210 40% 8%;
 		--popover-foreground: 0 0% 98%;
 		
-		/* Primary remains same - padel ball yellow stands out in dark mode */
-		--primary: 203 76% 42%%;
+		/* Primary remains same - blue for tab bar background */
+		--primary: 226, 72%, 47%;        /* Same blue as light mode for consistency */
 		--primary-foreground: 0 0% 14.50%;
+		
+		/* Tennis ball yellow for active tabs and buttons */
+		--tennis-ball: 75, 85%, 55%;
 		
 		/* Secondary - Darker racket colors */
 		--secondary: 210 20% 20%;       /* Dark racket surface */

@@ -688,7 +688,7 @@ export default function CleanBrowsePublicMatches() {
           <View className="flex-row justify-between mb-4">
             {/* Team 1 */}
             <View className="flex-1 mr-2">
-              <Text className="text-xs text-blue-600 font-medium mb-2">
+              <Text className="text-xs text-primary font-medium mb-2">
                 Team 1
               </Text>
               {match.team1Players?.map((player) => (
@@ -929,7 +929,7 @@ export default function CleanBrowsePublicMatches() {
             </Text>
             <Button
               onPress={() => router.push("/(protected)/(screens)/create-match")}
-              className="bg-blue-500 hover:bg-blue-600"
+              className="bg-blue-500 hover:bg-primary"
             >
               <Ionicons name="add" size={18} style={{ marginRight: 8 }} />
               <Text className="text-white font-medium">

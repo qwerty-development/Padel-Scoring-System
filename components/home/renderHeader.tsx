@@ -19,7 +19,7 @@ const generateDynamicGreeting = (): { emoji: string; message: string; color: str
     if (currentStreak >= 3) {
       const hotGreetings = [
         { emoji: "🏆", message: "CHAMPION", color: "text-yellow-600" },
-        { emoji: "💪", message: "DOMINATING", color: "text-blue-600" },
+        { emoji: "💪", message: "DOMINATING", color: "text-primary" },
         { emoji: "⭐", message: "STELLAR", color: "text-purple-600" },
       ];
       return hotGreetings[Math.floor(Math.random() * hotGreetings.length)];
@@ -48,7 +48,7 @@ const generateDynamicGreeting = (): { emoji: string; message: string; color: str
     // Recent loss but not a streak
     if (currentStreak <= -1) {
       const motivationGreetings = [
-        { emoji: "💭", message: "STRATEGIZING", color: "text-blue-600" },
+        { emoji: "💭", message: "STRATEGIZING", color: "text-primary" },
         { emoji: "🔄", message: "BOUNCING BACK", color: "text-green-600" },
         { emoji: "🎲", message: "NEXT LEVEL", color: "text-indigo-600" },
       ];
@@ -69,7 +69,7 @@ const generateDynamicGreeting = (): { emoji: string; message: string; color: str
       const declineGreetings = [
         { emoji: "🔧", message: "TUNING UP", color: "text-yellow-600" },
         { emoji: "🎯", message: "RECALIBRATING", color: "text-orange-600" },
-        { emoji: "💡", message: "LEARNING", color: "text-blue-600" },
+        { emoji: "💡", message: "LEARNING", color: "text-primary" },
       ];
       return declineGreetings[Math.floor(Math.random() * declineGreetings.length)];
     }
@@ -88,7 +88,7 @@ const generateDynamicGreeting = (): { emoji: string; message: string; color: str
       if (winRate >= 60) {
         const solidGreetings = [
           { emoji: "🎯", message: "SHARPSHOOTER", color: "text-green-600" },
-          { emoji: "⚡", message: "CONSISTENT", color: "text-blue-600" },
+          { emoji: "⚡", message: "CONSISTENT", color: "text-primary" },
           { emoji: "🔥", message: "SOLID", color: "text-purple-600" },
         ];
         return solidGreetings[Math.floor(Math.random() * solidGreetings.length)];

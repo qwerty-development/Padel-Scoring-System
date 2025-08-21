@@ -1674,7 +1674,7 @@ export default function FriendProfileScreen() {
               Partnership Record
             </Text>
           </View>
-          <Text className="text-blue-600 text-center">
+          <Text className="text-primary text-center">
             No team matches yet - team up for your first victory!
           </Text>
         </View>
@@ -1704,7 +1704,7 @@ export default function FriendProfileScreen() {
         {/* Win rate circle or bar */}
         <View className="items-center mb-4">
           <View className="bg-white rounded-full p-4 shadow-sm">
-            <Text className="text-3xl font-bold text-blue-600">
+            <Text className="text-3xl font-bold text-primary">
               {partnershipRecord.winPercentage}%
             </Text>
           </View>

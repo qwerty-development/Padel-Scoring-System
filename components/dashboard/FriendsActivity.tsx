@@ -27,7 +27,7 @@ export const FriendsActivitySection: React.FC<FriendsActivityProps> = ({
           onPress={() => router.push("/(protected)/(tabs)/friends")}
           className="flex-row items-center"
         >
-          <Text className="text-blue-600 text-sm mr-1">View All</Text>
+          <Text className="text-primary text-sm mr-1">View All</Text>
           <Ionicons name="chevron-forward" size={14} color="#2563eb" />
         </TouchableOpacity>
       </View>

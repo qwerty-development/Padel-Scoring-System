@@ -14,6 +14,7 @@ export interface Friend {
   preferred_hand: string | null;
   court_playing_side: string | null;
   glicko_rating: number | null;
+  avatar_url?: string | null;
 }
 
 export interface MatchData {

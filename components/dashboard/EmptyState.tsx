@@ -24,7 +24,7 @@ export const EmptyState: React.FC = () => {
       <View className="w-full px-6 gap-4">
         <Button
           onPress={() => router.push("/(protected)/(screens)/create-match")}
-          className="w-full bg-blue-500 hover:bg-blue-600"
+          className="w-full bg-blue-500 hover:bg-primary"
           style={{
             shadowColor: "#3B82F6",
             shadowOffset: { width: 0, height: 2 },

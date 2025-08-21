@@ -50,20 +50,10 @@ export default function FriendsScreen() {
   const [sentRequests, setSentRequests] = useState<FriendRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [expandedFriend, setExpandedFriend] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
-  // Make sure to initialize this to false (it's already there)
   const [showRequestsModal, setShowRequestsModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
-  // Make sure to initialize this to false (it's already there)
-  const [friendActivity, setFriendActivity] = useState<{
-    [key: string]: {
-      lastMatch: string | null;
-      scheduledMatch: string | null;
-      matchCount: number;
-    };
-  }>({});
   const scrollViewRef = useRef<ScrollView>(null);
   const sectionRefs = useRef<{ [key: string]: any }>({});
 
@@ -130,12 +120,7 @@ export default function FriendsScreen() {
     }
   }, [session]);
 
-  // Fetch friend activity data when friends list changes
-  useEffect(() => {
-    if (friends.length > 0 && session?.user?.id) {
-      fetchFriendActivity();
-    }
-  }, [friends, session?.user?.id]);
+
 
   const fetchFriends = async () => {
     try {
@@ -206,78 +191,7 @@ export default function FriendsScreen() {
     }
   };
 
-  const fetchFriendActivity = async () => {
-    try {
-      if (!session?.user?.id) return;
 
-      // Get all friend IDs
-      const friendIds = friends.map((friend) => friend.id);
-      if (friendIds.length === 0) return;
-
-      // Query matches where current user and any friend participated
-      const { data, error } = await supabase
-        .from("matches")
-        .select(
-          "id, player1_id, player2_id, player3_id, player4_id, start_time, status",
-        )
-        .or(
-          `and(player1_id.eq.${session.user.id},or(${friendIds.map((id) => `player2_id.eq.${id},player3_id.eq.${id},player4_id.eq.${id}`).join(",")})),` +
-            `and(player2_id.eq.${session.user.id},or(${friendIds.map((id) => `player1_id.eq.${id},player3_id.eq.${id},player4_id.eq.${id}`).join(",")})),` +
-            `and(player3_id.eq.${session.user.id},or(${friendIds.map((id) => `player1_id.eq.${id},player2_id.eq.${id},player4_id.eq.${id}`).join(",")})),` +
-            `and(player4_id.eq.${session.user.id},or(${friendIds.map((id) => `player1_id.eq.${id},player2_id.eq.${id},player3_id.eq.${id}`).join(",")}))`,
-        )
-        .order("start_time", { ascending: false });
-
-      if (error) throw error;
-
-      // Process match data to extract friend activity
-      const activityData: { [key: string]: any } = {};
-      const now = new Date();
-
-      // Initialize activity data for all friends
-      friendIds.forEach((id) => {
-        activityData[id] = {
-          lastMatch: null,
-          scheduledMatch: null,
-          matchCount: 0,
-        };
-      });
-
-      // Process each match
-      data?.forEach((match) => {
-        // Find which friend was in this match
-        const matchFriendIds = [
-          match.player1_id,
-          match.player2_id,
-          match.player3_id,
-          match.player4_id,
-        ].filter((id) => id !== session.user.id && friendIds.includes(id));
-
-        matchFriendIds.forEach((friendId) => {
-          if (!friendId) return;
-
-          // Increment match count
-          activityData[friendId].matchCount++;
-
-          // Check if this is a scheduled match (in future)
-          const matchDate = new Date(match.start_time);
-          if (matchDate > now && match.status === MatchStatus.PENDING) {
-            if (!activityData[friendId].scheduledMatch) {
-              activityData[friendId].scheduledMatch = match.id;
-            }
-          }
-          // Otherwise it's a past match
-          else if (!activityData[friendId].lastMatch) {
-            activityData[friendId].lastMatch = match.id;
-          }
-        });
-      });
-
-      setFriendActivity(activityData);
-    } catch (error) {
-      console.error("Error fetching friend activity:", error);
-    }
-  };
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -430,7 +344,7 @@ export default function FriendsScreen() {
       className={`flex-1 py-3 ${
         activeTab === tab
           ? "border-b-2 border-primary"
-          : "border-b border-border"
+          : "border-b border-border/40"
       }`}
       onPress={() => setActiveTab(tab)}
     >
@@ -443,8 +357,8 @@ export default function FriendsScreen() {
           {label}
         </Text>
         {badge && badge > 0 && (
-          <View className="ml-1 bg-red-500 rounded-full w-5 h-5 items-center justify-center">
-            <Text className="text-white text-xs font-bold">{badge}</Text>
+          <View className="ml-1 bg-destructive rounded-full w-5 h-5 items-center justify-center">
+            <Text className="text-destructive-foreground text-xs font-bold">{badge}</Text>
           </View>
         )}
       </View>
@@ -481,7 +395,7 @@ export default function FriendsScreen() {
 
     return letters.map((letter) => (
       <View key={letter} ref={(ref) => (sectionRefs.current[letter] = ref)}>
-        <View className="px-2 py-1 bg-background/80 sticky top-0 z-10">
+        <View className="px-2 py-1 bg-white dark:bg-gray-800 sticky top-0 z-10">
           <Text className="text-sm font-bold text-muted-foreground">
             {letter}
           </Text>
@@ -491,18 +405,9 @@ export default function FriendsScreen() {
           <FriendCard
             key={friend.id}
             friend={friend}
-            expanded={expandedFriend === friend.id}
-            onToggleExpand={setExpandedFriend}
-            activity={friendActivity[friend.id]}
             onCreateMatch={() => {
               router.push({
                 pathname: "/(protected)/(screens)/create-match",
-                params: { friendId: friend.id },
-              });
-            }}
-            onViewHistory={() => {
-              router.push({
-                pathname: "/(protected)/(screens)/match-history",
                 params: { friendId: friend.id },
               });
             }}
@@ -652,8 +557,8 @@ export default function FriendsScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <View className="flex-1">
+    <SafeAreaView className="flex-1 bg-white dark:bg-gray-900">
+      <View className="flex-1 bg-white dark:bg-gray-900">
         {/* Tab navigation */}
         <View className="flex-row">
           {renderTabButton("friends", "Friends")}

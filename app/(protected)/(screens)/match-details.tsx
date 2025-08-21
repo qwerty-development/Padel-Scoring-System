@@ -191,7 +191,7 @@ const Avatar: React.FC<AvatarProps> = ({
       >
         <Text
           className={`text-xs font-medium mt-2 text-center ${
-            !isCurrentUser ? "text-blue-600 dark:text-blue-400" : ""
+            !isCurrentUser ? "text-primary dark:text-blue-400" : ""
           }`}
           numberOfLines={1}
         >
@@ -255,7 +255,7 @@ const Avatar: React.FC<AvatarProps> = ({
 
       <Text
         className={`text-xs font-medium mt-2 text-center ${
-          !isCurrentUser ? "text-blue-600 dark:text-blue-400" : ""
+          !isCurrentUser ? "text-primary dark:text-blue-400" : ""
         }`}
         numberOfLines={1}
       >
@@ -721,7 +721,7 @@ export default function CleanMatchDetails() {
         <Text className="font-medium">Set {setNumber}</Text>
         <View className="flex-row items-center">
           <Text
-            className={`text-lg font-bold ${team1Score > team2Score ? "text-blue-600" : "text-gray-500"}`}
+            className={`text-lg font-bold ${team1Score > team2Score ? "text-primary" : "text-gray-500"}`}
           >
             {team1Score}
           </Text>
@@ -739,8 +739,8 @@ export default function CleanMatchDetails() {
   if (loading) {
     return (
       <View className="flex-1 bg-white">
-        <SafeAreaView edges={['top']} className="bg-blue-600">
-          <View className="bg-blue-600 px-6 py-4">
+        <SafeAreaView edges={['top']} className="bg-primary">
+          <View className="bg-primary px-6 py-4">
             <View className="flex-row items-center justify-between">
               <TouchableOpacity
                 onPress={() => router.back()}
@@ -768,8 +768,8 @@ export default function CleanMatchDetails() {
   if (!match) {
     return (
       <View className="flex-1 bg-white">
-        <SafeAreaView edges={['top']} className="bg-blue-600">
-          <View className="bg-blue-600 px-6 py-4">
+        <SafeAreaView edges={['top']} className="bg-primary">
+          <View className="bg-primary px-6 py-4">
             <View className="flex-row items-center justify-between">
               <TouchableOpacity
                 onPress={() => router.back()}
@@ -801,8 +801,8 @@ export default function CleanMatchDetails() {
   return (
     <View className="flex-1 bg-white">
       {/* Blue Header with Safe Area */}
-      <SafeAreaView edges={['top']} className="bg-blue-600">
-        <View className="bg-blue-600 px-6 py-4">
+      <SafeAreaView edges={['top']} className="bg-primary">
+        <View className="bg-primary px-6 py-4">
           <View className="flex-row items-center justify-between">
             <TouchableOpacity
               onPress={() => router.back()}
@@ -834,7 +834,7 @@ export default function CleanMatchDetails() {
         }
       >
         {/* Match Details Section */}
-        <View className="bg-white rounded-xl p-6 mb-6 border border-gray-200">
+        <View className="bg-white dark:bg-gray-800 rounded-xl p-6 mb-6 border border-gray-200 dark:border-gray-700">
           <View className="flex-row items-center justify-between">
             {/* Match Information */}
             <View className="flex-1 mr-4">
@@ -871,7 +871,7 @@ export default function CleanMatchDetails() {
 
         {/* Match Breakdown Section */}
         {matchState.hasScores && (
-          <View className="bg-white rounded-xl p-4 mb-6 border border-gray-200">
+          <View className="bg-white dark:bg-gray-800 rounded-xl p-4 mb-6 border border-gray-200 dark:border-gray-700">
                     {/* Header with label and status */}
         <View className="flex-row items-center justify-between mb-3">
           <Text className="text-base text-gray-900">
@@ -1065,7 +1065,7 @@ export default function CleanMatchDetails() {
         )}
 
         {/* Players Section */}
-        <View className="bg-white rounded-xl p-4 mb-6 border border-gray-200">
+        <View className="bg-white dark:bg-gray-800 rounded-xl p-4 mb-6 border border-gray-200 dark:border-gray-700">
           <View className="flex-row items-center justify-between mb-3">
             <Text className="text-base text-gray-900">
               Players
@@ -1271,7 +1271,7 @@ export default function CleanMatchDetails() {
 
         {/* Match Description */}
         {match.description && (
-          <View className="bg-white rounded-xl p-4 mb-6 border border-gray-200">
+          <View className="bg-white dark:bg-gray-800 rounded-xl p-4 mb-6 border border-gray-200 dark:border-gray-700">
             <Text className="text-base text-gray-900 mb-3">
               Description
             </Text>
