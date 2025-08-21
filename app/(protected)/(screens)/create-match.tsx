@@ -20,7 +20,7 @@ import { useCreateMatchState } from "@/hooks/useCreateMatchState";
 
 // Types and constants
 import { WizardStep, StepConfig } from "@/types/create-match";
-import { VALIDATION_CONFIG } from "@/constants/create-match";
+import { VALIDATION_CONFIG, PREDEFINED_COURTS } from "@/constants/create-match";
 
 export default function CreateMatchWizardRefactored() {
   const router = useRouter();
@@ -182,9 +182,10 @@ export default function CreateMatchWizardRefactored() {
         if (!selectedCourt) {
           errors.push("Please select a court");
         }
-        if (selectedTimes.length === 0) {
-          errors.push("Please select at least one time slot");
-        }
+        // Note: Time selection is optional for now as it's still being developed
+        // if (selectedTimes.length === 0) {
+        //   errors.push("Please select at least one time slot");
+        // }
         break;
         
       case WizardStep.PLAYER_SELECTION:
@@ -224,7 +225,7 @@ export default function CreateMatchWizardRefactored() {
         
       case WizardStep.REVIEW_SUBMIT:
         // All previous validations should pass
-        const locationValid = selectedCourt && selectedTimes.length > 0;
+        const locationValid = selectedCourt; // Time selection is optional for now
         const playersValid = selectedPlayers.length === 3;
         const scoresValid = !isPastMatch || (
           isValidPadelScore(set1Score.team1, set1Score.team2) &&
@@ -233,7 +234,7 @@ export default function CreateMatchWizardRefactored() {
         );
         
         if (!locationValid) {
-          errors.push("Please complete location and time selection");
+          errors.push("Please complete location selection");
         }
         if (!playersValid) {
           errors.push("Please select exactly 3 other players");
@@ -301,6 +302,17 @@ export default function CreateMatchWizardRefactored() {
   const [selectedTimes, setSelectedTimes] = React.useState<string[]>([]);
   const [selectedDate, setSelectedDate] = React.useState(dateOptions[0].value);
   const [showSuccessScreen, setShowSuccessScreen] = React.useState(false);
+
+  // Set default court if none selected
+  React.useEffect(() => {
+    if (!selectedCourt) {
+      // Find "The Padel Lab" as default court
+      const defaultCourt = PREDEFINED_COURTS.find(court => court.name === "The Padel Lab");
+      if (defaultCourt) {
+        setSelectedCourt(defaultCourt);
+      }
+    }
+  }, [selectedCourt, setSelectedCourt]);
 
   // Enhanced createMatch function with haptic feedback and success screen
   const handleCreateMatch = async () => {
@@ -410,7 +422,7 @@ export default function CreateMatchWizardRefactored() {
                 className="bg-gray-50 rounded-2xl p-4 flex-row items-center justify-between border border-gray-200"
               >
                 <Text className="text-gray-900 font-medium text-base">
-                  {selectedCourt ? selectedCourt.name : "The Padel Club"}
+                  {selectedCourt ? selectedCourt.name : "Select a court"}
                 </Text>
                 <Ionicons name="search" size={20} color="#6b7280" />
               </TouchableOpacity>
